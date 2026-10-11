@@ -1,0 +1,20 @@
+[package]
+name = "humon-native"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Standalone on purpose: a spike to compare gpui against the Tauri build.
+[workspace]
+
+[dependencies]
+gpui-kit = "0.7"
+mongodb = "3.9.1"
+futures-util = "0.3"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+
+[profile.release]
+debug = false
+strip = true
