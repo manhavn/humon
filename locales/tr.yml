@@ -1,0 +1,102 @@
+# Türkçe
+_version: 1
+_language_name: Türkçe
+
+app.empty_first: Soldaki formdan ilk bağlantını ekle.
+app.empty_pick: Soldan bir bağlantı ve collection seç. ⌘ + tık ya da orta tık yeni sekmede açar.
+
+sidebar.connections: Bağlantılar
+sidebar.search: Collection ara…
+sidebar.connecting: Bağlanıyor…
+sidebar.loading: Yükleniyor…
+sidebar.no_collections: Collection yok
+sidebar.no_match: Eşleşen collection yok
+sidebar.confirm_delete: Sil?
+
+form.name: Ad, örn. Prod Atlas
+form.uri: mongodb+srv://kullanici:sifre@cluster.mongodb.net
+form.color: Renk
+form.no_color: yok
+form.cancel: İptal
+form.save: Kaydet ve bağlan
+form.uri_required: Bağlantı adresi boş olamaz
+
+tab.filter_placeholder: "{ alan: 'değer' }"
+tab.projection_placeholder: "{ alan: 1 }"
+tab.find: Bul
+tab.reset: Sıfırla
+tab.add: + Ekle
+tab.loading: Yükleniyor…
+tab.no_docs: Doküman yok
+tab.counting: sayılıyor…
+tab.many: çok
+tab.range: "%{from}–%{to} / %{total}"
+tab.inserted: "%{n} doküman eklendi"
+tab.new_document: Yeni doküman
+tab.array_hint: "Birden fazla için dizi yaz: [{…}, {…}]"
+tab.save_hint: ⌘↵ kaydet
+tab.cancel: Vazgeç
+tab.save: Kaydet
+tab.saving: Kaydediliyor…
+tab.insert: Ekle
+
+card.edit: Düzenle
+card.clone: Klonla
+card.copy: Kopyala
+card.delete: Sil
+card.confirm_delete: Emin misin?
+
+tree.fields: "{ %{n} alan }"
+tree.array: "Dizi [%{n}]"
+
+status.counting: sayılıyor…
+status.count_slow: sayım çok uzun sürdü
+status.documents: "%{n} doküman"
+status.filtered: (filtreli)
+status.running: sorgu çalışıyor…
+status.took: "sorgu %{time}"
+
+kind.view: view
+kind.timeseries: timeseries
+
+errors.gone: doküman bulunamadı; başka biri silmiş olabilir
+errors.id_immutable: _id değiştirilemez
+errors.invalid_id: "geçersiz _id: %{error}"
+
+settings.title: Ayarlar
+settings.language: Dil
+settings.contribute: Dilin yok mu? locales/en.yml dosyasını locales/<kod>.yml olarak kopyala, çevir ve pull request gönder.
+settings.close: Kapat
+
+query.at: "%{msg} (satır %{line}, sütun %{col})"
+query.must_be_object: "sorgu { ... } biçiminde bir nesne olmalı"
+query.items_must_be_docs: "her öğe { ... } biçiminde bir doküman olmalı"
+query.trailing: fazladan karakter
+query.expected_value: değer bekleniyordu
+query.expected_char: "'%{c}' bekleniyordu"
+query.unexpected_char: "beklenmeyen karakter '%{c}'"
+query.invalid_ejson: "geçersiz extended JSON: %{error}"
+query.expected_key: alan adı bekleniyordu
+query.unclosed_string: kapanmamış metin
+query.invalid_escape: geçersiz \u kaçışı
+query.unclosed_regex: kapanmamış regex
+query.expected_number: sayı bekleniyordu
+query.invalid_number: "geçersiz sayı '%{text}'"
+query.invalid_object_id: "geçersiz ObjectId: %{value}"
+query.object_id_string: ObjectId metin almalı
+query.number_int_value: NumberInt değer almalı
+query.number_int_range: NumberInt aralık dışında
+query.number_long_value: NumberLong değer almalı
+query.number_decimal_value: NumberDecimal değer almalı
+query.invalid_decimal: "geçersiz decimal: %{value}"
+query.invalid_uuid: "geçersiz UUID: %{value}"
+query.uuid_string: UUID metin almalı
+query.bin_data_subtype: geçersiz BinData alt tipi
+query.bin_data_form: 'BinData(altTip, "base64") biçiminde olmalı'
+query.invalid_timestamp: geçersiz Timestamp
+query.timestamp_form: Timestamp(saniye, sayaç) biçiminde olmalı
+query.regexp_string: RegExp metin almalı
+query.unknown: "bilinmeyen ifade: %{name}"
+query.integer_expected_value: "tam sayı bekleniyordu: %{value}"
+query.integer_expected: tam sayı bekleniyordu
+query.invalid_date: "geçersiz tarih: %{value}"

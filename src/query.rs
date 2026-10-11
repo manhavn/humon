@@ -4,6 +4,7 @@
 //! (`{"$oid": "..."}`) is accepted too, so values copied from the UI paste back in.
 
 use mongodb::bson::oid::ObjectId;
+use rust_i18n::t;
 use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
 
@@ -13,13 +14,13 @@ pub fn parse_document(src: &str) -> Result<Document, String> {
     }
     match parse_value(src)? {
         Bson::Document(d) => Ok(d),
-        _ => Err("sorgu { ... } biçiminde bir nesne olmalı".into()),
+        _ => Err(t!("query.must_be_object").into()),
     }
 }
 
 /// One document or an array of them, as typed into the insert editor.
 pub fn parse_documents(src: &str) -> Result<Vec<Document>, String> {
-    let not_doc = || "her öğe { ... } biçiminde bir doküman olmalı".to_string();
+    let not_doc = || t!("query.items_must_be_docs").to_string();
     match parse_value(src)? {
         Bson::Document(d) => Ok(vec![d]),
         Bson::Array(items) if !items.is_empty() => items
@@ -38,7 +39,7 @@ fn parse_value(src: &str) -> Result<Bson, String> {
     let value = p.value()?;
     p.ws();
     if p.pos < src.len() {
-        return Err(p.err("fazladan karakter"));
+        return Err(p.err(&t!("query.trailing")));
     }
     Ok(value)
 }
@@ -103,7 +104,7 @@ impl Parser<'_> {
         if self.eat(c) {
             Ok(())
         } else {
-            Err(self.err(&format!("'{c}' bekleniyordu")))
+            Err(self.err(&t!("query.expected_char", c = c)))
         }
     }
 
@@ -116,13 +117,13 @@ impl Parser<'_> {
             .chars()
             .count()
             + 1;
-        format!("{msg} (satır {line}, sütun {col})")
+        t!("query.at", msg = msg, line = line, col = col).into()
     }
 
     fn value(&mut self) -> Result<Bson, String> {
         self.ws();
         match self.peek() {
-            None => Err(self.err("değer bekleniyordu")),
+            None => Err(self.err(&t!("query.expected_value"))),
             Some('{') => self.object(),
             Some('[') => self.array(),
             Some('"' | '\'') => Ok(Bson::String(self.string()?)),
@@ -152,7 +153,7 @@ impl Parser<'_> {
         if doc.len() == 1 && EJSON_KEYS.contains(&doc.keys().next().unwrap().as_str()) {
             // Round-trip through relaxed JSON so the bson crate decodes the typed value.
             return Bson::try_from(Bson::Document(doc).into_relaxed_extjson())
-                .map_err(|e| self.err(&format!("geçersiz extended JSON: {e}")));
+                .map_err(|e| self.err(&t!("query.invalid_ejson", error = e)));
         }
         Ok(Bson::Document(doc))
     }
@@ -179,7 +180,7 @@ impl Parser<'_> {
             Some('"' | '\'') => self.string(),
             // Dots are allowed unquoted so `a.b: 1` works without quoting the path.
             Some(c) if is_ident_start(c) || c.is_ascii_digit() => Ok(self.ident(true)),
-            _ => Err(self.err("alan adı bekleniyordu")),
+            _ => Err(self.err(&t!("query.expected_key"))),
         }
     }
 
@@ -200,7 +201,7 @@ impl Parser<'_> {
         let mut out = String::new();
         loop {
             match self.bump() {
-                None => return Err(self.err("kapanmamış metin")),
+                None => return Err(self.err(&t!("query.unclosed_string"))),
                 Some(c) if c == quote => return Ok(out),
                 Some('\\') => match self.bump() {
                     Some('n') => out.push('\n'),
@@ -210,7 +211,7 @@ impl Parser<'_> {
                     Some('f') => out.push('\u{c}'),
                     Some('u') => out.push(self.unicode_escape()?),
                     Some(c) => out.push(c),
-                    None => return Err(self.err("kapanmamış metin")),
+                    None => return Err(self.err(&t!("query.unclosed_string"))),
                 },
                 Some(c) => out.push(c),
             }
@@ -223,17 +224,17 @@ impl Parser<'_> {
             self.pos += 2;
             let lo = self.hex4()?;
             let code = 0x10000 + ((hi - 0xD800) << 10) + (lo.wrapping_sub(0xDC00) & 0x3FF);
-            return char::from_u32(code).ok_or_else(|| self.err("geçersiz \\u kaçışı"));
+            return char::from_u32(code).ok_or_else(|| self.err(&t!("query.invalid_escape")));
         }
-        char::from_u32(hi).ok_or_else(|| self.err("geçersiz \\u kaçışı"))
+        char::from_u32(hi).ok_or_else(|| self.err(&t!("query.invalid_escape")))
     }
 
     fn hex4(&mut self) -> Result<u32, String> {
         let digits = self
             .src
             .get(self.pos..self.pos + 4)
-            .ok_or_else(|| self.err("geçersiz \\u kaçışı"))?;
-        let v = u32::from_str_radix(digits, 16).map_err(|_| self.err("geçersiz \\u kaçışı"))?;
+            .ok_or_else(|| self.err(&t!("query.invalid_escape")))?;
+        let v = u32::from_str_radix(digits, 16).map_err(|_| self.err(&t!("query.invalid_escape")))?;
         self.pos += 4;
         Ok(v)
     }
@@ -244,7 +245,7 @@ impl Parser<'_> {
         let mut in_class = false;
         loop {
             match self.bump() {
-                None | Some('\n') => return Err(self.err("kapanmamış regex")),
+                None | Some('\n') => return Err(self.err(&t!("query.unclosed_regex"))),
                 Some('\\') => {
                     self.bump();
                 }
@@ -269,7 +270,7 @@ impl Parser<'_> {
                 return match word.as_str() {
                     "Infinity" if negative => Ok(Bson::Double(f64::NEG_INFINITY)),
                     "Infinity" => Ok(Bson::Double(f64::INFINITY)),
-                    _ => Err(self.err("sayı bekleniyordu")),
+                    _ => Err(self.err(&t!("query.expected_number"))),
                 };
             }
         }
@@ -283,7 +284,7 @@ impl Parser<'_> {
             }
         }
         let text = &self.src[start..self.pos];
-        number_from_str(text).ok_or_else(|| self.err(&format!("geçersiz sayı '{text}'")))
+        number_from_str(text).ok_or_else(|| self.err(&t!("query.invalid_number", text = text)))
     }
 
     fn ident_value(&mut self) -> Result<Bson, String> {
@@ -336,9 +337,9 @@ impl Parser<'_> {
             "ObjectId" | "ObjectID" => match arg(0) {
                 None => Bson::ObjectId(ObjectId::new()),
                 Some(Bson::String(s)) => Bson::ObjectId(
-                    ObjectId::parse_str(s).map_err(|_| format!("geçersiz ObjectId: {s}"))?,
+                    ObjectId::parse_str(s).map_err(|_| t!("query.invalid_object_id", value = s).to_string())?,
                 ),
-                _ => return Err("ObjectId metin almalı".into()),
+                _ => return Err(t!("query.object_id_string").into()),
             },
             "ISODate" | "Date" => match arg(0) {
                 None => Bson::DateTime(DateTime::now()),
@@ -346,11 +347,11 @@ impl Parser<'_> {
                 Some(n) => Bson::DateTime(DateTime::from_millis(as_i64(n)?)),
             },
             "NumberInt" | "Int32" => {
-                let v = as_i64(arg(0).ok_or("NumberInt değer almalı")?)?;
-                Bson::Int32(i32::try_from(v).map_err(|_| "NumberInt aralık dışında")?)
+                let v = as_i64(arg(0).ok_or_else(|| t!("query.number_int_value").to_string())?)?;
+                Bson::Int32(i32::try_from(v).map_err(|_| t!("query.number_int_range").to_string())?)
             }
             "NumberLong" | "Long" | "Int64" => {
-                Bson::Int64(as_i64(arg(0).ok_or("NumberLong değer almalı")?)?)
+                Bson::Int64(as_i64(arg(0).ok_or_else(|| t!("query.number_long_value").to_string())?)?)
             }
             "NumberDecimal" | "Decimal128" => {
                 let text = match arg(0) {
@@ -358,45 +359,45 @@ impl Parser<'_> {
                     Some(Bson::Int32(n)) => n.to_string(),
                     Some(Bson::Int64(n)) => n.to_string(),
                     Some(Bson::Double(n)) => n.to_string(),
-                    _ => return Err("NumberDecimal değer almalı".into()),
+                    _ => return Err(t!("query.number_decimal_value").into()),
                 };
                 Bson::Decimal128(
                     text.parse::<Decimal128>()
-                        .map_err(|_| format!("geçersiz decimal: {text}"))?,
+                        .map_err(|_| t!("query.invalid_decimal", value = text).to_string())?,
                 )
             }
             "UUID" => match arg(0) {
                 Some(Bson::String(s)) => {
-                    Bson::from(Uuid::parse_str(s).map_err(|_| format!("geçersiz UUID: {s}"))?)
+                    Bson::from(Uuid::parse_str(s).map_err(|_| t!("query.invalid_uuid", value = s).to_string())?)
                 }
-                _ => return Err("UUID metin almalı".into()),
+                _ => return Err(t!("query.uuid_string").into()),
             },
             "BinData" => match (arg(0), arg(1)) {
                 (Some(sub), Some(Bson::String(b64))) => {
                     let sub =
-                        u8::try_from(as_i64(sub)?).map_err(|_| "geçersiz BinData alt tipi")?;
+                        u8::try_from(as_i64(sub)?).map_err(|_| t!("query.bin_data_subtype").to_string())?;
                     Bson::Binary(
                         Binary::from_base64(b64, BinarySubtype::from(sub))
                             .map_err(|e| e.to_string())?,
                     )
                 }
-                _ => return Err("BinData(altTip, \"base64\") biçiminde olmalı".into()),
+                _ => return Err(t!("query.bin_data_form").into()),
             },
             "Timestamp" => match (arg(0), arg(1)) {
                 (Some(t), Some(i)) => Bson::Timestamp(Timestamp {
-                    time: u32::try_from(as_i64(t)?).map_err(|_| "geçersiz Timestamp")?,
-                    increment: u32::try_from(as_i64(i)?).map_err(|_| "geçersiz Timestamp")?,
+                    time: u32::try_from(as_i64(t)?).map_err(|_| t!("query.invalid_timestamp").to_string())?,
+                    increment: u32::try_from(as_i64(i)?).map_err(|_| t!("query.invalid_timestamp").to_string())?,
                 }),
-                _ => return Err("Timestamp(saniye, sayaç) biçiminde olmalı".into()),
+                _ => return Err(t!("query.timestamp_form").into()),
             },
             "RegExp" => match (arg(0), arg(1)) {
                 (Some(Bson::String(p)), None) => regex(p.clone(), ""),
                 (Some(Bson::String(p)), Some(Bson::String(f))) => regex(p.clone(), f),
-                _ => return Err("RegExp metin almalı".into()),
+                _ => return Err(t!("query.regexp_string").into()),
             },
             "MinKey" => Bson::MinKey,
             "MaxKey" => Bson::MaxKey,
-            _ => return Err(format!("bilinmeyen ifade: {name}")),
+            _ => return Err(t!("query.unknown", name = name).into()),
         })
     }
 }
@@ -436,8 +437,8 @@ fn as_i64(v: &Bson) -> Result<i64, String> {
         Bson::String(s) => s
             .trim()
             .parse()
-            .map_err(|_| format!("tam sayı bekleniyordu: {s}")),
-        _ => Err("tam sayı bekleniyordu".into()),
+            .map_err(|_| t!("query.integer_expected_value", value = s).to_string()),
+        _ => Err(t!("query.integer_expected").into()),
     }
 }
 
@@ -455,7 +456,7 @@ fn parse_date(s: &str) -> Result<DateTime, String> {
     if !time_part.ends_with(['Z', 'z']) && !time_part.contains(['+', '-']) {
         text.push('Z');
     }
-    DateTime::parse_rfc3339_str(&text).map_err(|_| format!("geçersiz tarih: {s}"))
+    DateTime::parse_rfc3339_str(&text).map_err(|_| t!("query.invalid_date", value = s).to_string())
 }
 
 #[cfg(test)]
@@ -586,7 +587,7 @@ mod tests {
     #[test]
     fn errors_point_at_location() {
         let e = parse_document("{ a: 1,\n  b: }").unwrap_err();
-        assert!(e.contains("satır 2"), "{e}");
+        assert!(e.contains("line 2"), "{e}");
         assert!(parse_document("{ a: Foo(1) }").unwrap_err().contains("Foo"));
         assert!(parse_document("[1]").is_err());
         assert!(parse_document("{ a: 1 } x").is_err());

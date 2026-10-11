@@ -1,50 +1,123 @@
-# humon
+<p align="center">
+  <img src="assets/logo.png" width="160" alt="humon logo">
+</p>
 
-Hafif bir MongoDB istemcisi; Compass'a alternatif. Arayüz [gpui](https://www.gpui.rs)
-ile (tarayıcı motoru yok), veritabanı tarafı resmi Rust `mongodb` sürücüsüyle.
+<h1 align="center">humon</h1>
 
-Aynı veriyle ölçüm (100 doküman açık): humon ~33-41 MB, Compass ~290 MB.
+<p align="center">
+  A small, fast MongoDB client for your desktop.<br>
+  Written in Rust, drawn with <a href="https://www.gpui.rs">gpui</a>. No browser inside.
+</p>
 
-## Çalıştırma
+---
+
+## Why?
+
+MongoDB Compass is great, but it is heavy. It ships a whole Chromium, and on
+my machine it used close to 300 MB of RAM just to look at a few documents.
+I wanted something that opens instantly and stays out of the way.
+
+So humon was born. With the same collection open (100 documents):
+
+| | RAM |
+| --- | --- |
+| MongoDB Compass | ~290 MB |
+| **humon** | **~40 MB** |
+
+## 🤖 Built entirely by AI
+
+Every line of code in this repo was written by an AI ([Claude](https://claude.com/claude-code)),
+with a human giving directions, testing, and saying "no, not like that" a lot.
+That includes this README. Treat it as an experiment: it works well for me,
+but read the code before you trust it with anything important.
+
+## ⚠️ Read this before you use it
+
+**Your connections are saved on your computer in plain text.**
+
+humon keeps saved connections in
+`~/Library/Application Support/dev.muzaffer.humon/`. Passwords are split into
+`secrets.json`, which only your user can read, but **they are not encrypted**.
+Anyone or anything that can read your files can read them.
+
+Please don't save production or other sensitive credentials in humon yet.
+Use it with local databases, test clusters, or read-only users. Encrypting
+these (macOS Keychain) is the first item on the to-do list below.
+
+## Features
+
+- Save connections and give each one a color; its tabs carry the same color
+- Browse connections → databases → collections, with a quick collection search
+- Open collections in tabs (⌘-click or middle-click opens another tab)
+- Filter, sort and project with mongo shell syntax:
+  `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
+- Colored document tree; edit, clone, copy, delete and insert documents
+- Helpful typing: brackets close themselves, `Obj` becomes `ObjectId("")`,
+  and pasted ids, UUIDs and dates are wrapped for you
+- Status bar with document count and query time
+- English and Turkish, and adding a language is one file (see below)
+
+## Getting started
+
+You need [Rust](https://rustup.rs) and macOS (other platforms are untested).
 
 ```sh
 cargo run --release
 ```
 
-İlk derleme birkaç dakika sürer; sonrakiler saniyeler.
+The first build takes a few minutes; after that it is quick.
 
-## Özellikler
+To get a real app with an icon in your Dock:
 
-- Kayıtlı bağlantılar (`~/Library/Application Support/dev.muzaffer.humon/`)
-- Bağlantı → veritabanı → collection ağacı, collection başına sekme
-  (⌘ + tık veya orta tık yeni sekme)
-- Filter / Sort / Project shell sözdizimiyle: `{ _id: ObjectId("…"), at: { $gt: ISODate("2024-01-01") } }`
-- Renkli doküman ağacı; düzenle, klonla, kopyala, sil, ekle
-- Yazarken: parantez/tırnak kapatma, `Obj` → `ObjectId("")` tamamlama,
-  yapıştırılan id/UUID/tarihi sarma
+```sh
+./scripts/bundle-macos.sh
+open target/release/humon.app
+```
 
-## Kod
+## Add your language
 
-| Dosya | İçerik |
-| --- | --- |
-| `src/app.rs` | Ana pencere, kenar çubuğu, sekme çubuğu |
-| `src/tab.rs` | Collection sekmesi: sorgu, sayfalama, doküman ağacı, editörler |
-| `src/mongo.rs` | Mongo işlemleri (tokio üzerinde) |
-| `src/query.rs` | Shell sözdizimi → BSON |
-| `src/shell.rs` | Extended JSON → shell metni |
-| `src/highlight.rs` | Renklendirme için sözdizimi ayrıştırıcı |
-| `src/smart.rs` | Yazma yardımcıları |
-| `src/store.rs` | Kayıtlı bağlantılar |
+All text lives in `locales/`, one file per language.
 
-## Test
+1. Copy `locales/en.yml` to `locales/<code>.yml` (for example `de.yml`).
+2. Translate the values, including `_language_name`. Keep `%{...}` as it is.
+3. Run `cargo test --release`. It tells you if a key is missing.
+
+That's it, no code changes. Your language shows up in Settings (⚙).
+Pull requests are very welcome.
+
+## Running the tests
 
 ```sh
 cargo test --release
-# Canlı sunucuya karşı (shop seed verisiyle):
+
+# Also against a real server (expects the "shop" test data):
 HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignored
 ```
 
-## Bilinen eksikler
+## To do
 
-- Şifreler `secrets.json` içinde açık metin (dosya izni 0600); Keychain'e taşınacak.
-- `.app` paketi yok; şimdilik `target/release/humon`.
+- [ ] **Encrypt saved connections** (store passwords in the macOS Keychain)
+- [ ] Signed and notarized releases you can just download
+- [ ] Aggregation pipeline editor
+- [ ] Indexes: list, create, drop, and `explain`
+- [ ] Export to JSON / CSV
+- [ ] Try it on Windows and Linux
+- [ ] UI polish: fonts, sizes, spacing
+
+## How it's built
+
+| File | What it does |
+| --- | --- |
+| `src/app.rs` | Window, sidebar, tabs bar, settings |
+| `src/tab.rs` | A collection tab: query bar, paging, document tree, editors |
+| `src/mongo.rs` | Talking to MongoDB (runs on tokio) |
+| `src/query.rs` | Mongo shell syntax → BSON |
+| `src/shell.rs` | Extended JSON → shell text |
+| `src/highlight.rs` | Syntax colors for the tree and the editor |
+| `src/smart.rs` | The typing helpers |
+| `src/store.rs` | Saved connections |
+| `src/settings.rs` | Settings and language |
+
+## License
+
+[MIT](LICENSE)

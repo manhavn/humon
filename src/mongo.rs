@@ -2,7 +2,7 @@
 //! tokio, outside gpui's executor.
 
 use std::sync::LazyLock;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::TryStreamExt;
 use mongodb::Client;
@@ -12,13 +12,17 @@ use mongodb::options::ClientOptions;
 use mongodb::results::CollectionType;
 use serde_json::Value;
 
+use rust_i18n::t;
+
 use crate::query;
 
 /// gpui runs its own executor; the driver needs tokio, so it gets a runtime of its own.
 pub static RT: LazyLock<tokio::runtime::Runtime> =
     LazyLock::new(|| tokio::runtime::Runtime::new().expect("tokio runtime"));
 
-pub const GONE: &str = "doküman bulunamadı; başka biri silmiş olabilir";
+pub fn gone() -> String {
+    t!("errors.gone").into()
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CollKind {
@@ -51,7 +55,7 @@ fn to_json(doc: Document) -> Value {
 
 /// `_id` is held as the canonical extended JSON the UI was given, so it maps back exactly.
 fn parse_id(id: &Value) -> Result<Bson, String> {
-    Bson::try_from(id.clone()).map_err(|e| format!("geçersiz _id: {e}"))
+    Bson::try_from(id.clone()).map_err(|e| t!("errors.invalid_id", error = e).to_string())
 }
 
 pub async fn open(uri: String) -> Result<Client, String> {
@@ -113,8 +117,15 @@ pub struct FindArgs {
     pub limit: i64,
 }
 
-/// One page of documents as canonical extended JSON.
-pub async fn find(client: Client, db: String, coll: String, args: FindArgs) -> Result<Vec<Value>, String> {
+/// A page of documents as canonical extended JSON, and how long the server
+/// round trip took (from sending the query to the last batch).
+#[derive(Debug)]
+pub struct Page {
+    pub docs: Vec<Value>,
+    pub took: Duration,
+}
+
+pub async fn find(client: Client, db: String, coll: String, args: FindArgs) -> Result<Page, String> {
     let filter = parse_arg("Filter", &args.filter)?;
     let sort = parse_arg("Sort", &args.sort)?;
     let projection = parse_arg("Project", &args.projection)?;
@@ -130,8 +141,10 @@ pub async fn find(client: Client, db: String, coll: String, args: FindArgs) -> R
     if !projection.is_empty() {
         find = find.projection(projection);
     }
+    let start = Instant::now();
     let docs: Vec<Document> = find.await.map_err(err)?.try_collect().await.map_err(err)?;
-    Ok(docs.into_iter().map(to_json).collect())
+    let took = start.elapsed();
+    Ok(Page { docs: docs.into_iter().map(to_json).collect(), took })
 }
 
 /// Total for the pager. `None` means an exact count would take too long.
@@ -169,7 +182,7 @@ pub async fn replace(client: Client, db: String, coll: String, id: Value, src: S
     let edited = query::parse_document(&src)?;
     let mut doc = Document::new();
     match edited.get("_id") {
-        Some(v) if *v != id => return Err("_id değiştirilemez".into()),
+        Some(v) if *v != id => return Err(t!("errors.id_immutable").into()),
         // Keep _id first, where MongoDB stores it anyway.
         _ => doc.insert("_id", id.clone()),
     };
@@ -181,7 +194,7 @@ pub async fn replace(client: Client, db: String, coll: String, id: Value, src: S
         .await
         .map_err(err)?;
     if res.matched_count == 0 {
-        return Err(GONE.into());
+        return Err(gone());
     }
     Ok(())
 }
@@ -194,7 +207,7 @@ pub async fn delete(client: Client, db: String, coll: String, id: Value) -> Resu
         .await
         .map_err(err)?;
     if res.deleted_count == 0 {
-        return Err(GONE.into());
+        return Err(gone());
     }
     Ok(())
 }
@@ -243,15 +256,16 @@ mod tests {
 
         let page = find(c.clone(), db.clone(), users.clone(), args("{ age: { $gte: 60 } }", "{ age: -1, name: 1 }", "{ _id: 0, name: 1, age: 1, big: 1 }", 0, 5))
             .await
-            .unwrap();
+            .unwrap()
+            .docs;
         assert_eq!(page.len(), 5);
         let first = page[0].as_object().unwrap();
         assert_eq!(first.keys().collect::<Vec<_>>(), ["name", "age", "big"]);
         assert_eq!(first["age"], json!({ "$numberInt": "67" }));
         assert_eq!(first["big"], json!({ "$numberLong": "9007199254740993" }));
-        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("", "{ name: 1 }", "", 135, 20)).await.unwrap().len(), 2);
-        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ createdAt: { $lt: ISODate('2024-01-03') } }", "", "", 0, 50)).await.unwrap().len(), 2);
-        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ name: /^user1\\d$/ }", "", "", 0, 50)).await.unwrap().len(), 10);
+        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("", "{ name: 1 }", "", 135, 20)).await.unwrap().docs.len(), 2);
+        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ createdAt: { $lt: ISODate('2024-01-03') } }", "", "", 0, 50)).await.unwrap().docs.len(), 2);
+        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ name: /^user1\\d$/ }", "", "", 0, 50)).await.unwrap().docs.len(), 10);
         let bad = find(c.clone(), db.clone(), users.clone(), args("{ age: ", "", "", 0, 5)).await.unwrap_err();
         assert!(bad.starts_with("Filter:"), "{bad}");
 
@@ -263,10 +277,10 @@ mod tests {
         let stored = get(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap().unwrap();
         assert_eq!(stored, json!({ "_id": "k", "n": { "$numberLong": "4" }, "extra": true }));
         let changed_id = replace(c.clone(), db.clone(), scratch.clone(), key.clone(), "{ _id: 'other' }".into()).await.unwrap_err();
-        assert_eq!(changed_id, "_id değiştirilemez");
+        assert_eq!(changed_id, t!("errors.id_immutable"));
         delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap();
-        assert_eq!(delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap_err(), GONE);
-        assert_eq!(replace(c.clone(), db.clone(), scratch.clone(), key, "{}".into()).await.unwrap_err(), GONE);
+        assert_eq!(delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap_err(), gone());
+        assert_eq!(replace(c.clone(), db.clone(), scratch.clone(), key, "{}".into()).await.unwrap_err(), gone());
         c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
     }
 }

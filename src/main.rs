@@ -4,6 +4,7 @@ mod app;
 mod highlight;
 mod mongo;
 mod query;
+mod settings;
 mod shell;
 mod smart;
 mod store;
@@ -12,7 +13,11 @@ mod tab;
 use gpui_kit::component::Theme;
 use gpui_kit::*;
 
+// Every file in locales/ becomes a selectable language; see locales/en.yml.
+rust_i18n::i18n!("locales", fallback = "en");
+
 fn main() {
+    rust_i18n::set_locale(&settings::initial_language(&settings::Settings::load()));
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);

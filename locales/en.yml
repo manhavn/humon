@@ -1,0 +1,104 @@
+# English. To add a language, copy this file to locales/<code>.yml
+# (for example de.yml), translate the values and rebuild; it then shows up
+# in Settings. Keep the %{...} placeholders as they are.
+_version: 1
+_language_name: English
+
+app.empty_first: Add your first connection with the form on the left.
+app.empty_pick: Pick a connection and a collection on the left. ⌘-click or middle-click opens a new tab.
+
+sidebar.connections: Connections
+sidebar.search: Search collections…
+sidebar.connecting: Connecting…
+sidebar.loading: Loading…
+sidebar.no_collections: No collections
+sidebar.no_match: No matching collections
+sidebar.confirm_delete: Delete?
+
+form.name: Name, e.g. Prod Atlas
+form.uri: mongodb+srv://user:password@cluster.mongodb.net
+form.color: Color
+form.no_color: none
+form.cancel: Cancel
+form.save: Save and connect
+form.uri_required: The connection string can't be empty
+
+tab.filter_placeholder: "{ field: 'value' }"
+tab.projection_placeholder: "{ field: 1 }"
+tab.find: Find
+tab.reset: Reset
+tab.add: + Add
+tab.loading: Loading…
+tab.no_docs: No documents
+tab.counting: counting…
+tab.many: many
+tab.range: "%{from}–%{to} of %{total}"
+tab.inserted: "%{n} document(s) inserted"
+tab.new_document: New document
+tab.array_hint: "For several, write an array: [{…}, {…}]"
+tab.save_hint: ⌘↵ to save
+tab.cancel: Cancel
+tab.save: Save
+tab.saving: Saving…
+tab.insert: Insert
+
+card.edit: Edit
+card.clone: Clone
+card.copy: Copy
+card.delete: Delete
+card.confirm_delete: Sure?
+
+tree.fields: "{ %{n} fields }"
+tree.array: "Array [%{n}]"
+
+status.counting: counting…
+status.count_slow: count took too long
+status.documents: "%{n} documents"
+status.filtered: (filtered)
+status.running: query running…
+status.took: "query %{time}"
+
+kind.view: view
+kind.timeseries: timeseries
+
+errors.gone: document not found; someone may have deleted it
+errors.id_immutable: _id can't be changed
+errors.invalid_id: "invalid _id: %{error}"
+
+settings.title: Settings
+settings.language: Language
+settings.contribute: Missing your language? Copy locales/en.yml to locales/<code>.yml, translate it and send a pull request.
+settings.close: Close
+
+query.at: "%{msg} (line %{line}, column %{col})"
+query.must_be_object: "the query must be an object: { ... }"
+query.items_must_be_docs: "every item must be a document: { ... }"
+query.trailing: unexpected trailing characters
+query.expected_value: value expected
+query.expected_char: "'%{c}' expected"
+query.unexpected_char: "unexpected character '%{c}'"
+query.invalid_ejson: "invalid extended JSON: %{error}"
+query.expected_key: field name expected
+query.unclosed_string: unterminated string
+query.invalid_escape: invalid \u escape
+query.unclosed_regex: unterminated regex
+query.expected_number: number expected
+query.invalid_number: "invalid number '%{text}'"
+query.invalid_object_id: "invalid ObjectId: %{value}"
+query.object_id_string: ObjectId takes a string
+query.number_int_value: NumberInt takes a value
+query.number_int_range: NumberInt out of range
+query.number_long_value: NumberLong takes a value
+query.number_decimal_value: NumberDecimal takes a value
+query.invalid_decimal: "invalid decimal: %{value}"
+query.invalid_uuid: "invalid UUID: %{value}"
+query.uuid_string: UUID takes a string
+query.bin_data_subtype: invalid BinData subtype
+query.bin_data_form: 'BinData must be BinData(subtype, "base64")'
+query.invalid_timestamp: invalid Timestamp
+query.timestamp_form: Timestamp must be Timestamp(seconds, increment)
+query.regexp_string: RegExp takes a string
+query.unknown: "unknown expression: %{name}"
+query.integer_expected_value: "integer expected: %{value}"
+query.integer_expected: integer expected
+query.invalid_date: "invalid date: %{value}"

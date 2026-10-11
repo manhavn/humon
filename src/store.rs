@@ -22,6 +22,9 @@ pub struct SavedConnection {
     pub name: String,
     /// Connection string with the password removed; safe to show.
     pub uri: String,
+    /// Label color as `#rrggbb`; marks the connection and its tabs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 fn config_dir() -> Result<PathBuf, String> {
@@ -72,14 +75,14 @@ pub fn resolve_uri(conn: &SavedConnection) -> Result<String, String> {
     })
 }
 
-pub fn save(name: &str, uri: &str) -> Result<SavedConnection, String> {
+pub fn save(name: &str, uri: &str, color: Option<String>) -> Result<SavedConnection, String> {
     let (uri, password) = split_password(uri.trim());
     let id = ObjectId::new().to_hex();
     let name = match name.trim() {
         "" => display_host(&uri),
         n => n.to_string(),
     };
-    let conn = SavedConnection { id: id.clone(), name, uri };
+    let conn = SavedConnection { id: id.clone(), name, uri, color };
     let mut all = list()?;
     all.push(conn.clone());
     if let Some(password) = password {
@@ -89,6 +92,14 @@ pub fn save(name: &str, uri: &str) -> Result<SavedConnection, String> {
     }
     write_json(&config_dir()?.join(CONNECTIONS_FILE), &all)?;
     Ok(conn)
+}
+
+pub fn set_color(id: &str, color: Option<String>) -> Result<(), String> {
+    let mut all = list()?;
+    if let Some(conn) = all.iter_mut().find(|c| c.id == id) {
+        conn.color = color;
+    }
+    write_json(&config_dir()?.join(CONNECTIONS_FILE), &all)
 }
 
 pub fn delete(id: &str) -> Result<(), String> {
@@ -140,6 +151,14 @@ fn display_host(uri: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn color_is_optional_in_saved_files() {
+        let old: SavedConnection = serde_json::from_str(r#"{"id":"a","name":"n","uri":"mongodb://h"}"#).unwrap();
+        assert_eq!(old.color, None);
+        let json = serde_json::to_string(&old).unwrap();
+        assert!(!json.contains("color"), "{json}");
+    }
 
     #[test]
     fn password_round_trip() {

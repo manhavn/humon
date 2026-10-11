@@ -3288,8 +3288,10 @@ dependencies = [
  "futures-util",
  "gpui-kit",
  "mongodb",
+ "rust-i18n",
  "serde",
  "serde_json",
+ "sys-locale",
  "tokio",
 ]
 

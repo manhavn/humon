@@ -19,6 +19,7 @@ use crate::highlight::{ShellHighlighter, tokenize};
 use crate::mongo::{self, CollKind, FindArgs};
 use crate::shell::to_shell;
 use crate::smart::Smart;
+use rust_i18n::t;
 
 const PAGE_SIZES: [i64; 3] = [20, 50, 100];
 
@@ -56,6 +57,8 @@ pub struct Tab {
     count: Option<Option<u64>>,
     loading: bool,
     error: Option<String>,
+    /// Server round trip of the last page load.
+    took: Option<std::time::Duration>,
     /// Bumped per request so a slow, stale response can't overwrite a newer one.
     seq: u64,
     count_seq: u64,
@@ -84,9 +87,9 @@ impl Tab {
         window: &mut Window,
         cx: &mut Context<Humon>,
     ) -> Self {
-        let filter = cx.new(|cx| InputState::new(window, cx).placeholder("{ alan: 'değer' }"));
+        let filter = cx.new(|cx| InputState::new(window, cx).placeholder(t!("tab.filter_placeholder")));
         let sort = cx.new(|cx| InputState::new(window, cx).placeholder("{ _id: -1 }"));
-        let projection = cx.new(|cx| InputState::new(window, cx).placeholder("{ alan: 1 }"));
+        let projection = cx.new(|cx| InputState::new(window, cx).placeholder(t!("tab.projection_placeholder")));
         let subscriptions = [&filter, &sort, &projection]
             .into_iter()
             .enumerate()
@@ -115,6 +118,7 @@ impl Tab {
             count: None,
             loading: false,
             error: None,
+            took: None,
             seq: 0,
             count_seq: 0,
             expanded: HashSet::new(),
@@ -184,6 +188,15 @@ impl Humon {
         }
     }
 
+    /// Re-sets input placeholders after a language change.
+    pub fn relabel_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for tab in &self.tabs {
+            for (input, key) in [(&tab.filter, "tab.filter_placeholder"), (&tab.projection, "tab.projection_placeholder")] {
+                input.update(cx, |s, cx| s.set_placeholder(t!(key), window, cx));
+            }
+        }
+    }
+
     fn query_input_changed(&mut self, id: usize, which: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(tab) = self.tab_mut(id) else { return };
         let input = [&tab.filter, &tab.sort, &tab.projection][which].clone();
@@ -241,12 +254,13 @@ impl Humon {
             tab.loading = false;
             match res {
                 // A delete can empty the last page; step back instead of showing nothing.
-                Ok(docs) if docs.is_empty() && tab.page > 0 => {
+                Ok(page) if page.docs.is_empty() && tab.page > 0 => {
                     tab.page -= 1;
                     this.load_page(id, window, cx);
                 }
-                Ok(docs) => {
-                    tab.docs = docs;
+                Ok(page) => {
+                    tab.docs = page.docs;
+                    tab.took = Some(page.took);
                     tab.expanded.clear();
                     tab.confirm_delete = None;
                     tab.card_error = None;
@@ -254,6 +268,7 @@ impl Humon {
                 Err(e) => {
                     tab.error = Some(e);
                     tab.docs.clear();
+                    tab.took = None;
                 }
             }
         });
@@ -285,7 +300,7 @@ impl Humon {
         self.run(fut, window, cx, move |this, res, window, cx| {
             let text = match res {
                 Ok(Some(full)) => to_shell(&full, ""),
-                Ok(None) => return this.set_card_error(id, ix, mongo::GONE.into()),
+                Ok(None) => return this.set_card_error(id, ix, mongo::gone()),
                 Err(e) => return this.set_card_error(id, ix, e),
             };
             let editor = new_editor(text, id, EditorSlot::Edit, window, cx);
@@ -350,7 +365,7 @@ impl Humon {
             match res {
                 Ok(n) => {
                     tab.draft = None;
-                    tab.notice = Some(format!("{n} doküman eklendi"));
+                    tab.notice = Some(t!("tab.inserted", n = n).into());
                     this.refresh(id, window, cx);
                 }
                 Err(e) => {
@@ -387,14 +402,14 @@ impl Humon {
 
         let from = tab.page * tab.page_size as u64;
         let count_text = match tab.count {
-            None => "sayılıyor…".to_string(),
-            Some(None) => "çok".to_string(),
+            None => t!("tab.counting").to_string(),
+            Some(None) => t!("tab.many").to_string(),
             Some(Some(n)) => n.to_string(),
         };
         let range = if tab.docs.is_empty() {
-            if tab.loading || tab.error.is_some() { String::new() } else { "Doküman yok".into() }
+            if tab.loading || tab.error.is_some() { String::new() } else { t!("tab.no_docs").into() }
         } else {
-            format!("{}–{} / {count_text}", from + 1, from + tab.docs.len() as u64)
+            t!("tab.range", from = from + 1, to = from + tab.docs.len() as u64, total = count_text).into()
         };
         let last_page = match tab.count {
             Some(Some(n)) => Some(n.div_ceil(tab.page_size as u64).saturating_sub(1)),
@@ -415,10 +430,10 @@ impl Humon {
             .child(labeled("Filter", Input::new(&tab.filter), muted).flex_grow(1.).flex_basis(relative(0.5)))
             .child(labeled("Sort", Input::new(&tab.sort), muted).flex_grow(1.).flex_basis(relative(0.2)))
             .child(labeled("Project", Input::new(&tab.projection), muted).flex_grow(1.).flex_basis(relative(0.2)))
-            .child(Button::new("find").primary().label("Bul").on_click(cx.listener(move |this, _, window, cx| {
+            .child(Button::new("find").primary().label(t!("tab.find")).on_click(cx.listener(move |this, _, window, cx| {
                 this.run_query(id, window, cx);
             })))
-            .child(Button::new("reset").label("Sıfırla").on_click(cx.listener(move |this, _, window, cx| {
+            .child(Button::new("reset").label(t!("tab.reset")).on_click(cx.listener(move |this, _, window, cx| {
                 this.reset_query(id, window, cx);
             })));
 
@@ -433,12 +448,12 @@ impl Humon {
             .border_color(border)
             .text_color(muted)
             .child(range)
-            .when(tab.loading, |d| d.child(div().text_xs().child("Yükleniyor…")))
+            .when(tab.loading, |d| d.child(div().text_xs().child(t!("tab.loading").to_string())))
             .when_some(tab.notice.clone(), |d, n| d.child(div().text_xs().text_color(accent).child(n)))
             .child(div().flex_1());
         if tab.writable() {
             toolbar = toolbar.child(
-                Button::new("add").label("+ Ekle").disabled(tab.draft.is_some()).on_click(cx.listener(move |this, _, window, cx| {
+                Button::new("add").label(t!("tab.add")).disabled(tab.draft.is_some()).on_click(cx.listener(move |this, _, window, cx| {
                     this.open_draft(id, "{\n  \n}".into(), window, cx);
                 })),
             );
@@ -479,10 +494,10 @@ impl Humon {
                     .flex()
                     .flex_col()
                     .gap_2()
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child("Yeni doküman").child(
-                        div().text_xs().text_color(muted).child("Birden fazla için dizi yaz: [{…}, {…}]"),
+                    .child(div().font_weight(FontWeight::SEMIBOLD).child(t!("tab.new_document").to_string()).child(
+                        div().text_xs().text_color(muted).child(t!("tab.array_hint").to_string()),
                     ))
-                    .child(self.render_editor(id, draft, "Ekle", true, cx)),
+                    .child(self.render_editor(id, draft, t!("tab.insert").into(), true, cx)),
             );
         }
         for (i, doc) in tab.docs.iter().enumerate() {
@@ -498,9 +513,48 @@ impl Humon {
             .child(toolbar)
             .when_some(tab.error.clone(), |d, e| d.child(div().px_3().py_2().text_color(danger).child(e)))
             .child(docs)
+            .child(self.render_status_bar(tab, cx))
     }
 
-    fn render_editor(&self, id: usize, editor: &DocEditor, save_label: &'static str, is_draft: bool, cx: &mut Context<Self>) -> impl IntoElement {
+    /// Bottom bar, as in Compass: total count, query time, and where you are.
+    fn render_status_bar(&self, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, muted, panel) = (theme.border, theme.muted_foreground, theme.sidebar);
+        let conn = self.conns.iter().find(|c| c.saved.id == tab.conn_id);
+        let count = match tab.count {
+            None => t!("status.counting").to_string(),
+            Some(None) => t!("status.count_slow").to_string(),
+            Some(Some(n)) => t!("status.documents", n = thousands(n)).to_string(),
+        };
+        let took = match (tab.loading, tab.took) {
+            (true, _) => t!("status.running").to_string(),
+            (false, Some(d)) => t!("status.took", time = format_duration(d)).to_string(),
+            (false, None) => String::new(),
+        };
+        let filtered = !tab.applied.0.trim().is_empty();
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .gap_3()
+            .px_3()
+            .h(px(26.))
+            .border_t_1()
+            .border_color(border)
+            .bg(panel)
+            .text_xs()
+            .text_color(muted)
+            .child(count)
+            .when(filtered, |d| d.child(t!("status.filtered").to_string()))
+            .when(!took.is_empty(), |d| d.child("·").child(took))
+            .child(div().flex_1())
+            .when_some(conn, |d, c| {
+                d.when_some(c.color(), |d, color| d.child(div().size(px(7.)).rounded_full().bg(color)))
+                    .child(format!("{} · {}.{}", c.saved.name, tab.db, tab.coll))
+            })
+    }
+
+    fn render_editor(&self, id: usize, editor: &DocEditor, save_label: SharedString, is_draft: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let lines = editor.state.read(cx).value().lines().count().clamp(6, 30);
         div()
@@ -514,8 +568,8 @@ impl Humon {
                     .flex()
                     .items_center()
                     .gap_2()
-                    .child(div().flex_1().text_xs().text_color(theme.muted_foreground).child("⌘↵ kaydet"))
-                    .child(Button::new(("cancel-edit", id)).label("Vazgeç").on_click(cx.listener(move |this, _, _, cx| {
+                    .child(div().flex_1().text_xs().text_color(theme.muted_foreground).child(t!("tab.save_hint").to_string()))
+                    .child(Button::new(("cancel-edit", id)).label(t!("tab.cancel")).on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(tab) = this.tab_mut(id) {
                             if is_draft { tab.draft = None } else { tab.editing = None }
                         }
@@ -524,7 +578,7 @@ impl Humon {
                     .child(
                         Button::new(("save-edit", id))
                             .primary()
-                            .label(if editor.saving { "Kaydediliyor…" } else { save_label })
+                            .label(if editor.saving { t!("tab.saving").into() } else { save_label })
                             .disabled(editor.saving)
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 if is_draft { this.save_draft(id, window, cx) } else { this.save_edit(id, window, cx) }
@@ -547,14 +601,14 @@ impl Humon {
                 .border_1()
                 .border_color(primary)
                 .rounded_md()
-                .child(self.render_editor(id, editor, "Kaydet", false, cx))
+                .child(self.render_editor(id, editor, t!("tab.save").into(), false, cx))
                 .into_any_element();
         }
 
         let writable = tab.writable() && doc.get("_id").is_some();
         let confirm = tab.confirm_delete == Some(ix);
         let group: SharedString = format!("card-{id}-{ix}").into();
-        let action = |label: &'static str, key: &str| {
+        let action = |label: String, key: &str| {
             div()
                 .id(SharedString::from(format!("{key}-{id}-{ix}")))
                 .px_2()
@@ -577,8 +631,8 @@ impl Humon {
             .when(!confirm, |d| d.opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)));
         if writable {
             actions = actions
-                .child(action("Düzenle", "edit").on_click(cx.listener(move |this, _, window, cx| this.start_edit(id, ix, window, cx))))
-                .child(action("Klonla", "clone").on_click(cx.listener(move |this, _, window, cx| {
+                .child(action(t!("card.edit").into(), "edit").on_click(cx.listener(move |this, _, window, cx| this.start_edit(id, ix, window, cx))))
+                .child(action(t!("card.clone").into(), "clone").on_click(cx.listener(move |this, _, window, cx| {
                     let Some(doc) = this.tab_mut(id).and_then(|t| t.docs.get(ix).cloned()) else { return };
                     let mut copy = doc.as_object().cloned().unwrap_or_default();
                     copy.remove("_id");
@@ -586,12 +640,12 @@ impl Humon {
                 })));
         }
         let shell = to_shell(doc, "");
-        actions = actions.child(action("Kopyala", "copy").on_click(move |_, _, cx| {
+        actions = actions.child(action(t!("card.copy").into(), "copy").on_click(move |_, _, cx| {
             cx.write_to_clipboard(ClipboardItem::new_string(shell.clone()));
         }));
         if writable {
             actions = actions.child(
-                action(if confirm { "Emin misin?" } else { "Sil" }, "delete")
+                action(if confirm { t!("card.confirm_delete") } else { t!("card.delete") }.into(), "delete")
                     .when(confirm, |d| d.text_color(danger).border_color(danger))
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.delete_doc(id, ix, window, cx);
@@ -631,8 +685,8 @@ impl Humon {
         let (muted, hover) = (theme.muted_foreground, theme.list_hover);
         let path = format!("{parent}/{key}");
         let container = match value {
-            Value::Object(m) if !is_typed(m) => Some(if m.is_empty() { "{}".to_string() } else { format!("{{ {} alan }}", m.len()) }),
-            Value::Array(a) => Some(format!("Array [{}]", a.len())),
+            Value::Object(m) if !is_typed(m) => Some(if m.is_empty() { "{}".to_string() } else { t!("tree.fields", n = m.len()).into() }),
+            Value::Array(a) => Some(t!("tree.array", n = a.len()).into()),
             _ => None,
         };
         let key_color = syntax.style("property").and_then(|s| s.color).unwrap_or(theme.foreground);
@@ -699,4 +753,45 @@ fn is_typed(m: &Map<String, Value>) -> bool {
 
 fn labeled(label: &'static str, input: Input, muted: Hsla) -> Div {
     div().flex().flex_col().gap_1().min_w_0().child(div().text_xs().text_color(muted).child(label)).child(input)
+}
+
+/// 1234567 -> "1.234.567", as Turkish readers expect.
+fn thousands(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push('.');
+        }
+        out.push(c);
+    }
+    out
+}
+
+fn format_duration(d: std::time::Duration) -> String {
+    let ms = d.as_secs_f64() * 1000.0;
+    if ms < 1.0 {
+        "<1 ms".into()
+    } else if ms < 1000.0 {
+        format!("{ms:.0} ms")
+    } else {
+        format!("{:.2} s", ms / 1000.0).replace('.', ",")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
+    use super::{format_duration, thousands};
+    use std::time::Duration;
+
+    #[test]
+    fn formats_counts_and_durations() {
+        assert_eq!(thousands(7), "7");
+        assert_eq!(thousands(1234), "1.234");
+        assert_eq!(thousands(1234567), "1.234.567");
+        assert_eq!(format_duration(Duration::from_micros(300)), "<1 ms");
+        assert_eq!(format_duration(Duration::from_millis(42)), "42 ms");
+        assert_eq!(format_duration(Duration::from_millis(1530)), "1,53 s");
+    }
 }

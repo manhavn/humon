@@ -2,6 +2,8 @@
 name = "humon"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/yldrmzffr/humon"
 publish = false
 
 [dependencies]
@@ -11,6 +13,8 @@ futures-util = "0.3"
 tokio = { version = "1", features = ["rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
+rust-i18n = "4.2.4"
+sys-locale = "0.3"
 
 [profile.release]
 debug = false
