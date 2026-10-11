@@ -1,4 +1,4 @@
-//! Port of src/lib/ejson.ts `toShell`: canonical extended JSON to mongo shell text.
+//! Canonical extended JSON to mongo shell text, as shown and edited in the UI.
 
 use serde_json::{Map, Value};
 

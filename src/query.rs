@@ -548,7 +548,7 @@ mod tests {
 
     #[test]
     fn copied_document_parses_back() {
-        // Exact output of the UI's "Kopyala" (ejson.ts toShell).
+        // Exact output of the UI's "Kopyala" (shell.rs to_shell).
         let d = parse(
             r#"{
   _id: ObjectId("6acbe7d408caefbd7b5b22c6"),

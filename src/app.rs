@@ -251,6 +251,7 @@ impl Humon {
     }
 
     /// Focuses the collection's tab or opens one; `new_tab` always opens another.
+    #[allow(clippy::too_many_arguments)]
     fn open_collection(&mut self, saved_id: &str, db: &str, coll: &str, kind: CollKind, new_tab: bool, window: &mut Window, cx: &mut Context<Self>) {
         if !new_tab
             && let Some(tab) = self.tabs.iter().find(|t| t.conn_id == saved_id && t.db == db && t.coll == coll)

@@ -660,10 +660,10 @@ impl Humon {
                 .on_click(cx.listener({
                     let path = path.clone();
                     move |this, _, _, cx| {
-                        if let Some(tab) = this.tab_mut(id) {
-                            if !tab.expanded.remove(&path) {
-                                tab.expanded.insert(path.clone());
-                            }
+                        if let Some(tab) = this.tab_mut(id)
+                            && !tab.expanded.remove(&path)
+                        {
+                            tab.expanded.insert(path.clone());
                         }
                         cx.notify();
                     }

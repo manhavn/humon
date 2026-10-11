@@ -1,4 +1,4 @@
-//! Saved connections, in the same files the Tauri app uses so both see them.
+//! Saved connections, kept in the app's config directory.
 //!
 //! The password is split out of the URI and stored separately in
 //! `secrets.json`, so moving secrets to the Keychain later only touches

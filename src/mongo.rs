@@ -1,5 +1,5 @@
-//! Mongo operations, ported from src-tauri/src/mongo.rs without the command
-//! wrappers. Every function takes an owned `Client` so it can run on tokio.
+//! Mongo operations. Every function takes an owned `Client` so it can run on
+//! tokio, outside gpui's executor.
 
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -210,4 +210,63 @@ pub async fn insert(client: Client, db: String, coll: String, src: String) -> Re
         collection.insert_many(docs).await.map_err(err)?;
     }
     Ok(n)
+}
+
+/// Runs against a live server: `HUMON_TEST_URI=mongodb://... cargo test -- --ignored`.
+/// Expects the `shop` seed data (137 users, an `adults` view); writes go to a
+/// scratch collection that is dropped at the end.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn args(filter: &str, sort: &str, projection: &str, skip: u64, limit: i64) -> FindArgs {
+        FindArgs { filter: filter.into(), sort: sort.into(), projection: projection.into(), skip, limit }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn live_server() {
+        let uri = std::env::var("HUMON_TEST_URI").expect("HUMON_TEST_URI");
+        let c = open(uri).await.unwrap();
+        let (db, users) = ("shop".to_string(), "users".to_string());
+
+        let dbs: Vec<String> = databases(c.clone()).await.unwrap().into_iter().map(|d| d.name).collect();
+        assert!(dbs.contains(&db), "{dbs:?}");
+        let cols = collections(c.clone(), db.clone()).await.unwrap();
+        assert!(cols.iter().any(|x| x.name == "adults" && x.kind == CollKind::View));
+
+        // Ages cycle 18..=67; city is Izmir when i % 3 == 0.
+        assert_eq!(count(c.clone(), db.clone(), users.clone(), "".into()).await.unwrap(), Some(137));
+        assert_eq!(count(c.clone(), db.clone(), users.clone(), "{ 'address.city': 'Izmir' }".into()).await.unwrap(), Some(46));
+        assert!(count(c.clone(), db.clone(), "adults".into(), "".into()).await.unwrap().unwrap() > 0);
+
+        let page = find(c.clone(), db.clone(), users.clone(), args("{ age: { $gte: 60 } }", "{ age: -1, name: 1 }", "{ _id: 0, name: 1, age: 1, big: 1 }", 0, 5))
+            .await
+            .unwrap();
+        assert_eq!(page.len(), 5);
+        let first = page[0].as_object().unwrap();
+        assert_eq!(first.keys().collect::<Vec<_>>(), ["name", "age", "big"]);
+        assert_eq!(first["age"], json!({ "$numberInt": "67" }));
+        assert_eq!(first["big"], json!({ "$numberLong": "9007199254740993" }));
+        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("", "{ name: 1 }", "", 135, 20)).await.unwrap().len(), 2);
+        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ createdAt: { $lt: ISODate('2024-01-03') } }", "", "", 0, 50)).await.unwrap().len(), 2);
+        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ name: /^user1\\d$/ }", "", "", 0, 50)).await.unwrap().len(), 10);
+        let bad = find(c.clone(), db.clone(), users.clone(), args("{ age: ", "", "", 0, 5)).await.unwrap_err();
+        assert!(bad.starts_with("Filter:"), "{bad}");
+
+        let scratch = "humon_write_test".to_string();
+        assert_eq!(insert(c.clone(), db.clone(), scratch.clone(), "[{ n: 1 }, { n: 2 }]".into()).await.unwrap(), 2);
+        assert_eq!(insert(c.clone(), db.clone(), scratch.clone(), "{ _id: 'k', n: 3, at: ISODate('2024-05-01') }".into()).await.unwrap(), 1);
+        let key = json!("k");
+        replace(c.clone(), db.clone(), scratch.clone(), key.clone(), "{ n: NumberLong(4), extra: true }".into()).await.unwrap();
+        let stored = get(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap().unwrap();
+        assert_eq!(stored, json!({ "_id": "k", "n": { "$numberLong": "4" }, "extra": true }));
+        let changed_id = replace(c.clone(), db.clone(), scratch.clone(), key.clone(), "{ _id: 'other' }".into()).await.unwrap_err();
+        assert_eq!(changed_id, "_id değiştirilemez");
+        delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap();
+        assert_eq!(delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap_err(), GONE);
+        assert_eq!(replace(c.clone(), db.clone(), scratch.clone(), key, "{}".into()).await.unwrap_err(), GONE);
+        c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
+    }
 }

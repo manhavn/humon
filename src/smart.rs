@@ -1,4 +1,4 @@
-//! Typing helpers, ported from src/lib/smartInput.ts: completes helper names
+//! Typing helpers: completes helper names
 //! (`Obj` -> `ObjectId("|")`), wraps pasted or typed ids/dates, and for the
 //! single-line query fields closes brackets and quotes (the code editor does
 //! that itself).

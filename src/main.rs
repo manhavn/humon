@@ -1,10 +1,9 @@
 //! humon on gpui: a lightweight MongoDB client.
 
-#[path = "../../src-tauri/src/query.rs"]
-mod query;
 mod app;
 mod highlight;
 mod mongo;
+mod query;
 mod shell;
 mod smart;
 mod store;
