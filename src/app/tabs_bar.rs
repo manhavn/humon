@@ -7,10 +7,17 @@ impl Humon {
         let theme = cx.theme();
         let (muted, hover, bg, panel, border, accent, fg) = (theme.muted_foreground, theme.list_hover, theme.background, theme.sidebar, theme.border, theme.primary, theme.foreground);
         let mut bar = div().id("tabs").flex().flex_none().overflow_x_scroll().bg(panel).border_b_1().border_color(border);
-        for tab in &self.tabs {
-            let id = tab.id;
+        // (id, connection, title, subtitle) for collections and shells alike.
+        let mut labels: Vec<(usize, &str, String, String)> = self
+            .tabs
+            .iter()
+            .map(|t| (t.id, t.conn_id.as_str(), t.coll.clone(), t.db.clone()))
+            .chain(self.consoles.iter().map(|c| (c.id, c.conn_id.as_str(), format!(">_ {}", t!("console.title")), c.db.clone())))
+            .collect();
+        labels.sort_by_key(|l| l.0);
+        for (id, conn_id, title, subtitle) in labels {
             let active = self.active_tab == Some(id);
-            let conn = self.conns.iter().find(|c| c.saved.id == tab.conn_id);
+            let conn = self.conns.iter().find(|c| c.saved.id == conn_id);
             // The connection's color marks all its tabs; without one only the active tab is marked.
             let strip = conn.and_then(ConnNode::color).or(active.then_some(accent));
             let conn_name = conn.map(|c| c.saved.name.clone()).unwrap_or_default();
@@ -47,14 +54,14 @@ impl Humon {
                             .flex()
                             .flex_col()
                             .min_w_0()
-                            .child(div().font_weight(FontWeight::SEMIBOLD).overflow_hidden().whitespace_nowrap().child(tab.coll.clone()))
+                            .child(div().font_weight(FontWeight::SEMIBOLD).overflow_hidden().whitespace_nowrap().child(title.clone()))
                             .child(
                                 div()
                                     .text_xs()
                                     .text_color(muted)
                                     .overflow_hidden()
                                     .whitespace_nowrap()
-                                    .child(format!("{conn_name} · {}", tab.db)),
+                                    .child(format!("{conn_name} · {subtitle}")),
                             ),
                     )
                     .child(

@@ -57,6 +57,9 @@ these (macOS Keychain) is the first item on the to-do list below.
 - Export results to JSON or CSV, streamed to disk so big exports stay light
 - Helpful typing: brackets close themselves, `Obj` becomes `ObjectId("")`,
   and pasted ids, UUIDs and dates are wrapped for you
+- A built-in shell (`>_` on a connection or database): mongosh-style JavaScript
+  with `db.users.find(...)`, `use`, `show dbs`, `it`, `print` and more, running on
+  an embedded QuickJS engine, so no Node.js or mongosh needed
 - Status bar with document count and query time
 - English and Turkish, and adding a language is one file (see below)
 
@@ -104,7 +107,6 @@ HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignor
 ## To do
 
 - [ ] **Encrypt saved connections** (store passwords in the macOS Keychain)
-- [ ] Built-in shell (mongosh in a tab)
 - [ ] Tab menu: duplicate, close others (and ⌘D)
 - [ ] Keyboard shortcuts: ⌘T, ⌘W, ⌘1–9, ⌘R, ⌘F
 - [ ] Remember open tabs and queries between launches
@@ -127,6 +129,7 @@ HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignor
 | --- | --- |
 | `src/app/` | The window: sidebar, connections, tab bar, settings |
 | `src/tab/` | A collection tab: queries and paging, tree and table views, editor, history and export panels, status bar |
+| `src/console/` | The shell: QuickJS engine, mongosh-like API (`prelude.js`), history, tab view |
 | `src/manage.rs` | Creating, renaming and dropping databases and collections |
 | `src/mongo.rs` | Talking to MongoDB (runs on tokio) |
 | `src/query.rs` | Mongo shell syntax → BSON |

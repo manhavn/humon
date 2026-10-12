@@ -16,6 +16,7 @@ use crate::store::{SavedConnection, Store};
 use crate::history::History;
 use crate::manage::{EditForm, SidebarEdit};
 use crate::settings::{self, Settings};
+use crate::console::view::ConsoleTab;
 use crate::tab::Tab;
 use rust_i18n::t;
 
@@ -44,6 +45,7 @@ pub struct ConnNode {
 pub struct Humon {
     pub conns: Vec<ConnNode>,
     pub tabs: Vec<Tab>,
+    pub consoles: Vec<ConsoleTab>,
     pub active_tab: Option<usize>,
     next_tab_id: usize,
     adding: bool,
@@ -79,6 +81,13 @@ const PALETTE: [&str; 8] = ["#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#12a594
 
 fn parse_color(hex: &str) -> Option<Hsla> {
     u32::from_str_radix(hex.strip_prefix('#')?, 16).ok().map(|v| rgb(v).into())
+}
+
+/// After closing tab `closed`, the tab to activate among `open_ids` (in tab
+/// order): the one to its right, else the one to its left.
+pub fn next_active(open_ids: &[usize], closed: usize) -> Option<usize> {
+    let rest: Vec<usize> = open_ids.iter().copied().filter(|&id| id != closed).collect();
+    rest.iter().copied().find(|&id| id > closed).or_else(|| rest.iter().copied().rev().find(|&id| id < closed))
 }
 
 /// Which of a database's collections the tree shows for a search; `None`
@@ -146,6 +155,7 @@ impl Humon {
             tabs: vec![],
             active_tab: None,
             next_tab_id: 1,
+            consoles: Vec::new(),
             adding,
             form_name,
             form_uri,
@@ -228,12 +238,32 @@ impl Humon {
         self.run_query(id, window, cx);
     }
 
-    fn close_tab(&mut self, id: usize) {
-        let Some(ix) = self.tabs.iter().position(|t| t.id == id) else { return };
-        self.tabs.remove(ix);
+    /// Every open tab's id, collections and shells together, in tab order.
+    pub fn tab_ids(&self) -> Vec<usize> {
+        let mut ids: Vec<usize> = self.tabs.iter().map(|t| t.id).chain(self.consoles.iter().map(|c| c.id)).collect();
+        ids.sort_unstable();
+        ids
+    }
+
+    pub fn close_tab(&mut self, id: usize) {
+        let ids = self.tab_ids();
+        self.tabs.retain(|t| t.id != id);
+        // Dropping a shell's engine handle stops and ends its thread.
+        self.consoles.retain(|c| c.id != id);
         if self.active_tab == Some(id) {
-            self.active_tab = self.tabs.get(ix).or(self.tabs.last()).map(|t| t.id);
+            self.active_tab = next_active(&ids, id);
         }
+    }
+
+    /// Opens a shell tab on a connection, starting in `db`.
+    pub fn open_console(&mut self, saved_id: &str, db: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(client) = self.conns.iter().find(|c| c.saved.id == saved_id).and_then(|c| c.client.clone()) else { return };
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+        let console = ConsoleTab::new(id, saved_id, client, db, window, cx);
+        self.consoles.push(console);
+        self.active_tab = Some(id);
+        self.show_settings = false;
     }
 }
 
@@ -241,8 +271,10 @@ impl Render for Humon {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let (bg, fg, muted) = (theme.background, theme.foreground, theme.muted_foreground);
+        let console = self.active_tab.and_then(|id| self.consoles.iter().position(|c| c.id == id));
         let content = match self.active_tab.and_then(|id| self.tabs.iter().position(|t| t.id == id)) {
             _ if self.show_settings => self.render_settings(cx).into_any_element(),
+            _ if console.is_some() => self.render_console(console.unwrap_or_default(), cx).into_any_element(),
             Some(ix) => self.render_tab(ix, window, cx).into_any_element(),
             None => div()
                 .flex_1()
@@ -269,7 +301,7 @@ impl Render for Humon {
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .when(!self.tabs.is_empty(), |d| d.child(self.render_tabs(cx)))
+                    .when(!self.tab_ids().is_empty(), |d| d.child(self.render_tabs(cx)))
                     .child(content),
             )
     }
@@ -278,7 +310,7 @@ impl Render for Humon {
 #[cfg(test)]
 mod tests {
     // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
-    use super::{format_size, parse_color, visible_collections};
+    use super::{format_size, next_active, parse_color, visible_collections};
     use crate::mongo::{CollKind, CollectionInfo};
 
     fn cols(names: &[&str]) -> Vec<CollectionInfo> {
@@ -299,6 +331,14 @@ mod tests {
         // Not loaded yet: visible while searching only if the db name matches.
         assert_eq!(names(visible_collections("shop", None, "sho")), Some(vec![]));
         assert_eq!(names(visible_collections("shop", None, "users")), None);
+    }
+
+    #[test]
+    fn closing_a_tab_activates_its_neighbour() {
+        assert_eq!(next_active(&[1, 2, 3], 2), Some(3), "the one to the right");
+        assert_eq!(next_active(&[1, 2, 3], 3), Some(2), "or the left when it was last");
+        assert_eq!(next_active(&[4], 4), None);
+        assert_eq!(next_active(&[1, 5, 9], 7), Some(9), "an id that is not open still picks a neighbour");
     }
 
     #[test]

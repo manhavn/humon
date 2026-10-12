@@ -73,8 +73,9 @@ impl Humon {
     pub(crate) fn disconnect(&mut self, saved_id: &str) {
         let Some(ix) = self.conn_ix(saved_id) else { return };
         self.tabs.retain(|t| t.conn_id != saved_id);
-        if self.active_tab.is_some_and(|id| !self.tabs.iter().any(|t| t.id == id)) {
-            self.active_tab = self.tabs.last().map(|t| t.id);
+        self.consoles.retain(|c| c.conn_id != saved_id);
+        if self.active_tab.is_some_and(|id| !self.tab_ids().contains(&id)) {
+            self.active_tab = self.tab_ids().last().copied();
         }
         let conn = &mut self.conns[ix];
         conn.client = None;

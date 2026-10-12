@@ -104,7 +104,15 @@ impl Humon {
                             .text_color(conn.color().unwrap_or(muted)),
                         )
                         .when(connected, |d| {
-                            d.child(icon_button(format!("newdb-{id}"), "+", hover, cx.listener({
+                            d.child(icon_button(format!("shell-{id}"), ">_", hover, cx.listener({
+                                let id = id.clone();
+                                move |this, _, window, cx| {
+                                    cx.stop_propagation();
+                                    this.open_console(&id, "test", window, cx);
+                                    cx.notify();
+                                }
+                            })))
+                            .child(icon_button(format!("newdb-{id}"), "+", hover, cx.listener({
                                 let id = id.clone();
                                 move |this, _, window, cx| {
                                     cx.stop_propagation();
@@ -173,6 +181,14 @@ impl Humon {
                     .text_color(muted)
                     .opacity(0.)
                     .group_hover(db_group.clone(), |s| s.opacity(1.))
+                    .child(icon_button(format!("shelldb-{id}-{di}"), ">_", hover, cx.listener({
+                        let (id, db) = (id.clone(), db.info.name.clone());
+                        move |this, _, window, cx| {
+                            cx.stop_propagation();
+                            this.open_console(&id, &db, window, cx);
+                            cx.notify();
+                        }
+                    })))
                     .child(icon_button(format!("newcoll-{id}-{di}"), "+", hover, cx.listener({
                         let edit = new_coll.clone();
                         move |this, _, window, cx| {

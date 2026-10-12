@@ -16,6 +16,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 rust-i18n = "4.2.4"
 sys-locale = "0.3"
 rquickjs = "0.14"
+futures-channel = "0.3"
 
 [profile.release]
 debug = false

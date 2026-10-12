@@ -101,6 +101,12 @@ manage.drop_button: Drop
 manage.cancel: Cancel
 manage.name_required: Name can't be empty
 
+console.title: Shell
+console.run: Run
+console.stop: Stop
+console.clear: Clear
+console.running: running…
+console.hint: Enter runs · Shift+Enter new line · ↑↓ history
 console.switched: "switched to db %{db}"
 console.more: 'Type "it" for more'
 console.no_cursor: no cursor to continue

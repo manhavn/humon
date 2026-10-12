@@ -39,6 +39,75 @@ pub struct Engine {
     stop: Arc<AtomicBool>,
 }
 
+/// What one evaluation produced, and the database `db` points at afterwards.
+#[derive(Debug)]
+pub struct Reply {
+    pub outputs: Vec<Output>,
+    pub db: String,
+}
+
+struct Request {
+    code: String,
+    reply: futures_channel::oneshot::Sender<Reply>,
+}
+
+/// An engine on its own thread, so slow commands never block the UI. The
+/// engine lives as long as the handle; dropping it stops and ends the thread.
+pub struct EngineHandle {
+    tx: Option<std::sync::mpsc::Sender<Request>>,
+    stop: Arc<AtomicBool>,
+}
+
+impl EngineHandle {
+    pub fn spawn(client: Option<Client>, db: String) -> Result<Self, String> {
+        let (tx, rx) = std::sync::mpsc::channel::<Request>();
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("humon-shell".into())
+            .spawn(move || {
+                let mut engine = match Engine::new(client, &db) {
+                    Ok(engine) => engine,
+                    Err(e) => {
+                        let _ = ready_tx.send(Err(e));
+                        return;
+                    }
+                };
+                let _ = ready_tx.send(Ok(engine.stop_handle()));
+                for request in rx {
+                    let outputs = engine.eval(&request.code);
+                    let _ = request.reply.send(Reply { outputs, db: engine.db() });
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        let stop = ready_rx.recv().map_err(|e| e.to_string())??;
+        Ok(Self { tx: Some(tx), stop })
+    }
+
+    /// Queues code; the reply arrives when it has run.
+    pub fn eval(&self, code: String) -> futures_channel::oneshot::Receiver<Reply> {
+        let (reply, rx) = futures_channel::oneshot::channel();
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(Request { code, reply });
+        }
+        rx
+    }
+
+    /// Interrupts the code that is running now.
+    pub fn stop(&self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
+impl Drop for EngineHandle {
+    /// Stops running code and closes the channel; the thread ends on its own
+    /// once the current step finishes. Not joined: a server command still in
+    /// flight would otherwise freeze the UI while a tab closes.
+    fn drop(&mut self) {
+        self.stop();
+        self.tx = None;
+    }
+}
+
 /// Rewrites mongosh's non-JavaScript commands (`use x`, `show dbs`, `it`)
 /// into calls; anything else passes through untouched.
 pub fn preprocess(code: &str) -> String {
@@ -328,6 +397,38 @@ mod tests {
         timer.join().unwrap();
         assert!(matches!(&out[..], [Output::Error(m)] if m.contains("interrupted")), "{out:?}");
         assert_eq!(e.eval("1"), vec![Output::Value(json!({ "$numberInt": "1" }))]);
+    }
+
+    fn reply(rx: futures_channel::oneshot::Receiver<Reply>) -> Reply {
+        crate::mongo::RT.block_on(rx).expect("engine thread replied")
+    }
+
+    #[test]
+    fn handle_runs_code_on_its_own_thread() {
+        let h = EngineHandle::spawn(None, "test".into()).unwrap();
+        let r = reply(h.eval("let n = 40".into()));
+        assert_eq!((r.outputs, r.db.as_str()), (vec![], "test"));
+        assert_eq!(reply(h.eval("n + 2".into())).outputs, vec![Output::Value(json!({ "$numberInt": "42" }))]);
+    }
+
+    #[test]
+    fn handle_stop_interrupts_running_code() {
+        let h = EngineHandle::spawn(None, "test".into()).unwrap();
+        let rx = h.eval("while (true) {}".into());
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        h.stop();
+        let out = reply(rx).outputs;
+        assert!(matches!(&out[..], [Output::Error(m)] if m.contains("interrupted")), "{out:?}");
+    }
+
+    #[test]
+    fn dropping_the_handle_ends_a_busy_engine_promptly() {
+        let h = EngineHandle::spawn(None, "test".into()).unwrap();
+        let _rx = h.eval("while (true) {}".into());
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let started = std::time::Instant::now();
+        drop(h);
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
     }
 
     #[test]
