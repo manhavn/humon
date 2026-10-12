@@ -99,6 +99,11 @@ manage.drop_button: Sil
 manage.cancel: Vazgeç
 manage.name_required: Ad boş olamaz
 
+console.switched: "%{db} veritabanına geçildi"
+console.more: 'Devamı için "it" yaz'
+console.no_cursor: devam edecek cursor yok
+console.not_connected: bağlı değil
+
 settings.title: Ayarlar
 settings.language: Dil
 settings.contribute: Dilin yok mu? locales/en.yml dosyasını locales/<kod>.yml olarak kopyala, çevir ve pull request gönder.

@@ -444,7 +444,7 @@ fn as_i64(v: &Bson) -> Result<i64, String> {
 
 /// Accepts what people actually type into ISODate(): a bare date, a missing
 /// timezone (treated as UTC), or a space between date and time.
-fn parse_date(s: &str) -> Result<DateTime, String> {
+pub fn parse_date(s: &str) -> Result<DateTime, String> {
     let mut text = s.trim().to_string();
     if text.len() == 10 {
         text.push_str("T00:00:00Z");

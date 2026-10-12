@@ -101,6 +101,11 @@ manage.drop_button: Drop
 manage.cancel: Cancel
 manage.name_required: Name can't be empty
 
+console.switched: "switched to db %{db}"
+console.more: 'Type "it" for more'
+console.no_cursor: no cursor to continue
+console.not_connected: not connected
+
 settings.title: Settings
 settings.language: Language
 settings.contribute: Missing your language? Copy locales/en.yml to locales/<code>.yml, translate it and send a pull request.
