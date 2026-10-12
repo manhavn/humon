@@ -389,6 +389,38 @@ mod tests {
     }
 
     #[test]
+    fn locate_uses_the_caret_to_disambiguate() {
+        // Typing "b" into "ab" gives "abb" whether the caret was after "a" or "b".
+        assert_eq!(locate("ab", "abb", 2), (1, "", "b"));
+        assert_eq!(locate("ab", "abb", 3), (2, "", "b"));
+        // Deleting one of two equal chars.
+        assert_eq!(locate("abb", "ab", 1), (1, "b", ""));
+        // A replacement falls back to the diff.
+        assert_eq!(locate("abc", "axc", 2), (1, "b", "x"));
+    }
+
+    #[test]
+    fn literal_wrapping_rejects_near_misses() {
+        assert_eq!(wrap_literal("65a1b2c3d4e5f60718293a4"), None, "23 hex digits");
+        assert_eq!(wrap_literal("65A1B2C3D4E5F60718293A4B"), Some("ObjectId(\"65A1B2C3D4E5F60718293A4B\")".into()));
+        assert_eq!(wrap_literal("65a1b2c3d4e5f60718293a4g"), None, "not hex");
+        assert_eq!(wrap_literal("123e4567-e89b-12d3-a456-42661417400"), None, "short UUID");
+        assert_eq!(wrap_literal("2024-01-02T03:04:05.006Z"), Some("ISODate(\"2024-01-02T03:04:05.006Z\")".into()));
+        assert_eq!(wrap_literal("2024/01/02"), None);
+        assert_eq!(wrap_literal("hello"), None);
+    }
+
+    #[test]
+    fn helper_completion_needs_a_unique_prefix() {
+        assert_eq!(complete_helper(""), None);
+        assert_eq!(complete_helper("ob"), None, "too short");
+        assert_eq!(complete_helper("num"), None, "ambiguous");
+        assert_eq!(complete_helper("ObjectId").map(|h| h.0), Some("ObjectId"));
+        assert_eq!(complete_helper("numberd").map(|h| h.0), Some("NumberDecimal"));
+        assert_eq!(complete_helper("xyz"), None);
+    }
+
+    #[test]
     fn non_ascii_text_is_safe() {
         assert_eq!(type_keys("{ ad: 'Çağrı' }", true), "{ ad: 'Çağrı' }|");
     }

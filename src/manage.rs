@@ -39,6 +39,27 @@ impl SidebarEdit {
     }
 }
 
+/// Whether the form's input allows submitting.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Validation {
+    Ok,
+    /// A drop whose typed name doesn't match yet; the button stays disabled.
+    NotReady,
+    NameRequired,
+}
+
+pub fn validate(edit: &SidebarEdit, name: &str, second: &str) -> Validation {
+    let (name, second) = (name.trim(), second.trim());
+    if let Some(expected) = edit.confirm_name() {
+        return if name == expected { Validation::Ok } else { Validation::NotReady };
+    }
+    if name.is_empty() || (matches!(edit, SidebarEdit::NewDb { .. }) && second.is_empty()) {
+        Validation::NameRequired
+    } else {
+        Validation::Ok
+    }
+}
+
 /// State of the inline form.
 pub struct EditForm {
     pub edit: Option<SidebarEdit>,
@@ -107,14 +128,13 @@ impl Humon {
         }
         let name = self.form.name.read(cx).value().trim().to_string();
         let second = self.form.second.read(cx).value().trim().to_string();
-        if let Some(expected) = edit.confirm_name()
-            && name != expected
-        {
-            return;
-        }
-        if name.is_empty() || (matches!(edit, SidebarEdit::NewDb { .. }) && second.is_empty()) {
-            self.form.error = Some(t!("manage.name_required").into());
-            return;
+        match validate(&edit, &name, &second) {
+            Validation::Ok => {}
+            Validation::NotReady => return,
+            Validation::NameRequired => {
+                self.form.error = Some(t!("manage.name_required").into());
+                return;
+            }
         }
         let Some(client) = self.conns.iter().find(|c| c.saved.id == edit.conn()).and_then(|c| c.client.clone()) else { return };
         self.form.busy = true;
@@ -192,8 +212,7 @@ impl Humon {
             None => return div(),
         };
         let confirm = edit.as_ref().and_then(|e| e.confirm_name().map(str::to_string));
-        let typed = form.name.read(cx).value().trim().to_string();
-        let ready = confirm.as_ref().is_none_or(|n| *n == typed);
+        let ready = edit.as_ref().is_some_and(|e| validate(e, &form.name.read(cx).value(), "") != Validation::NotReady);
         div()
             .flex()
             .flex_col()
@@ -229,5 +248,34 @@ impl Humon {
                     ),
             )
             .when_some(form.error.clone(), |d, e| d.child(div().text_xs().text_color(danger).child(e)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SidebarEdit, Validation, validate};
+
+    fn drop_coll() -> SidebarEdit {
+        SidebarEdit::DropColl { conn: "c".into(), db: "shop".into(), coll: "users".into() }
+    }
+
+    #[test]
+    fn drops_need_the_exact_name() {
+        assert_eq!(validate(&drop_coll(), "", ""), Validation::NotReady);
+        assert_eq!(validate(&drop_coll(), "user", ""), Validation::NotReady);
+        assert_eq!(validate(&drop_coll(), "Users", ""), Validation::NotReady, "case matters");
+        assert_eq!(validate(&drop_coll(), "  users ", ""), Validation::Ok, "surrounding spaces are trimmed");
+        let drop_db = SidebarEdit::DropDb { conn: "c".into(), db: "shop".into() };
+        assert_eq!(validate(&drop_db, "shop", ""), Validation::Ok);
+    }
+
+    #[test]
+    fn names_are_required() {
+        let new_coll = SidebarEdit::NewColl { conn: "c".into(), db: "shop".into() };
+        assert_eq!(validate(&new_coll, "  ", ""), Validation::NameRequired);
+        assert_eq!(validate(&new_coll, "events", ""), Validation::Ok);
+        let new_db = SidebarEdit::NewDb { conn: "c".into() };
+        assert_eq!(validate(&new_db, "logs", ""), Validation::NameRequired, "a database needs its first collection");
+        assert_eq!(validate(&new_db, "logs", "events"), Validation::Ok);
     }
 }

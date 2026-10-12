@@ -177,7 +177,7 @@ mod tests {
         let keep = store.save("keep", "mongodb://a:1@h1", None).unwrap();
         let gone = store.save("gone", "mongodb://b:2@h2", None).unwrap();
         store.delete(&gone.id).unwrap();
-        assert_eq!(store.list().unwrap().iter().map(|c| c.id.clone()).collect::<Vec<_>>(), [keep.id.clone()]);
+        assert_eq!(store.list().unwrap().iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), [keep.id.as_str()]);
         let secrets = std::fs::read_to_string(dir.join("secrets.json")).unwrap();
         assert!(!secrets.contains(&gone.id) && secrets.contains(&keep.id));
     }

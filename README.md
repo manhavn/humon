@@ -90,6 +90,10 @@ Pull requests are very welcome.
 
 ## Running the tests
 
+humon is built test-first: logic lives in plain functions with unit tests,
+storage takes a directory so tests use temp folders, and a live test runs
+against a real MongoDB.
+
 ```sh
 cargo test --release
 
@@ -115,6 +119,7 @@ HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignor
 - [ ] Signed and notarized releases you can just download
 - [ ] Try it on Windows and Linux
 - [ ] UI polish: fonts, sizes, spacing
+- [ ] UI-level tests with gpui's test harness (needs a second, larger build)
 
 ## How it's built
 

@@ -144,6 +144,10 @@ impl InputHighlighter for ShellHighlighter {
                 continue;
             }
             let (s, e) = (r.start.max(range.start), r.end.min(range.end));
+            if s >= e {
+                // An empty range that falls inside a token yields no run.
+                continue;
+            }
             if s > pos {
                 runs.push((pos..s, HighlightStyle::default()));
             }
@@ -180,6 +184,60 @@ mod tests {
         assert!(k.contains(&("true", "boolean")));
         assert!(k.contains(&("/a\\/b/i", "string.regex")));
         assert!(k.contains(&("null", "constant")));
+    }
+
+    /// gpui's editor needs style runs that are ordered, don't overlap and
+    /// cover the requested range exactly; anything else renders garbage.
+    #[test]
+    fn styles_cover_any_range_exactly() {
+        struct NoStyles;
+        impl HighlightStyleResolver for NoStyles {
+            fn style(&self, _: &str) -> Option<HighlightStyle> {
+                Some(HighlightStyle::default())
+            }
+        }
+        let samples = [
+            "",
+            "{ a: 1 }",
+            "{ _id: ObjectId(\"65a1\"), re: /x\\/y/i, s: 'Çağrı 🍃', n: -1.5e3 }",
+            "{ unterminated: \"abc\n b: [1, 2, { c: null }] }",
+            "// comment\n{ a: true }",
+        ];
+        for text in samples {
+            let h = ShellHighlighter { tokens: tokenize(text) };
+            let bounds: Vec<usize> = (0..=text.len()).filter(|&i| text.is_char_boundary(i)).collect();
+            for &start in &bounds {
+                for &end in bounds.iter().filter(|&&e| e >= start) {
+                    let runs = h.styles(&(start..end), &NoStyles);
+                    let mut pos = start;
+                    for (r, _) in &runs {
+                        assert_eq!(r.start, pos, "gap or overlap in {text:?} for {start}..{end}: {runs:?}");
+                        assert!(r.end > r.start, "empty run in {text:?}");
+                        pos = r.end;
+                    }
+                    assert_eq!(pos, end, "runs don't reach the end in {text:?} for {start}..{end}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn numbers_comments_and_keys() {
+        let k = kinds("// note\n{ n: 1e-3, m: .5, list: [1, -2], 'quoted': 1 }");
+        assert!(k.contains(&("// note", "comment")));
+        assert!(k.contains(&("1e-3", "number")));
+        assert!(k.contains(&(".5", "number")));
+        assert!(k.contains(&("-2", "number")));
+        assert!(k.contains(&("'quoted'", "property")));
+    }
+
+    #[test]
+    fn escapes_before_multibyte_chars_do_not_split_them() {
+        for text in ["{ a: \"\\ç\" }", "{ r: /\\ğ/ }", "\"\\🍃", "/\\é"] {
+            for (r, _) in tokenize(text) {
+                assert!(text.is_char_boundary(r.start) && text.is_char_boundary(r.end), "{text:?}: {r:?}");
+            }
+        }
     }
 
     #[test]

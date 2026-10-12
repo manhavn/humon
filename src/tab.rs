@@ -159,6 +159,29 @@ impl Tab {
     }
 }
 
+/// Which documents the current page shows (1-based, 0 when empty), and
+/// whether another page follows. With the count unknown, a full page
+/// suggests there is more.
+#[derive(Debug, PartialEq, Eq)]
+pub struct PageWindow {
+    pub from: u64,
+    pub to: u64,
+    pub has_next: bool,
+}
+
+pub fn page_window(page: u64, page_size: i64, shown: usize, count: Option<Option<u64>>) -> PageWindow {
+    let size = page_size.max(1) as u64;
+    let start = page * size;
+    PageWindow {
+        from: if shown == 0 { 0 } else { start + 1 },
+        to: start + shown as u64,
+        has_next: match count {
+            Some(Some(total)) => start + size < total,
+            _ => shown as u64 == size,
+        },
+    }
+}
+
 fn doc_id(doc: &Value) -> Option<Value> {
     doc.get("_id").cloned()
 }
@@ -513,26 +536,18 @@ impl Humon {
         let (border, muted, danger, accent, primary) = (theme.border, theme.muted_foreground, theme.danger, theme.success, theme.primary);
         let syntax = theme.highlight_theme.clone();
 
-        let from = tab.page * tab.page_size as u64;
+        let window = page_window(tab.page, tab.page_size, tab.docs.len(), tab.count);
         let count_text = match tab.count {
             None => t!("tab.counting").to_string(),
             Some(None) => t!("tab.many").to_string(),
-            Some(Some(n)) => n.to_string(),
+            Some(Some(n)) => thousands(n),
         };
         let range = if tab.docs.is_empty() {
             if tab.loading || tab.error.is_some() { String::new() } else { t!("tab.no_docs").into() }
         } else {
-            t!("tab.range", from = from + 1, to = from + tab.docs.len() as u64, total = count_text).into()
+            t!("tab.range", from = thousands(window.from), to = thousands(window.to), total = count_text).into()
         };
-        let last_page = match tab.count {
-            Some(Some(n)) => Some(n.div_ceil(tab.page_size as u64).saturating_sub(1)),
-            _ => None,
-        };
-        let has_next = match last_page {
-            Some(last) => tab.page < last,
-            None => tab.docs.len() as i64 == tab.page_size,
-        };
-
+        let has_next = window.has_next;
         let query_bar = div()
             .flex()
             .gap_2()
@@ -1123,11 +1138,46 @@ fn format_duration(d: std::time::Duration) -> String {
     }
 }
 
+/// Column order for the table: `_id` first, then fields in the order they first appear.
+fn table_columns(docs: &[Value]) -> Vec<String> {
+    let mut columns: Vec<String> = Vec::new();
+    for doc in docs {
+        if let Value::Object(m) = doc {
+            for k in m.keys() {
+                if !columns.iter().any(|c| c == k) {
+                    columns.push(k.clone());
+                }
+            }
+        }
+    }
+    if let Some(pos) = columns.iter().position(|c| c == "_id") {
+        let id = columns.remove(pos);
+        columns.insert(0, id);
+    }
+    columns
+}
+
 #[cfg(test)]
 mod tests {
     // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
-    use super::{format_duration, table_columns, thousands};
+    use super::{PageWindow, format_duration, page_window, table_columns, thousands};
     use std::time::Duration;
+
+    #[test]
+    fn page_window_bounds_and_next() {
+        // Page 0 of 20, count known.
+        assert_eq!(page_window(0, 20, 20, Some(Some(137))), PageWindow { from: 1, to: 20, has_next: true });
+        // Last full page: exactly page_size * (page + 1) documents means no next page.
+        assert_eq!(page_window(1, 20, 20, Some(Some(40))), PageWindow { from: 21, to: 40, has_next: false });
+        // Partial last page.
+        assert_eq!(page_window(6, 20, 17, Some(Some(137))), PageWindow { from: 121, to: 137, has_next: false });
+        // Count unknown (still counting or too slow): a full page suggests more.
+        assert!(page_window(0, 20, 20, None).has_next);
+        assert!(page_window(0, 20, 20, Some(None)).has_next);
+        assert!(!page_window(0, 20, 7, None).has_next);
+        // Nothing shown.
+        assert_eq!(page_window(0, 20, 0, Some(Some(0))), PageWindow { from: 0, to: 0, has_next: false });
+    }
 
     #[test]
     fn table_columns_keep_first_seen_order_with_id_first() {
@@ -1147,23 +1197,4 @@ mod tests {
         assert_eq!(format_duration(Duration::from_millis(42)), "42 ms");
         assert_eq!(format_duration(Duration::from_millis(1530)), "1,53 s");
     }
-}
-
-/// Column order for the table: `_id` first, then fields in the order they first appear.
-fn table_columns(docs: &[Value]) -> Vec<String> {
-    let mut columns: Vec<String> = Vec::new();
-    for doc in docs {
-        if let Value::Object(m) = doc {
-            for k in m.keys() {
-                if !columns.iter().any(|c| c == k) {
-                    columns.push(k.clone());
-                }
-            }
-        }
-    }
-    if let Some(pos) = columns.iter().position(|c| c == "_id") {
-        let id = columns.remove(pos);
-        columns.insert(0, id);
-    }
-    columns
 }

@@ -93,3 +93,59 @@ pub fn to_shell(v: &Value, indent: &str) -> String {
         other => other.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::to_shell;
+    use serde_json::json;
+
+    #[test]
+    fn layout_is_two_space_indented_with_inline_empties() {
+        let doc = json!({ "a": 1, "nested": { "b": [1, 2], "e": {}, "l": [] } });
+        assert_eq!(to_shell(&doc, ""), "{\n  a: 1,\n  nested: {\n    b: [\n      1,\n      2\n    ],\n    e: {},\n    l: []\n  }\n}");
+    }
+
+    #[test]
+    fn keys_are_quoted_only_when_needed() {
+        let doc = json!({ "plain": 1, "_id": 2, "$set": 3, "a.b": 4, "with space": 5, "1st": 6, "çay": 7 });
+        assert_eq!(
+            to_shell(&doc, ""),
+            "{\n  plain: 1,\n  _id: 2,\n  $set: 3,\n  \"a.b\": 4,\n  \"with space\": 5,\n  \"1st\": 6,\n  çay: 7\n}"
+        );
+    }
+
+    #[test]
+    fn typed_values_use_shell_helpers() {
+        let cases = [
+            (json!({ "$oid": "65a1b2c3d4e5f60718293a4b" }), r#"ObjectId("65a1b2c3d4e5f60718293a4b")"#),
+            (json!({ "$date": { "$numberLong": "0" } }), r#"ISODate("1970-01-01T00:00:00Z")"#),
+            (json!({ "$date": { "$numberLong": "253402300800000" } }), "ISODate(253402300800000)"),
+            (json!({ "$numberInt": "7" }), "7"),
+            (json!({ "$numberLong": "9007199254740993" }), r#"NumberLong("9007199254740993")"#),
+            (json!({ "$numberDouble": "1.0" }), "1.0"),
+            (json!({ "$numberDouble": "0.1" }), "0.1"),
+            (json!({ "$numberDouble": "-Infinity" }), "-Infinity"),
+            (json!({ "$numberDecimal": "1.10" }), r#"NumberDecimal("1.10")"#),
+            (json!({ "$binary": { "base64": "EhISEhISEhISEhISEhISEg==", "subType": "04" } }), r#"UUID("12121212-1212-1212-1212-121212121212")"#),
+            (json!({ "$binary": { "base64": "AQID", "subType": "00" } }), r#"BinData(0, "AQID")"#),
+            (json!({ "$regularExpression": { "pattern": "^a", "options": "i" } }), "/^a/i"),
+            (json!({ "$timestamp": { "t": 10, "i": 2 } }), "Timestamp(10, 2)"),
+            (json!({ "$minKey": 1 }), "MinKey()"),
+        ];
+        for (value, shell) in cases {
+            assert_eq!(to_shell(&value, ""), shell, "for {value}");
+        }
+    }
+
+    #[test]
+    fn a_uuid_subtype_with_the_wrong_length_stays_binary() {
+        // 15 bytes can't be a UUID; showing it as one would not parse back.
+        let value = json!({ "$binary": { "base64": "EhISEhISEhISEhISEhIS", "subType": "04" } });
+        assert_eq!(to_shell(&value, ""), r#"BinData(4, "EhISEhISEhISEhISEhIS")"#);
+    }
+
+    #[test]
+    fn strings_are_escaped() {
+        assert_eq!(to_shell(&json!("a \"q\" \\ \n"), ""), r#""a \"q\" \\ \n""#);
+    }
+}

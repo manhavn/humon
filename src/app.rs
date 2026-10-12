@@ -75,6 +75,18 @@ fn parse_color(hex: &str) -> Option<Hsla> {
     u32::from_str_radix(hex.strip_prefix('#')?, 16).ok().map(|v| rgb(v).into())
 }
 
+/// Which of a database's collections the tree shows for a search; `None`
+/// hides the database. An empty query or a matching database name shows all.
+pub fn visible_collections<'a>(db_name: &str, cols: Option<&'a [CollectionInfo]>, query: &str) -> Option<Vec<&'a CollectionInfo>> {
+    let cols = cols.unwrap_or(&[]);
+    let q = query.to_lowercase();
+    if q.is_empty() || db_name.to_lowercase().contains(&q) {
+        return Some(cols.iter().collect());
+    }
+    let matching: Vec<_> = cols.iter().filter(|c| c.name.to_lowercase().contains(&q)).collect();
+    (!matching.is_empty()).then_some(matching)
+}
+
 impl ConnNode {
     pub fn color(&self) -> Option<Hsla> {
         self.saved.color.as_deref().and_then(parse_color)
@@ -648,17 +660,7 @@ impl Humon {
                 continue;
             }
             for (di, db) in conn.dbs.iter().enumerate() {
-                // While searching, a database shows when its name or any collection matches.
-                let db_match = db.info.name.to_lowercase().contains(q);
-                let matching: Vec<_> = db
-                    .collections
-                    .iter()
-                    .flatten()
-                    .filter(|c| !searching || db_match || c.name.to_lowercase().contains(q))
-                    .collect();
-                if searching && !db_match && matching.is_empty() {
-                    continue;
-                }
+                let Some(matching) = visible_collections(&db.info.name, db.collections.as_deref(), q) else { continue };
                 any_match |= searching;
                 let open = db.open || searching;
                 let db_group: SharedString = format!("db-{id}-{di}").into();
@@ -975,5 +977,47 @@ impl Render for Humon {
                     .when(!self.tabs.is_empty(), |d| d.child(self.render_tabs(cx)))
                     .child(content),
             )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
+    use super::{format_size, parse_color, visible_collections};
+    use crate::mongo::{CollKind, CollectionInfo};
+
+    fn cols(names: &[&str]) -> Vec<CollectionInfo> {
+        names.iter().map(|n| CollectionInfo { name: n.to_string(), kind: CollKind::Collection }).collect()
+    }
+
+    fn names(v: Option<Vec<&CollectionInfo>>) -> Option<Vec<&str>> {
+        v.map(|v| v.into_iter().map(|c| c.name.as_str()).collect())
+    }
+
+    #[test]
+    fn search_filters_collections() {
+        let c = cols(&["users", "orders", "UserEvents"]);
+        assert_eq!(names(visible_collections("shop", Some(&c), "")), Some(vec!["users", "orders", "UserEvents"]));
+        assert_eq!(names(visible_collections("shop", Some(&c), "user")), Some(vec!["users", "UserEvents"]), "case-insensitive");
+        assert_eq!(names(visible_collections("shop", Some(&c), "sho")), Some(vec!["users", "orders", "UserEvents"]), "db name match shows all");
+        assert_eq!(names(visible_collections("shop", Some(&c), "zzz")), None);
+        // Not loaded yet: visible while searching only if the db name matches.
+        assert_eq!(names(visible_collections("shop", None, "sho")), Some(vec![]));
+        assert_eq!(names(visible_collections("shop", None, "users")), None);
+    }
+
+    #[test]
+    fn sizes_are_human_readable() {
+        assert_eq!(format_size(512), "512 B");
+        assert_eq!(format_size(1536), "1.5 KB");
+        assert_eq!(format_size(20 * 1024 * 1024), "20 MB");
+        assert_eq!(format_size(3 * 1024 * 1024 * 1024), "3.0 GB");
+    }
+
+    #[test]
+    fn colors_parse_from_hex() {
+        assert!(parse_color("#e5484d").is_some());
+        assert!(parse_color("e5484d").is_none(), "needs the #");
+        assert!(parse_color("#zzzzzz").is_none());
     }
 }
