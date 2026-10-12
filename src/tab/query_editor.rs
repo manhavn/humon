@@ -4,7 +4,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::input::{CompletionProvider, Editor, EditorState, InputHighlighter, Rope, RopeExt};
 use gpui_kit::*;
 use lsp_types::{
@@ -36,20 +35,10 @@ pub fn query_editor(mode: Mode, schema: SchemaCell, window: &mut Window, cx: &mu
     state
 }
 
-/// A query editor drawn like a one-line input.
-pub(crate) fn query_box(state: &Entity<EditorState>, cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    div()
-        .h(px(32.))
-        .px_2()
-        .flex()
-        .items_center()
-        .border_1()
-        .border_color(theme.input)
-        .rounded(theme.radius)
-        .bg(theme.background)
-        .overflow_hidden()
-        .child(Editor::new(state).h(px(20.)).w_full())
+/// A query editor sized like a one-line input. The editor pads its text 8px
+/// top and bottom; a 14px row fills the rest of the 32px exactly, centered.
+pub(crate) fn query_box(state: &Entity<EditorState>) -> impl IntoElement {
+    Editor::new(state).h(px(32.)).line_height(px(14.))
 }
 
 struct QueryCompleter {

@@ -47,17 +47,17 @@ impl Humon {
                 .border_b_1()
                 .border_color(border)
                 .child(
-                    labeled("Filter", query_box(&tab.filter, cx), muted)
+                    labeled("Filter", query_box(&tab.filter), muted)
                         .flex_grow(1.)
                         .flex_basis(relative(0.5)),
                 )
                 .child(
-                    labeled("Sort", query_box(&tab.sort, cx), muted)
+                    labeled("Sort", query_box(&tab.sort), muted)
                         .flex_grow(1.)
                         .flex_basis(relative(0.2)),
                 )
                 .child(
-                    labeled("Project", query_box(&tab.projection, cx), muted)
+                    labeled("Project", query_box(&tab.projection), muted)
                         .flex_grow(1.)
                         .flex_basis(relative(0.2)),
                 )
