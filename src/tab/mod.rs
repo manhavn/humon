@@ -61,7 +61,7 @@ pub struct Tab {
     page_size: i64,
     docs: Vec<Value>,
     /// None while counting; Some(None) when the count was too slow.
-    count: Option<Option<u64>>,
+    count: Count,
     loading: bool,
     error: Option<String>,
     /// Server round trip of the last page load.
@@ -134,7 +134,7 @@ impl Tab {
             page: 0,
             page_size: 20,
             docs: vec![],
-            count: None,
+            count: Count::Counting,
             loading: false,
             error: None,
             took: None,
@@ -158,6 +158,27 @@ impl Tab {
         }
     }
 
+    /// Shows a new page in every view at once, so none is left stale.
+    fn set_docs(
+        &mut self,
+        docs: Vec<Value>,
+        took: Option<std::time::Duration>,
+        window: &mut Window,
+        cx: &mut Context<Humon>,
+    ) {
+        let text = if docs.is_empty() {
+            String::new()
+        } else {
+            json_view_text(&docs)
+        };
+        self.json.update(cx, |s, cx| s.set_value(text, window, cx));
+        self.docs = docs;
+        self.took = took;
+        self.expanded.clear();
+        self.confirm_delete = None;
+        self.card_error = None;
+    }
+
     fn writable(&self) -> bool {
         self.kind != CollKind::View
     }
@@ -173,14 +194,34 @@ pub struct PageWindow {
     pub has_next: bool,
 }
 
-pub fn page_window(page: u64, page_size: i64, shown: usize, count: Option<Option<u64>>) -> PageWindow {
+/// The total for the pager and status bar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Count {
+    Counting,
+    Known(u64),
+    /// An exact count would have taken too long (server time limit).
+    TooSlow,
+    Failed(String),
+}
+
+impl Count {
+    pub fn from_result(result: Result<Option<u64>, String>) -> Self {
+        match result {
+            Ok(Some(n)) => Self::Known(n),
+            Ok(None) => Self::TooSlow,
+            Err(e) => Self::Failed(e),
+        }
+    }
+}
+
+pub fn page_window(page: u64, page_size: i64, shown: usize, count: &Count) -> PageWindow {
     let size = page_size.max(1) as u64;
     let start = page * size;
     PageWindow {
         from: if shown == 0 { 0 } else { start + 1 },
         to: start + shown as u64,
         has_next: match count {
-            Some(Some(total)) => start + size < total,
+            Count::Known(total) => start + size < *total,
             _ => shown as u64 == size,
         },
     }
@@ -271,7 +312,7 @@ impl Humon {
     /// Reloads the current page and the count with the applied query.
     pub fn refresh(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(tab) = self.tab_mut(id) else { return };
-        tab.count = None;
+        tab.count = Count::Counting;
         tab.count_seq += 1;
         let seq = tab.count_seq;
         let fut = mongo::count(
@@ -284,7 +325,7 @@ impl Humon {
             if let Some(tab) = this.tab_mut(id)
                 && tab.count_seq == seq
             {
-                tab.count = Some(res.ok().flatten());
+                tab.count = Count::from_result(res);
             }
         });
         self.load_page(id, window, cx);
@@ -316,19 +357,10 @@ impl Humon {
                     tab.page -= 1;
                     this.load_page(id, window, cx);
                 }
-                Ok(page) => {
-                    let text = json_view_text(&page.docs);
-                    tab.json.update(cx, |s, cx| s.set_value(text, window, cx));
-                    tab.docs = page.docs;
-                    tab.took = Some(page.took);
-                    tab.expanded.clear();
-                    tab.confirm_delete = None;
-                    tab.card_error = None;
-                }
+                Ok(page) => tab.set_docs(page.docs, Some(page.took), window, cx),
                 Err(e) => {
                     tab.error = Some(e);
-                    tab.docs.clear();
-                    tab.took = None;
+                    tab.set_docs(Vec::new(), None, window, cx);
                 }
             }
         });
@@ -372,7 +404,7 @@ impl Humon {
 #[cfg(test)]
 mod tests {
     // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
-    use super::{PageWindow, json_view_text, page_window};
+    use super::{Count, PageWindow, json_view_text, page_window};
 
     #[test]
     fn json_view_shows_the_page_as_one_shell_array() {
@@ -392,7 +424,7 @@ mod tests {
     fn page_window_bounds_and_next() {
         // Page 0 of 20, count known.
         assert_eq!(
-            page_window(0, 20, 20, Some(Some(137))),
+            page_window(0, 20, 20, &Count::Known(137)),
             PageWindow {
                 from: 1,
                 to: 20,
@@ -401,7 +433,7 @@ mod tests {
         );
         // Last full page: exactly page_size * (page + 1) documents means no next page.
         assert_eq!(
-            page_window(1, 20, 20, Some(Some(40))),
+            page_window(1, 20, 20, &Count::Known(40)),
             PageWindow {
                 from: 21,
                 to: 40,
@@ -410,25 +442,36 @@ mod tests {
         );
         // Partial last page.
         assert_eq!(
-            page_window(6, 20, 17, Some(Some(137))),
+            page_window(6, 20, 17, &Count::Known(137)),
             PageWindow {
                 from: 121,
                 to: 137,
                 has_next: false
             }
         );
-        // Count unknown (still counting or too slow): a full page suggests more.
-        assert!(page_window(0, 20, 20, None).has_next);
-        assert!(page_window(0, 20, 20, Some(None)).has_next);
-        assert!(!page_window(0, 20, 7, None).has_next);
+        // Count unknown (still counting, too slow, or failed): a full page suggests more.
+        for count in [Count::Counting, Count::TooSlow, Count::Failed("boom".into())] {
+            assert!(page_window(0, 20, 20, &count).has_next, "{count:?}");
+            assert!(!page_window(0, 20, 7, &count).has_next, "{count:?}");
+        }
         // Nothing shown.
         assert_eq!(
-            page_window(0, 20, 0, Some(Some(0))),
+            page_window(0, 20, 0, &Count::Known(0)),
             PageWindow {
                 from: 0,
                 to: 0,
                 has_next: false
             }
+        );
+    }
+
+    #[test]
+    fn a_failed_count_is_not_reported_as_slow() {
+        assert_eq!(Count::from_result(Ok(Some(5))), Count::Known(5));
+        assert_eq!(Count::from_result(Ok(None)), Count::TooSlow);
+        assert_eq!(
+            Count::from_result(Err("bad filter".into())),
+            Count::Failed("bad filter".into())
         );
     }
 }

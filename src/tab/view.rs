@@ -16,11 +16,11 @@ impl Humon {
         );
         let syntax = theme.highlight_theme.clone();
 
-        let window = page_window(tab.page, tab.page_size, tab.docs.len(), tab.count);
-        let count_text = match tab.count {
-            None => t!("tab.counting").to_string(),
-            Some(None) => t!("tab.many").to_string(),
-            Some(Some(n)) => thousands(n),
+        let window = page_window(tab.page, tab.page_size, tab.docs.len(), &tab.count);
+        let count_text = match &tab.count {
+            Count::Counting => t!("tab.counting").to_string(),
+            Count::Known(n) => thousands(*n),
+            Count::TooSlow | Count::Failed(_) => t!("tab.many").to_string(),
         };
         let range = if tab.docs.is_empty() {
             if tab.loading || tab.error.is_some() {

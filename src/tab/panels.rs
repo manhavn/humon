@@ -103,8 +103,8 @@ impl Humon {
                     })),
             );
         }
-        let all_label = match tab.count {
-            Some(Some(n)) => t!("export.all_count", n = thousands(n)).to_string(),
+        let all_label = match &tab.count {
+            Count::Known(n) => t!("export.all_count", n = thousands(*n)).to_string(),
             _ => t!("export.all").to_string(),
         };
         row = row.child(div().w(px(12.)));

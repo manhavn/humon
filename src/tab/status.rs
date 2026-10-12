@@ -8,11 +8,7 @@ impl Humon {
         let theme = cx.theme();
         let (border, muted, panel) = (theme.border, theme.muted_foreground, theme.sidebar);
         let conn = self.conns.iter().find(|c| c.saved.id == tab.conn_id);
-        let count = match tab.count {
-            None => t!("status.counting").to_string(),
-            Some(None) => t!("status.count_slow").to_string(),
-            Some(Some(n)) => t!("status.documents", n = thousands(n)).to_string(),
-        };
+        let count = count_text(&tab.count);
         let took = match (tab.loading, tab.took) {
             (true, _) => t!("status.running").to_string(),
             (false, Some(d)) => t!("status.took", time = format_duration(d)).to_string(),
@@ -44,6 +40,16 @@ impl Humon {
     }
 }
 
+/// The status bar's description of the total.
+pub(crate) fn count_text(count: &Count) -> String {
+    match count {
+        Count::Counting => t!("status.counting").into(),
+        Count::Known(n) => t!("status.documents", n = thousands(*n)).into(),
+        Count::TooSlow => t!("status.count_slow").into(),
+        Count::Failed(e) => t!("status.count_failed", error = e).into(),
+    }
+}
+
 /// 1234567 -> "1.234.567", as Turkish readers expect.
 pub(crate) fn thousands(n: u64) -> String {
     let digits = n.to_string();
@@ -71,8 +77,19 @@ pub(crate) fn format_duration(d: std::time::Duration) -> String {
 #[cfg(test)]
 mod tests {
     // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
-    use super::{format_duration, thousands};
+    use super::{Count, count_text, format_duration, thousands};
     use std::time::Duration;
+
+    #[test]
+    fn count_text_for_every_state() {
+        assert_eq!(count_text(&Count::Counting), "counting…");
+        assert_eq!(count_text(&Count::Known(1234)), "1.234 documents");
+        assert_eq!(count_text(&Count::TooSlow), "count took too long");
+        assert_eq!(
+            count_text(&Count::Failed("bad filter".into())),
+            "count failed: bad filter"
+        );
+    }
 
     #[test]
     fn formats_counts_and_durations() {

@@ -63,6 +63,7 @@ history.saved: Saved to favorites
 
 status.counting: counting…
 status.count_slow: count took too long
+status.count_failed: "count failed: %{error}"
 status.documents: "%{n} documents"
 status.filtered: (filtered)
 status.running: query running…

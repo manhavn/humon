@@ -61,6 +61,7 @@ history.saved: Favorilere eklendi
 
 status.counting: sayılıyor…
 status.count_slow: sayım çok uzun sürdü
+status.count_failed: "sayım başarısız: %{error}"
 status.documents: "%{n} doküman"
 status.filtered: (filtreli)
 status.running: sorgu çalışıyor…
