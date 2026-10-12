@@ -1,0 +1,318 @@
+//! Root view: sidebar with saved connections and the db/collection tree, the
+//! tab bar, and the active collection tab (see tab.rs).
+
+use std::future::Future;
+use std::sync::Arc;
+
+use gpui_kit::component::button::{Button, ButtonVariants};
+use gpui_kit::component::input::{Input, InputEvent, InputState};
+use gpui_kit::component::ActiveTheme;
+use gpui_kit::prelude::FluentBuilder;
+use gpui_kit::*;
+use mongodb::Client;
+
+use crate::mongo::{self, CollKind, CollectionInfo, DatabaseInfo, RT};
+use crate::store::{SavedConnection, Store};
+use crate::history::History;
+use crate::manage::{EditForm, SidebarEdit};
+use crate::settings::{self, Settings};
+use crate::tab::Tab;
+use rust_i18n::t;
+
+mod connection_form;
+mod connections;
+mod settings_view;
+mod sidebar;
+mod tabs_bar;
+
+pub struct DbNode {
+    pub info: DatabaseInfo,
+    pub open: bool,
+    pub loading: bool,
+    pub collections: Option<Vec<CollectionInfo>>,
+}
+
+pub struct ConnNode {
+    pub saved: SavedConnection,
+    pub client: Option<Client>,
+    pub connecting: bool,
+    pub open: bool,
+    pub error: Option<String>,
+    pub dbs: Vec<DbNode>,
+}
+
+pub struct Humon {
+    pub conns: Vec<ConnNode>,
+    pub tabs: Vec<Tab>,
+    pub active_tab: Option<usize>,
+    next_tab_id: usize,
+    adding: bool,
+    form_name: Entity<InputState>,
+    form_uri: Entity<InputState>,
+    form_color: Option<String>,
+    form_error: Option<String>,
+    /// Saved id awaiting a second click to confirm deletion.
+    confirm_delete: Option<String>,
+    /// Saved id whose color palette is open.
+    color_picker: Option<String>,
+    search: Entity<InputState>,
+    /// Lowercased collection search; empty shows the normal tree.
+    query: String,
+    pub load_error: Option<String>,
+    pub history: History,
+    store: Store,
+    pub form: EditForm,
+    show_settings: bool,
+    _subscriptions: Vec<Subscription>,
+}
+
+/// The app logo, embedded so the binary needs no files next to it.
+fn logo() -> Arc<Image> {
+    static LOGO: std::sync::LazyLock<Arc<Image>> = std::sync::LazyLock::new(|| {
+        Arc::new(Image::from_bytes(ImageFormat::Png, include_bytes!("../../assets/logo-256.png").to_vec()))
+    });
+    LOGO.clone()
+}
+
+/// Connection label colors, stored as `#rrggbb`.
+const PALETTE: [&str; 8] = ["#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#12a594", "#0090ff", "#8e4ec6", "#d6409f"];
+
+fn parse_color(hex: &str) -> Option<Hsla> {
+    u32::from_str_radix(hex.strip_prefix('#')?, 16).ok().map(|v| rgb(v).into())
+}
+
+/// Which of a database's collections the tree shows for a search; `None`
+/// hides the database. An empty query or a matching database name shows all.
+pub fn visible_collections<'a>(db_name: &str, cols: Option<&'a [CollectionInfo]>, query: &str) -> Option<Vec<&'a CollectionInfo>> {
+    let cols = cols.unwrap_or(&[]);
+    let q = query.to_lowercase();
+    if q.is_empty() || db_name.to_lowercase().contains(&q) {
+        return Some(cols.iter().collect());
+    }
+    let matching: Vec<_> = cols.iter().filter(|c| c.name.to_lowercase().contains(&q)).collect();
+    (!matching.is_empty()).then_some(matching)
+}
+
+impl ConnNode {
+    pub fn color(&self) -> Option<Hsla> {
+        self.saved.color.as_deref().and_then(parse_color)
+    }
+}
+
+pub fn format_size(bytes: u64) -> String {
+    if bytes < 1024 {
+        return format!("{bytes} B");
+    }
+    let mut v = bytes as f64 / 1024.0;
+    let mut unit = "KB";
+    for u in ["MB", "GB", "TB"] {
+        if v < 1024.0 {
+            break;
+        }
+        v /= 1024.0;
+        unit = u;
+    }
+    if v < 10.0 { format!("{v:.1} {unit}") } else { format!("{v:.0} {unit}") }
+}
+
+impl Humon {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let form_name = cx.new(|cx| InputState::new(window, cx).placeholder(t!("form.name")));
+        let form_uri = cx.new(|cx| InputState::new(window, cx).placeholder(t!("form.uri")));
+        let search = cx.new(|cx| InputState::new(window, cx).placeholder(t!("sidebar.search")));
+        let search_sub = cx.subscribe_in(&search, window, |this, _, ev: &InputEvent, window, cx| {
+            if let InputEvent::Change = ev {
+                this.on_search(window, cx);
+            }
+        });
+        let (form, form_subs) = EditForm::new(window, cx);
+        let store = Store::default();
+        // An unreadable history file is reported and left alone, never overwritten.
+        let (history, history_error) = match History::open(History::default_path()) {
+            Ok(h) => (h, None),
+            Err(e) => (History::default(), Some(e)),
+        };
+        let (saved, load_error) = match store.list() {
+            Ok(list) => (list, None),
+            Err(e) => (vec![], Some(e)),
+        };
+        let load_error = load_error.or(history_error);
+        let adding = saved.is_empty();
+        Self {
+            conns: saved
+                .into_iter()
+                .map(|saved| ConnNode { saved, client: None, connecting: false, open: false, error: None, dbs: vec![] })
+                .collect(),
+            tabs: vec![],
+            active_tab: None,
+            next_tab_id: 1,
+            adding,
+            form_name,
+            form_uri,
+            form_color: None,
+            form_error: None,
+            confirm_delete: None,
+            color_picker: None,
+            search,
+            query: String::new(),
+            load_error,
+            history,
+            store,
+            form,
+            show_settings: false,
+            _subscriptions: std::iter::once(search_sub).chain(form_subs).collect(),
+        }
+    }
+
+    /// Runs a driver future on tokio and applies the result back on the UI thread.
+    pub fn run<T: Send + 'static>(
+        &self,
+        fut: impl Future<Output = T> + Send + 'static,
+        window: &Window,
+        cx: &mut Context<Self>,
+        apply: impl FnOnce(&mut Self, T, &mut Window, &mut Context<Self>) + 'static,
+    ) {
+        let handle = RT.spawn(fut);
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(value) = handle.await else { return };
+            this.update_in(cx, |this, window, cx| {
+                apply(this, value, window, cx);
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    fn conn_ix(&self, saved_id: &str) -> Option<usize> {
+        self.conns.iter().position(|c| c.saved.id == saved_id)
+    }
+
+    pub fn close_tabs_where(&mut self, pred: impl Fn(&Tab) -> bool) {
+        let ids: Vec<usize> = self.tabs.iter().filter(|t| pred(t)).map(|t| t.id).collect();
+        for id in ids {
+            self.close_tab(id);
+        }
+    }
+
+    fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
+        rust_i18n::set_locale(code);
+        let saved = Settings { language: Some(code.to_string()) }.save_to(&Settings::default_path());
+        if let Err(e) = saved {
+            self.load_error = Some(e);
+        }
+        // Placeholders are held by the inputs, so they need re-setting; everything
+        // else is read through t! on the next render.
+        for (input, key) in [(&self.form_name, "form.name"), (&self.form_uri, "form.uri"), (&self.search, "sidebar.search")] {
+            input.update(cx, |s, cx| s.set_placeholder(t!(key), window, cx));
+        }
+        self.relabel_tabs(window, cx);
+    }
+
+    /// Focuses the collection's tab or opens one; `new_tab` always opens another.
+    #[allow(clippy::too_many_arguments)]
+    fn open_collection(&mut self, saved_id: &str, db: &str, coll: &str, kind: CollKind, new_tab: bool, window: &mut Window, cx: &mut Context<Self>) {
+        if !new_tab
+            && let Some(tab) = self.tabs.iter().find(|t| t.conn_id == saved_id && t.db == db && t.coll == coll)
+        {
+            self.active_tab = Some(tab.id);
+            return;
+        }
+        let Some(ix) = self.conn_ix(saved_id) else { return };
+        let Some(client) = self.conns[ix].client.clone() else { return };
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+        let tab = Tab::new(id, saved_id, client, db, coll, kind, window, cx);
+        self.tabs.push(tab);
+        self.active_tab = Some(id);
+        self.run_query(id, window, cx);
+    }
+
+    fn close_tab(&mut self, id: usize) {
+        let Some(ix) = self.tabs.iter().position(|t| t.id == id) else { return };
+        self.tabs.remove(ix);
+        if self.active_tab == Some(id) {
+            self.active_tab = self.tabs.get(ix).or(self.tabs.last()).map(|t| t.id);
+        }
+    }
+}
+
+impl Render for Humon {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (bg, fg, muted) = (theme.background, theme.foreground, theme.muted_foreground);
+        let content = match self.active_tab.and_then(|id| self.tabs.iter().position(|t| t.id == id)) {
+            _ if self.show_settings => self.render_settings(cx).into_any_element(),
+            Some(ix) => self.render_tab(ix, window, cx).into_any_element(),
+            None => div()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .gap_4()
+                .items_center()
+                .justify_center()
+                .text_color(muted)
+                .child(img(logo()).size(px(112.)))
+                .child(if self.conns.is_empty() { t!("app.empty_first") } else { t!("app.empty_pick") }.to_string())
+                .into_any_element(),
+        };
+        div()
+            .size_full()
+            .flex()
+            .bg(bg)
+            .text_color(fg)
+            .text_sm()
+            .child(self.render_sidebar(cx))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .when(!self.tabs.is_empty(), |d| d.child(self.render_tabs(cx)))
+                    .child(content),
+            )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
+    use super::{format_size, parse_color, visible_collections};
+    use crate::mongo::{CollKind, CollectionInfo};
+
+    fn cols(names: &[&str]) -> Vec<CollectionInfo> {
+        names.iter().map(|n| CollectionInfo { name: n.to_string(), kind: CollKind::Collection }).collect()
+    }
+
+    fn names(v: Option<Vec<&CollectionInfo>>) -> Option<Vec<&str>> {
+        v.map(|v| v.into_iter().map(|c| c.name.as_str()).collect())
+    }
+
+    #[test]
+    fn search_filters_collections() {
+        let c = cols(&["users", "orders", "UserEvents"]);
+        assert_eq!(names(visible_collections("shop", Some(&c), "")), Some(vec!["users", "orders", "UserEvents"]));
+        assert_eq!(names(visible_collections("shop", Some(&c), "user")), Some(vec!["users", "UserEvents"]), "case-insensitive");
+        assert_eq!(names(visible_collections("shop", Some(&c), "sho")), Some(vec!["users", "orders", "UserEvents"]), "db name match shows all");
+        assert_eq!(names(visible_collections("shop", Some(&c), "zzz")), None);
+        // Not loaded yet: visible while searching only if the db name matches.
+        assert_eq!(names(visible_collections("shop", None, "sho")), Some(vec![]));
+        assert_eq!(names(visible_collections("shop", None, "users")), None);
+    }
+
+    #[test]
+    fn sizes_are_human_readable() {
+        assert_eq!(format_size(512), "512 B");
+        assert_eq!(format_size(1536), "1.5 KB");
+        assert_eq!(format_size(20 * 1024 * 1024), "20 MB");
+        assert_eq!(format_size(3 * 1024 * 1024 * 1024), "3.0 GB");
+    }
+
+    #[test]
+    fn colors_parse_from_hex() {
+        assert!(parse_color("#e5484d").is_some());
+        assert!(parse_color("e5484d").is_none(), "needs the #");
+        assert!(parse_color("#zzzzzz").is_none());
+    }
+}

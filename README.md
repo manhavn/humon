@@ -123,19 +123,17 @@ HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignor
 
 ## How it's built
 
-| File | What it does |
+| Path | What it does |
 | --- | --- |
-| `src/app.rs` | Window, sidebar, tabs bar, settings |
+| `src/app/` | The window: sidebar, connections, tab bar, settings |
+| `src/tab/` | A collection tab: queries and paging, tree and table views, editor, history and export panels, status bar |
 | `src/manage.rs` | Creating, renaming and dropping databases and collections |
-| `src/history.rs` | Query history and favorites |
-| `src/tab.rs` | A collection tab: query bar, paging, document tree, editors |
 | `src/mongo.rs` | Talking to MongoDB (runs on tokio) |
 | `src/query.rs` | Mongo shell syntax → BSON |
 | `src/shell.rs` | Extended JSON → shell text |
 | `src/highlight.rs` | Syntax colors for the tree and the editor |
 | `src/smart.rs` | The typing helpers |
-| `src/store.rs` | Saved connections |
-| `src/settings.rs` | Settings and language |
+| `src/store.rs`, `src/history.rs`, `src/settings.rs`, `src/files.rs` | Saved connections, query history, settings, and the JSON files behind them |
 
 ## License
 
