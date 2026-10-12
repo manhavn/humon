@@ -29,6 +29,23 @@ cargo clippy --release --all-targets -- -D warnings
 
 CI runs the same checks, plus the live tests.
 
+## Versions and releases
+
+humon follows [Semantic Versioning](https://semver.org/); the version lives in
+`Cargo.toml` only. Note changes under `## [Unreleased]` in `CHANGELOG.md` as you go.
+
+To release:
+
+1. Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (and add a fresh
+   `## [Unreleased]` above it).
+2. Run `scripts/release.sh X.Y.Z`: it sets the version, runs the tests, commits
+   and tags.
+3. `git push origin main vX.Y.Z`. The release workflow builds a universal macOS
+   app and publishes it with the changelog section as the notes.
+
+The workflow refuses a tag that doesn't match `Cargo.toml`, and a test fails if the
+current version has no changelog section.
+
 ## Translations
 
 Adding a language is one file in `locales/`; see the README. `cargo test`

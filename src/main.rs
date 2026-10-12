@@ -14,6 +14,7 @@ mod shell;
 mod smart;
 mod store;
 mod tab;
+mod version;
 
 use gpui_kit::component::Theme;
 use gpui_kit::*;
@@ -22,6 +23,17 @@ use gpui_kit::*;
 rust_i18n::i18n!("locales", fallback = "en");
 
 fn main() {
+    // Used by the release workflow, so notes come from the same tested code.
+    let args: Vec<String> = std::env::args().collect();
+    if let [_, flag, version] = &args[..]
+        && flag == "--release-notes"
+    {
+        match version::release_notes(include_str!("../CHANGELOG.md"), version) {
+            Some(notes) => println!("{notes}"),
+            None => std::process::exit(1),
+        }
+        return;
+    }
     rust_i18n::set_locale(&settings::initial_language());
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);

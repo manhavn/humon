@@ -123,6 +123,7 @@ tab.shell: ">_ Shell"
 settings.title: Settings
 settings.language: Language
 settings.contribute: Missing your language? Copy locales/en.yml to locales/<code>.yml, translate it and send a pull request.
+settings.version: "humon %{version}"
 settings.close: Close
 
 query.at: "%{msg} (line %{line}, column %{col})"

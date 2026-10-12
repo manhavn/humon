@@ -11,18 +11,16 @@
 
 ---
 
-## Why?
+## Why humon?
 
-MongoDB Compass is great, but it is heavy. It ships a whole Chromium, and on
-my machine it used close to 300 MB of RAM just to look at a few documents.
-I wanted something that opens instantly and stays out of the way.
+It is built to be fast and light:
 
-So humon was born. With the same collection open (100 documents):
-
-| | RAM |
-| --- | --- |
-| MongoDB Compass | ~290 MB |
-| **humon** | **~40 MB** |
+- **Native, GPU-drawn UI.** No browser and no Electron inside, so it opens instantly
+  and stays responsive with large results.
+- **Small memory footprint.** Results are streamed, paged and exported straight to
+  disk instead of being held in memory.
+- **One small app.** A single binary with an embedded JavaScript shell; no Node.js,
+  no mongosh, nothing else to install.
 
 ## 🤖 Built entirely by AI
 
@@ -66,9 +64,21 @@ these (macOS Keychain) is the first item on the to-do list below.
 - Status bar with document count and query time
 - English and Turkish, and adding a language is one file (see below)
 
-## Getting started
+## Install
 
-You need [Rust](https://rustup.rs) and macOS (other platforms are untested).
+Download the latest `.dmg` from [Releases](https://github.com/yldrmzffr/humon/releases),
+open it and drag humon into Applications. It runs on Apple Silicon and Intel Macs.
+
+The app is not notarized by Apple yet, so the first launch shows a warning. Right-click
+humon in Applications and choose **Open** (once), or run:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/humon.app
+```
+
+## Build from source
+
+You need [Rust](https://rustup.rs) and macOS (Linux and Windows builds are planned).
 
 ```sh
 cargo run --release
@@ -124,8 +134,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made.
 - [ ] Import from JSON / CSV
 - [ ] Schema overview: fields, types, how often they appear
 - [ ] SSH tunnel and TLS certificate options
-- [ ] Signed and notarized releases you can just download
-- [ ] Try it on Windows and Linux
+- [ ] Notarized macOS releases (no first-launch warning)
+- [ ] Linux and Windows builds
 - [ ] UI polish: fonts, sizes, spacing
 - [ ] UI-level tests with gpui's test harness (needs a second, larger build)
 

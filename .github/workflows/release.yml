@@ -1,0 +1,59 @@
+name: Release
+
+# Pushing a tag like v0.2.0 builds the app and publishes a GitHub release.
+# scripts/release.sh prepares the version bump, commit and tag.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS (universal)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check that the tag matches Cargo.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version $version in Cargo.toml"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - run: cargo test --release
+      - run: cargo build --release --target aarch64-apple-darwin
+      - run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Package
+        run: |
+          mkdir -p dist/dmg
+          lipo -create -output dist/humon \
+            target/aarch64-apple-darwin/release/humon \
+            target/x86_64-apple-darwin/release/humon
+          ./scripts/bundle-macos.sh dist/humon dist/dmg/humon.app
+          ln -s /Applications dist/dmg/Applications
+          name="humon-$VERSION-macos-universal"
+          hdiutil create -volname humon -srcfolder dist/dmg -ov -format UDZO "dist/$name.dmg"
+          ditto -c -k --keepParent dist/dmg/humon.app "dist/$name.zip"
+          (cd dist && shasum -a 256 "$name.dmg" "$name.zip" > SHA256SUMS.txt)
+          dist/humon --release-notes "$VERSION" > dist/notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: humon ${{ env.VERSION }}
+          body_path: dist/notes.md
+          files: |
+            dist/*.dmg
+            dist/*.zip
+            dist/SHA256SUMS.txt
+
+  # Linux and Windows jobs go here when those builds are ready.

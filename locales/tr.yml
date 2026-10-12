@@ -121,6 +121,7 @@ tab.shell: ">_ Shell"
 settings.title: Ayarlar
 settings.language: Dil
 settings.contribute: Dilin yok mu? locales/en.yml dosyasını locales/<kod>.yml olarak kopyala, çevir ve pull request gönder.
+settings.version: "humon %{version}"
 settings.close: Kapat
 
 query.at: "%{msg} (satır %{line}, sütun %{col})"

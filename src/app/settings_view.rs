@@ -76,6 +76,12 @@ impl Humon {
                         .text_xs()
                         .text_color(muted)
                         .child(t!("settings.contribute").to_string()),
+                )
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(muted)
+                        .child(t!("settings.version", version = crate::version::VERSION).to_string()),
                 ),
         )
     }
