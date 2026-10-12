@@ -12,11 +12,13 @@ fn is_ident(k: &str) -> bool {
         && chars.all(|c| c.is_alphanumeric() || c == '_' || c == '$')
 }
 
-fn date_text(ms: &str) -> String {
-    ms.parse::<i64>()
-        .ok()
-        .and_then(|ms| mongodb::bson::DateTime::from_millis(ms).try_to_rfc3339_string().ok())
-        .unwrap_or_else(|| ms.to_string())
+/// `ISODate("…")`, or `ISODate(<millis>)` for dates ISO 8601 can't express
+/// (past year 9999); the query parser reads both back to the same instant.
+fn date_shell(ms: &str) -> String {
+    match ms.parse::<i64>().ok().map(|ms| mongodb::bson::DateTime::from_millis(ms).try_to_rfc3339_string()) {
+        Some(Ok(iso)) => format!("ISODate({})", quote(&iso)),
+        _ => format!("ISODate({ms})"),
+    }
 }
 
 fn uuid_text(b64: &str) -> Option<String> {
@@ -33,7 +35,7 @@ fn typed(obj: &Map<String, Value>) -> Option<String> {
         "$oid" => format!("ObjectId({})", quote(s)),
         "$date" => {
             let ms = v.get("$numberLong").and_then(Value::as_str).unwrap_or(s);
-            format!("ISODate({})", quote(&date_text(ms)))
+            date_shell(ms)
         }
         "$numberInt" => s.to_string(),
         "$numberLong" => format!("NumberLong({})", quote(s)),

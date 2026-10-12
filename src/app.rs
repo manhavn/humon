@@ -13,6 +13,8 @@ use mongodb::Client;
 
 use crate::mongo::{self, CollKind, CollectionInfo, DatabaseInfo, RT};
 use crate::store::{self, SavedConnection};
+use crate::history::History;
+use crate::manage::{EditForm, SidebarEdit};
 use crate::settings::{self, Settings};
 use crate::tab::Tab;
 use rust_i18n::t;
@@ -50,7 +52,9 @@ pub struct Humon {
     search: Entity<InputState>,
     /// Lowercased collection search; empty shows the normal tree.
     query: String,
-    load_error: Option<String>,
+    pub load_error: Option<String>,
+    pub history: History,
+    pub form: EditForm,
     show_settings: bool,
     _subscriptions: Vec<Subscription>,
 }
@@ -102,6 +106,7 @@ impl Humon {
                 this.on_search(window, cx);
             }
         });
+        let (form, form_subs) = EditForm::new(window, cx);
         let (saved, load_error) = match store::list() {
             Ok(list) => (list, None),
             Err(e) => (vec![], Some(e)),
@@ -125,8 +130,10 @@ impl Humon {
             search,
             query: String::new(),
             load_error,
+            history: History::load(),
+            form,
             show_settings: false,
-            _subscriptions: vec![search_sub],
+            _subscriptions: std::iter::once(search_sub).chain(form_subs).collect(),
         }
     }
 
@@ -249,7 +256,7 @@ impl Humon {
         }
     }
 
-    fn refresh_dbs(&mut self, saved_id: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn refresh_dbs(&mut self, saved_id: &str, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.conn_ix(saved_id) else { return };
         let Some(client) = self.conns[ix].client.clone() else { return };
         let id = saved_id.to_string();
@@ -302,6 +309,27 @@ impl Humon {
                 }
             }
         });
+    }
+
+    /// Forgets a database's collections and fetches them again.
+    pub fn reload_collections(&mut self, saved_id: &str, db_name: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(db) = self
+            .conns
+            .iter_mut()
+            .find(|c| c.saved.id == saved_id)
+            .and_then(|c| c.dbs.iter_mut().find(|d| d.info.name == db_name))
+        {
+            db.collections = None;
+            db.loading = false;
+        }
+        self.load_collections(saved_id, db_name, window, cx);
+    }
+
+    pub fn close_tabs_where(&mut self, pred: impl Fn(&Tab) -> bool) {
+        let ids: Vec<usize> = self.tabs.iter().filter(|t| pred(t)).map(|t| t.id).collect();
+        for id in ids {
+            self.close_tab(id);
+        }
     }
 
     /// Searching needs every database's collections, so load the missing ones.
@@ -556,7 +584,15 @@ impl Humon {
                             .text_color(conn.color().unwrap_or(muted)),
                         )
                         .when(connected, |d| {
-                            d.child(icon_button(format!("refresh-{id}"), "↻", hover, cx.listener({
+                            d.child(icon_button(format!("newdb-{id}"), "+", hover, cx.listener({
+                                let id = id.clone();
+                                move |this, _, window, cx| {
+                                    cx.stop_propagation();
+                                    this.start_sidebar_edit(SidebarEdit::NewDb { conn: id.clone() }, window, cx);
+                                    cx.notify();
+                                }
+                            })))
+                            .child(icon_button(format!("refresh-{id}"), "↻", hover, cx.listener({
                                 let id = id.clone();
                                 move |this, _, window, cx| {
                                     cx.stop_propagation();
@@ -585,6 +621,9 @@ impl Humon {
                         ),
                 );
             list = list.child(row);
+            if self.form.is(&SidebarEdit::NewDb { conn: id.clone() }) {
+                list = list.child(self.render_edit_form(px(32.), cx));
+            }
             if picking {
                 let sid = id.clone();
                 let palette = self.render_palette(&id, conn.saved.color.as_deref(), cx, move |this, color| this.set_color(&sid, color));
@@ -613,9 +652,37 @@ impl Humon {
                 }
                 any_match |= searching;
                 let open = db.open || searching;
+                let db_group: SharedString = format!("db-{id}-{di}").into();
+                let (new_coll, drop_db) = (
+                    SidebarEdit::NewColl { conn: id.clone(), db: db.info.name.clone() },
+                    SidebarEdit::DropDb { conn: id.clone(), db: db.info.name.clone() },
+                );
+                let db_actions = div()
+                    .flex()
+                    .gap_1()
+                    .text_color(muted)
+                    .opacity(0.)
+                    .group_hover(db_group.clone(), |s| s.opacity(1.))
+                    .child(icon_button(format!("newcoll-{id}-{di}"), "+", hover, cx.listener({
+                        let edit = new_coll.clone();
+                        move |this, _, window, cx| {
+                            cx.stop_propagation();
+                            this.start_sidebar_edit(edit.clone(), window, cx);
+                            cx.notify();
+                        }
+                    })))
+                    .child(icon_button(format!("dropdb-{id}-{di}"), "×", hover, cx.listener({
+                        let edit = drop_db.clone();
+                        move |this, _, window, cx| {
+                            cx.stop_propagation();
+                            this.start_sidebar_edit(edit.clone(), window, cx);
+                            cx.notify();
+                        }
+                    })));
                 list = list.child(
                     div()
                         .id(SharedString::from(format!("db-{id}-{di}")))
+                        .group(db_group)
                         .flex()
                         .gap_2()
                         .pl_8()
@@ -632,8 +699,12 @@ impl Humon {
                         }))
                         .child(div().text_color(muted).child(if open { "▾" } else { "▸" }))
                         .child(div().flex_1().min_w_0().overflow_hidden().child(db.info.name.clone()))
-                        .child(div().text_xs().text_color(muted).child(format_size(db.info.size_on_disk))),
+                        .child(div().text_xs().text_color(muted).child(format_size(db.info.size_on_disk)))
+                        .child(db_actions),
                 );
+                if self.form.is(&new_coll) || self.form.is(&drop_db) {
+                    list = list.child(self.render_edit_form(px(56.), cx));
+                }
                 if !open {
                     continue;
                 }
@@ -655,9 +726,38 @@ impl Humon {
                         this.open_collection(&sid, &dbn, &cn, kind, true, window, cx);
                         cx.notify();
                     });
+                    let coll_group: SharedString = format!("coll-{id}-{di}-{}", coll.name).into();
+                    let (rename, drop_coll) = (
+                        SidebarEdit::RenameColl { conn: id.clone(), db: db.info.name.clone(), coll: coll.name.clone() },
+                        SidebarEdit::DropColl { conn: id.clone(), db: db.info.name.clone(), coll: coll.name.clone() },
+                    );
+                    let coll_actions = div()
+                        .flex()
+                        .gap_1()
+                        .text_color(muted)
+                        .opacity(0.)
+                        .group_hover(coll_group.clone(), |s| s.opacity(1.))
+                        .child(icon_button(format!("rename-{id}-{di}-{}", coll.name), "✎", hover, cx.listener({
+                            let edit = rename.clone();
+                            move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                this.start_sidebar_edit(edit.clone(), window, cx);
+                                cx.notify();
+                            }
+                        })))
+                        .child(icon_button(format!("dropcoll-{id}-{di}-{}", coll.name), "×", hover, cx.listener({
+                            let edit = drop_coll.clone();
+                            move |this, _, window, cx| {
+                                cx.stop_propagation();
+                                this.start_sidebar_edit(edit.clone(), window, cx);
+                                cx.notify();
+                            }
+                        })));
+                    let show_form = self.form.is(&rename) || self.form.is(&drop_coll);
                     list = list.child(
                         div()
                             .id(SharedString::from(format!("coll-{id}-{di}-{}", coll.name)))
+                            .group(coll_group)
                             .flex()
                             .gap_2()
                             .pl_16()
@@ -671,8 +771,12 @@ impl Humon {
                             .child(div().flex_1().min_w_0().overflow_hidden().child(coll.name.clone()))
                             .when(kind != CollKind::Collection, |d| {
                                 d.child(div().text_xs().text_color(muted).child(if kind == CollKind::View { t!("kind.view") } else { t!("kind.timeseries") }.to_string()))
-                            }),
+                            })
+                            .child(coll_actions),
                     );
+                    if show_form {
+                        list = list.child(self.render_edit_form(px(80.), cx));
+                    }
                 }
             }
         }

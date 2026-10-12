@@ -28,6 +28,8 @@ tab.projection_placeholder: "{ field: 1 }"
 tab.find: Find
 tab.reset: Reset
 tab.add: + Add
+tab.view_tree: Tree
+tab.view_table: Table
 tab.loading: Loading…
 tab.no_docs: No documents
 tab.counting: counting…
@@ -51,6 +53,13 @@ card.confirm_delete: Sure?
 tree.fields: "{ %{n} fields }"
 tree.array: "Array [%{n}]"
 
+history.toggle: History
+history.save: ☆ Save
+history.favorites: Favorites
+history.recent: Recent
+history.empty: No saved or recent queries yet
+history.saved: Saved to favorites
+
 status.counting: counting…
 status.count_slow: count took too long
 status.documents: "%{n} documents"
@@ -63,7 +72,34 @@ kind.timeseries: timeseries
 
 errors.gone: document not found; someone may have deleted it
 errors.id_immutable: _id can't be changed
+errors.collection_exists: "collection %{name} already exists"
 errors.invalid_id: "invalid _id: %{error}"
+
+export.button: Export
+export.page: "This page (%{n})"
+export.all: All results
+export.all_count: "All results (%{n})"
+export.save: Save…
+export.running: Exporting…
+export.done: "%{n} documents exported to %{file}"
+export.csv_note: "CSV: nested values are written as JSON"
+
+manage.new_db: New database
+manage.new_coll: New collection
+manage.rename: Rename collection
+manage.drop_coll: Drop collection
+manage.drop_db: Drop database
+manage.db_name: database name
+manage.coll_name: collection name
+manage.first_coll: first collection name
+manage.new_name: new name
+manage.type_to_confirm: "Type %{name} to confirm. This can't be undone."
+manage.new_db_hint: MongoDB creates a database together with its first collection.
+manage.create: Create
+manage.rename_button: Rename
+manage.drop_button: Drop
+manage.cancel: Cancel
+manage.name_required: Name can't be empty
 
 settings.title: Settings
 settings.language: Language

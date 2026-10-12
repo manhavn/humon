@@ -51,7 +51,10 @@ these (macOS Keychain) is the first item on the to-do list below.
 - Open collections in tabs (⌘-click or middle-click opens another tab)
 - Filter, sort and project with mongo shell syntax:
   `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
-- Colored document tree; edit, clone, copy, delete and insert documents
+- Colored document tree, or a table view; edit, clone, copy, delete and insert documents
+- Query history and favorites for every collection
+- Create, rename and drop databases and collections (drops ask you to type the name)
+- Export results to JSON or CSV, streamed to disk so big exports stay light
 - Helpful typing: brackets close themselves, `Obj` becomes `ObjectId("")`,
   and pasted ids, UUIDs and dates are wrapped for you
 - Status bar with document count and query time
@@ -97,10 +100,19 @@ HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignor
 ## To do
 
 - [ ] **Encrypt saved connections** (store passwords in the macOS Keychain)
-- [ ] Signed and notarized releases you can just download
-- [ ] Aggregation pipeline editor
+- [ ] Built-in shell (mongosh in a tab)
+- [ ] Tab menu: duplicate, close others (and ⌘D)
+- [ ] Keyboard shortcuts: ⌘T, ⌘W, ⌘1–9, ⌘R, ⌘F
+- [ ] Remember open tabs and queries between launches
+- [ ] Read-only connections, so production can't be changed by accident
+- [ ] Aggregation pipeline editor with stage previews
 - [ ] Indexes: list, create, drop, and `explain`
-- [ ] Export to JSON / CSV
+- [ ] Edit a single field without opening the whole document
+- [ ] Update or delete many documents by filter (with confirmation)
+- [ ] Import from JSON / CSV
+- [ ] Schema overview: fields, types, how often they appear
+- [ ] SSH tunnel and TLS certificate options
+- [ ] Signed and notarized releases you can just download
 - [ ] Try it on Windows and Linux
 - [ ] UI polish: fonts, sizes, spacing
 
@@ -109,6 +121,8 @@ HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignor
 | File | What it does |
 | --- | --- |
 | `src/app.rs` | Window, sidebar, tabs bar, settings |
+| `src/manage.rs` | Creating, renaming and dropping databases and collections |
+| `src/history.rs` | Query history and favorites |
 | `src/tab.rs` | A collection tab: query bar, paging, document tree, editors |
 | `src/mongo.rs` | Talking to MongoDB (runs on tokio) |
 | `src/query.rs` | Mongo shell syntax → BSON |

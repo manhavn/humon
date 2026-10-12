@@ -26,6 +26,8 @@ tab.projection_placeholder: "{ alan: 1 }"
 tab.find: Bul
 tab.reset: Sıfırla
 tab.add: + Ekle
+tab.view_tree: Ağaç
+tab.view_table: Tablo
 tab.loading: Yükleniyor…
 tab.no_docs: Doküman yok
 tab.counting: sayılıyor…
@@ -49,6 +51,13 @@ card.confirm_delete: Emin misin?
 tree.fields: "{ %{n} alan }"
 tree.array: "Dizi [%{n}]"
 
+history.toggle: Geçmiş
+history.save: ☆ Kaydet
+history.favorites: Favoriler
+history.recent: Son sorgular
+history.empty: Henüz kayıtlı ya da geçmiş sorgu yok
+history.saved: Favorilere eklendi
+
 status.counting: sayılıyor…
 status.count_slow: sayım çok uzun sürdü
 status.documents: "%{n} doküman"
@@ -61,7 +70,34 @@ kind.timeseries: timeseries
 
 errors.gone: doküman bulunamadı; başka biri silmiş olabilir
 errors.id_immutable: _id değiştirilemez
+errors.collection_exists: "%{name} adında bir collection zaten var"
 errors.invalid_id: "geçersiz _id: %{error}"
+
+export.button: Dışa aktar
+export.page: "Bu sayfa (%{n})"
+export.all: Tüm sonuçlar
+export.all_count: "Tüm sonuçlar (%{n})"
+export.save: Kaydet…
+export.running: Dışa aktarılıyor…
+export.done: "%{n} doküman dışa aktarıldı: %{file}"
+export.csv_note: "CSV: iç içe değerler JSON olarak yazılır"
+
+manage.new_db: Yeni veritabanı
+manage.new_coll: Yeni collection
+manage.rename: Collection'ı yeniden adlandır
+manage.drop_coll: Collection'ı sil
+manage.drop_db: Veritabanını sil
+manage.db_name: veritabanı adı
+manage.coll_name: collection adı
+manage.first_coll: ilk collection adı
+manage.new_name: yeni ad
+manage.type_to_confirm: "Onaylamak için %{name} yaz. Bu işlem geri alınamaz."
+manage.new_db_hint: MongoDB bir veritabanını ilk collection'ıyla birlikte oluşturur.
+manage.create: Oluştur
+manage.rename_button: Yeniden adlandır
+manage.drop_button: Sil
+manage.cancel: Vazgeç
+manage.name_required: Ad boş olamaz
 
 settings.title: Ayarlar
 settings.language: Dil

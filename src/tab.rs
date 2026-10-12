@@ -15,13 +15,22 @@ use mongodb::Client;
 use serde_json::{Map, Value};
 
 use crate::app::Humon;
+use crate::history::{self, Query};
 use crate::highlight::{ShellHighlighter, tokenize};
-use crate::mongo::{self, CollKind, FindArgs};
+use crate::mongo::{self, CollKind, ExportFormat, FindArgs, RT};
 use crate::shell::to_shell;
 use crate::smart::Smart;
 use rust_i18n::t;
 
 const PAGE_SIZES: [i64; 3] = [20, 50, 100];
+const COLUMN_WIDTH: f32 = 200.;
+const ACTIONS_WIDTH: f32 = 72.;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ViewMode {
+    Tree,
+    Table,
+}
 
 pub struct DocEditor {
     pub state: Entity<EditorState>,
@@ -49,7 +58,7 @@ pub struct Tab {
     sort: Entity<InputState>,
     projection: Entity<InputState>,
     /// What the shown results were fetched with; paging reuses it.
-    applied: (String, String, String),
+    applied: Query,
     page: u64,
     page_size: i64,
     docs: Vec<Value>,
@@ -70,6 +79,13 @@ pub struct Tab {
     confirm_delete: Option<usize>,
     card_error: Option<(usize, String)>,
     notice: Option<String>,
+    history_open: bool,
+    view: ViewMode,
+    export_open: bool,
+    export_format: ExportFormat,
+    /// Export every match rather than just the shown page.
+    export_all: bool,
+    exporting: bool,
     /// Typing helpers for filter, sort and projection.
     smart: [Smart; 3],
     _subscriptions: Vec<Subscription>,
@@ -127,6 +143,12 @@ impl Tab {
             confirm_delete: None,
             card_error: None,
             notice: None,
+            history_open: false,
+            view: ViewMode::Tree,
+            export_open: false,
+            export_format: ExportFormat::Json,
+            export_all: true,
+            exporting: false,
             smart: Default::default(),
             _subscriptions: subscriptions,
         }
@@ -206,13 +228,109 @@ impl Humon {
     /// Applies what is typed in the query bar and goes back to the first page.
     pub fn run_query(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else { return };
-        tab.applied = (
-            tab.filter.read(cx).value().to_string(),
-            tab.sort.read(cx).value().to_string(),
-            tab.projection.read(cx).value().to_string(),
-        );
+        tab.applied = Query {
+            filter: tab.filter.read(cx).value().to_string(),
+            sort: tab.sort.read(cx).value().to_string(),
+            projection: tab.projection.read(cx).value().to_string(),
+        };
         tab.page = 0;
+        let (key, query) = (history::key(&tab.conn_id, &tab.db, &tab.coll), tab.applied.clone());
+        self.history.record(&key, query);
+        self.persist_history();
         self.refresh(id, window, cx);
+    }
+
+    /// Puts a query into the query bar and runs it.
+    fn apply_query(&mut self, id: usize, query: Query, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        tab.history_open = false;
+        let inputs = [
+            (tab.filter.clone(), query.filter),
+            (tab.sort.clone(), query.sort),
+            (tab.projection.clone(), query.projection),
+        ];
+        for (which, (input, text)) in inputs.into_iter().enumerate() {
+            // Tell the typing helpers first, so the change isn't read as a paste.
+            tab.smart[which].reset(&text);
+            input.update(cx, |s, cx| s.set_value(text, window, cx));
+        }
+        self.run_query(id, window, cx);
+    }
+
+    /// Asks where to save, then streams the export there on tokio.
+    fn export(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else { return };
+        if tab.exporting {
+            return;
+        }
+        let format = tab.export_format;
+        let args = FindArgs {
+            filter: tab.applied.filter.clone(),
+            sort: tab.applied.sort.clone(),
+            projection: tab.applied.projection.clone(),
+            skip: if tab.export_all { 0 } else { tab.page * tab.page_size as u64 },
+            limit: if tab.export_all { 0 } else { tab.page_size },
+        };
+        let (client, db, coll) = (tab.client.clone(), tab.db.clone(), tab.coll.clone());
+        let downloads = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Downloads");
+        let picked = cx.prompt_for_new_path(&downloads, Some(&format!("{coll}.{}", format.extension())));
+        tab.exporting = true;
+        tab.notice = Some(t!("export.running").into());
+        cx.spawn_in(window, async move |this, cx| {
+            let path = match picked.await {
+                Ok(Ok(Some(path))) => path,
+                _ => {
+                    // Dialog cancelled.
+                    this.update(cx, |this, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.exporting = false;
+                            tab.notice = None;
+                        }
+                        cx.notify();
+                    })
+                    .ok();
+                    return;
+                }
+            };
+            let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+            let res = RT.spawn(mongo::export(client, db, coll, args, format, path)).await;
+            this.update(cx, |this, cx| {
+                if let Some(tab) = this.tab_mut(id) {
+                    tab.exporting = false;
+                    match res {
+                        Ok(Ok(n)) => {
+                            tab.notice = Some(t!("export.done", n = n, file = file).into());
+                            tab.export_open = false;
+                        }
+                        Ok(Err(e)) => {
+                            tab.notice = None;
+                            tab.error = Some(e);
+                        }
+                        Err(e) => {
+                            tab.notice = None;
+                            tab.error = Some(e.to_string());
+                        }
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    fn save_favorite(&mut self, id: usize, cx: &mut Context<Self>) {
+        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else { return };
+        let query = Query {
+            filter: tab.filter.read(cx).value().to_string(),
+            sort: tab.sort.read(cx).value().to_string(),
+            projection: tab.projection.read(cx).value().to_string(),
+        };
+        let key = history::key(&tab.conn_id, &tab.db, &tab.coll);
+        if self.history.add_favorite(&key, query) {
+            tab.notice = Some(t!("history.saved").into());
+            self.persist_history();
+        }
     }
 
     /// Reloads the current page and the count with the applied query.
@@ -221,7 +339,7 @@ impl Humon {
         tab.count = None;
         tab.count_seq += 1;
         let seq = tab.count_seq;
-        let fut = mongo::count(tab.client.clone(), tab.db.clone(), tab.coll.clone(), tab.applied.0.clone());
+        let fut = mongo::count(tab.client.clone(), tab.db.clone(), tab.coll.clone(), tab.applied.filter.clone());
         self.run(fut, window, cx, move |this, res, _, _| {
             if let Some(tab) = this.tab_mut(id)
                 && tab.count_seq == seq
@@ -239,9 +357,9 @@ impl Humon {
         tab.error = None;
         let seq = tab.seq;
         let args = FindArgs {
-            filter: tab.applied.0.clone(),
-            sort: tab.applied.1.clone(),
-            projection: tab.applied.2.clone(),
+            filter: tab.applied.filter.clone(),
+            sort: tab.applied.sort.clone(),
+            projection: tab.applied.projection.clone(),
             skip: tab.page * tab.page_size as u64,
             limit: tab.page_size,
         };
@@ -282,12 +400,7 @@ impl Humon {
     }
 
     fn reset_query(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(tab) = self.tab_mut(id) else { return };
-        let inputs = [tab.filter.clone(), tab.sort.clone(), tab.projection.clone()];
-        for input in inputs {
-            input.update(cx, |s, cx| s.set_value("", window, cx));
-        }
-        self.run_query(id, window, cx);
+        self.apply_query(id, Query::default(), window, cx);
     }
 
     fn start_edit(&mut self, id: usize, ix: usize, window: &mut Window, cx: &mut Context<Self>) {
@@ -397,7 +510,7 @@ impl Humon {
         let tab = &self.tabs[ix];
         let id = tab.id;
         let theme = cx.theme();
-        let (border, muted, danger, accent) = (theme.border, theme.muted_foreground, theme.danger, theme.success);
+        let (border, muted, danger, accent, primary) = (theme.border, theme.muted_foreground, theme.danger, theme.success, theme.primary);
         let syntax = theme.highlight_theme.clone();
 
         let from = tab.page * tab.page_size as u64;
@@ -435,6 +548,16 @@ impl Humon {
             })))
             .child(Button::new("reset").label(t!("tab.reset")).on_click(cx.listener(move |this, _, window, cx| {
                 this.reset_query(id, window, cx);
+            })))
+            .child(Button::new("history").label(t!("history.toggle")).when(tab.history_open, |b| b.primary()).on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(tab) = this.tab_mut(id) {
+                    tab.history_open = !tab.history_open;
+                }
+                cx.notify();
+            })))
+            .child(Button::new("favorite").label(t!("history.save")).on_click(cx.listener(move |this, _, _, cx| {
+                this.save_favorite(id, cx);
+                cx.notify();
             })));
 
         let page = tab.page;
@@ -451,6 +574,14 @@ impl Humon {
             .when(tab.loading, |d| d.child(div().text_xs().child(t!("tab.loading").to_string())))
             .when_some(tab.notice.clone(), |d, n| d.child(div().text_xs().text_color(accent).child(n)))
             .child(div().flex_1());
+        toolbar = toolbar.child(
+            Button::new("export-toggle").label(t!("export.button")).when(tab.export_open, |b| b.primary()).on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(tab) = this.tab_mut(id) {
+                    tab.export_open = !tab.export_open;
+                }
+                cx.notify();
+            })),
+        );
         if tab.writable() {
             toolbar = toolbar.child(
                 Button::new("add").label(t!("tab.add")).disabled(tab.draft.is_some()).on_click(cx.listener(move |this, _, window, cx| {
@@ -458,6 +589,20 @@ impl Humon {
                 })),
             );
         }
+        for (mode, key) in [(ViewMode::Tree, "tab.view_tree"), (ViewMode::Table, "tab.view_table")] {
+            toolbar = toolbar.child(
+                Button::new(SharedString::from(format!("view-{key}")))
+                    .label(t!(key))
+                    .when(tab.view == mode, |b| b.primary())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.view = mode;
+                        }
+                        cx.notify();
+                    })),
+            );
+        }
+        toolbar = toolbar.child(div().w(px(8.)));
         for size in PAGE_SIZES {
             let selected = tab.page_size == size;
             toolbar = toolbar.child(
@@ -483,13 +628,15 @@ impl Humon {
                 this.refresh(id, window, cx);
             })));
 
-        let mut docs = div().id(("docs", id)).flex_1().overflow_y_scroll().p_3().flex().flex_col().gap_2();
+        let mut docs = div().id(("docs", id)).flex_1().p_3().flex().flex_col().gap_2();
+        // The table also scrolls sideways; the tree only needs vertical scroll.
+        docs = if tab.view == ViewMode::Table { docs.overflow_scroll() } else { docs.overflow_y_scroll() };
         if let Some(draft) = &tab.draft {
             docs = docs.child(
                 div()
                     .p_2()
                     .border_1()
-                    .border_color(theme.primary)
+                    .border_color(primary)
                     .rounded_md()
                     .flex()
                     .flex_col()
@@ -500,8 +647,22 @@ impl Humon {
                     .child(self.render_editor(id, draft, t!("tab.insert").into(), true, cx)),
             );
         }
-        for (i, doc) in tab.docs.iter().enumerate() {
-            docs = docs.child(self.render_card(tab, i, doc, &syntax, cx));
+        match tab.view {
+            ViewMode::Tree => {
+                for (i, doc) in tab.docs.iter().enumerate() {
+                    docs = docs.child(self.render_card(tab, i, doc, &syntax, cx));
+                }
+            }
+            ViewMode::Table => {
+                if let Some((_, _, editor)) = &tab.editing {
+                    docs = docs.child(
+                        div().p_2().border_1().border_color(primary).rounded_md().child(self.render_editor(id, editor, t!("tab.save").into(), false, cx)),
+                    );
+                }
+                if !tab.docs.is_empty() {
+                    docs = docs.child(self.render_table(tab, &syntax, cx));
+                }
+            }
         }
 
         div()
@@ -510,10 +671,193 @@ impl Humon {
             .flex()
             .flex_col()
             .child(query_bar)
+            .when(tab.history_open, |d| d.child(self.render_history(tab, cx)))
             .child(toolbar)
+            .when(tab.export_open, |d| d.child(self.render_export(tab, cx)))
             .when_some(tab.error.clone(), |d, e| d.child(div().px_3().py_2().text_color(danger).child(e)))
             .child(docs)
             .child(self.render_status_bar(tab, cx))
+    }
+
+    /// Top-level fields as columns; nested values show as a summary.
+    fn render_table(&self, tab: &Tab, syntax: &Arc<HighlightTheme>, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, muted, hover, panel, danger, fg) = (theme.border, theme.muted_foreground, theme.list_hover, theme.sidebar, theme.danger, theme.foreground);
+        let mono = theme.mono_font_family.clone();
+        let id = tab.id;
+        let columns = table_columns(&tab.docs);
+        let width = ACTIONS_WIDTH + COLUMN_WIDTH * columns.len() as f32;
+        let writable = tab.writable();
+
+        let cell = |w: f32| div().flex_none().w(px(w)).px_2().py_1().border_r_1().border_color(border).truncate();
+        let mut header = div().flex().flex_none().w(px(width)).bg(panel).border_b_1().border_color(border).font_weight(FontWeight::SEMIBOLD).child(cell(ACTIONS_WIDTH));
+        for c in &columns {
+            header = header.child(cell(COLUMN_WIDTH).text_color(fg).child(c.clone()));
+        }
+        let mut table = div().flex().flex_col().flex_none().w(px(width)).border_1().border_color(border).rounded_md().font_family(mono).text_xs().child(header);
+
+        for (ix, doc) in tab.docs.iter().enumerate() {
+            let confirm = tab.confirm_delete == Some(ix);
+            let has_id = doc.get("_id").is_some();
+            let icon = |key: &str, label: &'static str| {
+                div().id(SharedString::from(format!("t{key}-{id}-{ix}"))).px_1().rounded_sm().cursor_pointer().hover(|s| s.bg(hover)).child(label)
+            };
+            let mut actions = div().flex().gap_1().text_color(muted);
+            if writable && has_id {
+                actions = actions.child(icon("edit", "✎").on_click(cx.listener(move |this, _, window, cx| this.start_edit(id, ix, window, cx))));
+            }
+            let shell = to_shell(doc, "");
+            actions = actions.child(icon("copy", "⧉").on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(shell.clone()))));
+            if writable && has_id {
+                actions = actions.child(
+                    icon("delete", if confirm { "?" } else { "🗑" })
+                        .when(confirm, |d| d.text_color(danger))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.delete_doc(id, ix, window, cx);
+                            cx.notify();
+                        })),
+                );
+            }
+            let mut row = div()
+                .flex()
+                .flex_none()
+                .w(px(width))
+                .border_b_1()
+                .border_color(border)
+                .hover(|s| s.bg(hover))
+                .child(cell(ACTIONS_WIDTH).child(actions));
+            for c in &columns {
+                let content = match doc.get(c) {
+                    None => div(),
+                    Some(Value::Object(m)) if !is_typed(m) => div().text_color(muted).child(t!("tree.fields", n = m.len()).to_string()),
+                    Some(Value::Array(a)) => div().text_color(muted).child(t!("tree.array", n = a.len()).to_string()),
+                    Some(v) => {
+                        // One line per cell: newlines would break the row height.
+                        let text = to_shell(v, "").replace('\n', "⏎");
+                        let highlights: Vec<_> = tokenize(&text).into_iter().filter_map(|(r, k)| syntax.style(k).map(|s| (r, s))).collect();
+                        div().child(StyledText::new(text).with_highlights(highlights))
+                    }
+                };
+                row = row.child(cell(COLUMN_WIDTH).child(content));
+            }
+            table = table.child(row);
+            if let Some((i, e)) = &tab.card_error
+                && *i == ix
+            {
+                table = table.child(div().px_2().py_1().text_color(danger).child(e.clone()));
+            }
+        }
+        table
+    }
+
+    /// Format and scope choice for exporting the current query.
+    fn render_export(&self, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, muted, panel) = (theme.border, theme.muted_foreground, theme.sidebar);
+        let id = tab.id;
+        let mut row = div().flex().flex_wrap().items_center().gap_2().px_3().py_2().border_b_1().border_color(border).bg(panel).text_xs();
+        for (format, label) in [(ExportFormat::Json, "JSON"), (ExportFormat::Csv, "CSV")] {
+            row = row.child(
+                Button::new(SharedString::from(format!("format-{label}")))
+                    .label(label)
+                    .when(tab.export_format == format, |b| b.primary())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.export_format = format;
+                        }
+                        cx.notify();
+                    })),
+            );
+        }
+        let all_label = match tab.count {
+            Some(Some(n)) => t!("export.all_count", n = thousands(n)).to_string(),
+            _ => t!("export.all").to_string(),
+        };
+        row = row.child(div().w(px(12.)));
+        for (all, label) in [(false, t!("export.page", n = tab.docs.len()).to_string()), (true, all_label)] {
+            row = row.child(
+                Button::new(SharedString::from(format!("scope-{all}")))
+                    .label(label)
+                    .when(tab.export_all == all, |b| b.primary())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.export_all = all;
+                        }
+                        cx.notify();
+                    })),
+            );
+        }
+        row.child(div().flex_1())
+            .when(tab.export_format == ExportFormat::Csv, |d| d.child(div().text_color(muted).child(t!("export.csv_note").to_string())))
+            .child(
+                Button::new("export-save")
+                    .primary()
+                    .label(if tab.exporting { t!("export.running") } else { t!("export.save") })
+                    .disabled(tab.exporting)
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.export(id, window, cx);
+                        cx.notify();
+                    })),
+            )
+    }
+
+    /// Favorites first, then recent queries; clicking one runs it.
+    fn render_history(&self, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, muted, hover, panel, warning) = (theme.border, theme.muted_foreground, theme.list_hover, theme.sidebar, theme.warning);
+        let mono = theme.mono_font_family.clone();
+        let id = tab.id;
+        let key = history::key(&tab.conn_id, &tab.db, &tab.coll);
+        let favorites = self.history.favorites(&key);
+        let recent = self.history.recent(&key);
+        let row = |prefix: String, query: &Query, icon: &'static str, color: Hsla| {
+            let q = query.clone();
+            div()
+                .id(SharedString::from(format!("{prefix}-{id}")))
+                .flex()
+                .gap_2()
+                .items_center()
+                .px_3()
+                .py_1()
+                .cursor_pointer()
+                .hover(|s| s.bg(hover))
+                .child(div().w(px(14.)).text_color(color).child(icon))
+                .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_family(mono.clone()).child(query.summary()))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.apply_query(id, q.clone(), window, cx);
+                    cx.notify();
+                }))
+        };
+        let mut list = div().id(("history", id)).flex().flex_col().max_h(px(260.)).overflow_y_scroll().border_b_1().border_color(border).bg(panel).text_xs();
+        if favorites.is_empty() && recent.is_empty() {
+            return list.child(div().px_3().py_2().text_color(muted).child(t!("history.empty").to_string()));
+        }
+        if !favorites.is_empty() {
+            list = list.child(div().px_3().pt_2().pb_1().text_color(muted).font_weight(FontWeight::SEMIBOLD).child(t!("history.favorites").to_string()));
+            for (i, fav) in favorites.iter().enumerate() {
+                let k = key.clone();
+                list = list.child(row(format!("fav-{i}"), fav, "★", warning).child(
+                    div()
+                        .id(SharedString::from(format!("unfav-{i}-{id}")))
+                        .px_1()
+                        .text_color(muted)
+                        .child("×")
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            cx.stop_propagation();
+                            this.history.remove_favorite(&k, i);
+                            this.persist_history();
+                            cx.notify();
+                        })),
+                ));
+            }
+        }
+        if !recent.is_empty() {
+            list = list.child(div().px_3().pt_2().pb_1().text_color(muted).font_weight(FontWeight::SEMIBOLD).child(t!("history.recent").to_string()));
+            for (i, q) in recent.iter().enumerate() {
+                list = list.child(row(format!("recent-{i}"), q, "↺", muted));
+            }
+        }
+        list
     }
 
     /// Bottom bar, as in Compass: total count, query time, and where you are.
@@ -531,7 +875,7 @@ impl Humon {
             (false, Some(d)) => t!("status.took", time = format_duration(d)).to_string(),
             (false, None) => String::new(),
         };
-        let filtered = !tab.applied.0.trim().is_empty();
+        let filtered = !tab.applied.filter.trim().is_empty();
         div()
             .flex()
             .flex_none()
@@ -782,8 +1126,17 @@ fn format_duration(d: std::time::Duration) -> String {
 #[cfg(test)]
 mod tests {
     // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
-    use super::{format_duration, thousands};
+    use super::{format_duration, table_columns, thousands};
     use std::time::Duration;
+
+    #[test]
+    fn table_columns_keep_first_seen_order_with_id_first() {
+        let docs = vec![
+            serde_json::json!({ "name": "a", "_id": 1 }),
+            serde_json::json!({ "age": 3, "name": "b" }),
+        ];
+        assert_eq!(table_columns(&docs), ["_id", "name", "age"]);
+    }
 
     #[test]
     fn formats_counts_and_durations() {
@@ -794,4 +1147,23 @@ mod tests {
         assert_eq!(format_duration(Duration::from_millis(42)), "42 ms");
         assert_eq!(format_duration(Duration::from_millis(1530)), "1,53 s");
     }
+}
+
+/// Column order for the table: `_id` first, then fields in the order they first appear.
+fn table_columns(docs: &[Value]) -> Vec<String> {
+    let mut columns: Vec<String> = Vec::new();
+    for doc in docs {
+        if let Value::Object(m) = doc {
+            for k in m.keys() {
+                if !columns.iter().any(|c| c == k) {
+                    columns.push(k.clone());
+                }
+            }
+        }
+    }
+    if let Some(pos) = columns.iter().position(|c| c == "_id") {
+        let id = columns.remove(pos);
+        columns.insert(0, id);
+    }
+    columns
 }

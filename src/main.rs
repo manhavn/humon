@@ -2,6 +2,8 @@
 
 mod app;
 mod highlight;
+mod history;
+mod manage;
 mod mongo;
 mod query;
 mod settings;

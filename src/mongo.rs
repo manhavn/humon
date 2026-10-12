@@ -225,6 +225,176 @@ pub async fn insert(client: Client, db: String, coll: String, src: String) -> Re
     Ok(n)
 }
 
+/// Creates a collection; an existing name is an error (MongoDB 7+ would
+/// silently accept it).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ExportFormat {
+    Json,
+    Csv,
+}
+
+impl ExportFormat {
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Json => "json",
+            Self::Csv => "csv",
+        }
+    }
+}
+
+/// CSV columns are taken from the first this-many documents.
+const CSV_HEADER_SAMPLE: usize = 1000;
+
+/// Writes the query's results to `path`, streaming from the cursor so memory
+/// stays flat however many documents match. `limit` 0 exports everything.
+/// JSON is an array of relaxed extended JSON; CSV has one column per
+/// top-level field, with nested values written as JSON.
+pub async fn export(client: Client, db: String, coll: String, args: FindArgs, format: ExportFormat, path: std::path::PathBuf) -> Result<u64, String> {
+    use std::io::Write;
+
+    let filter = parse_arg("Filter", &args.filter)?;
+    let sort = parse_arg("Sort", &args.sort)?;
+    let projection = parse_arg("Project", &args.projection)?;
+    let collection = client.database(&db).collection::<Document>(&coll);
+    let mut find = collection.find(filter).skip(args.skip);
+    if args.limit > 0 {
+        find = find.limit(args.limit);
+    }
+    if !sort.is_empty() {
+        find = find.sort(sort);
+    }
+    if !projection.is_empty() {
+        find = find.projection(projection);
+    }
+    let mut cursor = find.await.map_err(err)?;
+    let file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
+    let mut out = std::io::BufWriter::new(file);
+    let io = |e: std::io::Error| e.to_string();
+    let mut written = 0u64;
+
+    match format {
+        ExportFormat::Json => {
+            out.write_all(b"[").map_err(io)?;
+            while let Some(doc) = cursor.try_next().await.map_err(err)? {
+                out.write_all(if written == 0 { b"\n" } else { b",\n" }).map_err(io)?;
+                serde_json::to_writer(&mut out, &Bson::Document(doc).into_relaxed_extjson()).map_err(|e| e.to_string())?;
+                written += 1;
+            }
+            out.write_all(if written == 0 { b"]\n" } else { b"\n]\n" }).map_err(io)?;
+        }
+        ExportFormat::Csv => {
+            let mut sample = Vec::new();
+            while sample.len() < CSV_HEADER_SAMPLE {
+                match cursor.try_next().await.map_err(err)? {
+                    Some(doc) => sample.push(doc),
+                    None => break,
+                }
+            }
+            let headers = csv_headers(&sample);
+            writeln!(out, "{}", headers.iter().map(|h| csv_escape(h)).collect::<Vec<_>>().join(",")).map_err(io)?;
+            let write_row = |doc: &Document, out: &mut std::io::BufWriter<std::fs::File>| -> Result<(), String> {
+                let row: Vec<String> = headers.iter().map(|h| doc.get(h).map(csv_cell).map(|c| csv_escape(&c)).unwrap_or_default()).collect();
+                writeln!(out, "{}", row.join(",")).map_err(io)
+            };
+            for doc in &sample {
+                write_row(doc, &mut out)?;
+                written += 1;
+            }
+            while let Some(doc) = cursor.try_next().await.map_err(err)? {
+                write_row(&doc, &mut out)?;
+                written += 1;
+            }
+        }
+    }
+    out.flush().map_err(io)?;
+    Ok(written)
+}
+
+/// `_id` first, then fields in the order they first appear.
+fn csv_headers(docs: &[Document]) -> Vec<String> {
+    let mut headers: Vec<String> = Vec::new();
+    for doc in docs {
+        for k in doc.keys() {
+            if !headers.contains(k) {
+                headers.push(k.clone());
+            }
+        }
+    }
+    if let Some(pos) = headers.iter().position(|h| h == "_id") {
+        let id = headers.remove(pos);
+        headers.insert(0, id);
+    }
+    headers
+}
+
+/// A cell's text: plain for scalars, JSON for nested values.
+fn csv_cell(value: &Bson) -> String {
+    match value {
+        Bson::String(s) => s.clone(),
+        Bson::Int32(n) => n.to_string(),
+        Bson::Int64(n) => n.to_string(),
+        Bson::Double(n) => n.to_string(),
+        Bson::Boolean(b) => b.to_string(),
+        Bson::Null | Bson::Undefined => String::new(),
+        Bson::ObjectId(id) => id.to_hex(),
+        Bson::DateTime(d) => d.try_to_rfc3339_string().unwrap_or_else(|_| d.timestamp_millis().to_string()),
+        Bson::Decimal128(d) => d.to_string(),
+        other => other.clone().into_relaxed_extjson().to_string(),
+    }
+}
+
+fn csv_escape(s: &str) -> String {
+    if s.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+pub async fn create_collection(client: Client, db: String, name: String) -> Result<(), String> {
+    let database = client.database(&db);
+    if database.list_collection_names().await.map_err(err)?.contains(&name) {
+        return Err(t!("errors.collection_exists", name = name).into());
+    }
+    database.create_collection(&name).await.map_err(err)
+}
+
+pub async fn drop_collection(client: Client, db: String, name: String) -> Result<(), String> {
+    client.database(&db).collection::<Document>(&name).drop().await.map_err(err)
+}
+
+pub async fn rename_collection(client: Client, db: String, from: String, to: String) -> Result<(), String> {
+    client
+        .database("admin")
+        .run_command(doc! { "renameCollection": format!("{db}.{from}"), "to": format!("{db}.{to}") })
+        .await
+        .map(|_| ())
+        .map_err(err)
+}
+
+pub async fn drop_database(client: Client, db: String) -> Result<(), String> {
+    client.database(&db).drop().await.map_err(err)
+}
+
+#[cfg(test)]
+mod csv_tests {
+    use super::*;
+
+    #[test]
+    fn cells_and_escaping() {
+        assert_eq!(csv_cell(&Bson::Int32(5)), "5");
+        assert_eq!(csv_cell(&Bson::Null), "");
+        let id = mongodb::bson::oid::ObjectId::parse_str("65a1b2c3d4e5f60718293a4b").unwrap();
+        assert_eq!(csv_cell(&Bson::ObjectId(id)), "65a1b2c3d4e5f60718293a4b");
+        assert_eq!(csv_cell(&Bson::DateTime(mongodb::bson::DateTime::from_millis(0))), "1970-01-01T00:00:00Z");
+        assert_eq!(csv_cell(&Bson::Document(doc! { "a": 1 })), r#"{"a":1}"#);
+        assert_eq!(csv_escape("plain"), "plain");
+        assert_eq!(csv_escape("a,b"), "\"a,b\"");
+        assert_eq!(csv_escape("say \"hi\""), "\"say \"\"hi\"\"\"");
+        assert_eq!(csv_headers(&[doc! { "b": 1, "_id": 2 }, doc! { "c": 3 }]), ["_id", "b", "c"]);
+    }
+}
+
 /// Runs against a live server: `HUMON_TEST_URI=mongodb://... cargo test -- --ignored`.
 /// Expects the `shop` seed data (137 users, an `adults` view); writes go to a
 /// scratch collection that is dropped at the end.
@@ -282,5 +452,64 @@ mod tests {
         assert_eq!(delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap_err(), gone());
         assert_eq!(replace(c.clone(), db.clone(), scratch.clone(), key, "{}".into()).await.unwrap_err(), gone());
         c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
+
+        // Opening a document in the editor and saving it unchanged must store
+        // exactly the same BSON, types included.
+        use mongodb::bson::{Binary, DateTime, Decimal128, Regex, Timestamp, oid::ObjectId, spec::BinarySubtype};
+        let exotic = doc! {
+            "_id": ObjectId::new(),
+            "i32": 7, "i64": 9_007_199_254_740_993_i64, "whole": 1.0, "frac": 0.1, "neg": -2.5,
+            "dec": "1.10".parse::<Decimal128>().unwrap(),
+            "at": DateTime::from_millis(1_704_153_845_006),
+            "old": DateTime::from_millis(-86_400_000),
+            "far": DateTime::from_millis(253_402_300_800_000),
+            "nan": f64::NAN, "inf": f64::INFINITY, "ninf": f64::NEG_INFINITY,
+            "uuid": Binary { subtype: BinarySubtype::Uuid, bytes: vec![0x12; 16] },
+            "bin": Binary { subtype: BinarySubtype::Generic, bytes: vec![1, 2, 3] },
+            "re": Regex { pattern: "^a\\/b".into(), options: "i".into() },
+            "ts": Timestamp { time: 10, increment: 2 },
+            "none": Bson::Null, "yes": true,
+            "text": "quote \" backslash \\ newline \n tab \t emoji 🍃 Çağrı",
+            "nested": { "list": [1, "two", { "three": 3_i64 }], "empty": {}, "arr": [] },
+            "min": Bson::MinKey, "max": Bson::MaxKey,
+        };
+        let id = Bson::from(exotic.get_object_id("_id").unwrap()).into_canonical_extjson();
+        c.database(&db).collection::<Document>(&scratch).insert_one(exotic).await.unwrap();
+        let before = get(c.clone(), db.clone(), scratch.clone(), id.clone()).await.unwrap().unwrap();
+        let editor_text = crate::shell::to_shell(&before, "");
+        replace(c.clone(), db.clone(), scratch.clone(), id.clone(), editor_text.clone()).await.unwrap();
+        let after = get(c.clone(), db.clone(), scratch.clone(), id).await.unwrap().unwrap();
+        assert_eq!(after, before, "editor text was:\n{editor_text}");
+        c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
+
+        // Export streams every match to a file.
+        let dir = std::env::temp_dir();
+        let json_path = dir.join("humon-export-test.json");
+        let n = export(c.clone(), db.clone(), users.clone(), args("{ age: { $gte: 60 } }", "{ name: 1 }", "", 0, 0), ExportFormat::Json, json_path.clone()).await.unwrap();
+        let parsed: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(&json_path).unwrap()).unwrap();
+        assert_eq!(parsed.len() as u64, n);
+        assert_eq!(n, count(c.clone(), db.clone(), users.clone(), "{ age: { $gte: 60 } }".into()).await.unwrap().unwrap());
+        assert!(parsed[0]["_id"]["$oid"].is_string(), "relaxed EJSON keeps ObjectId typed");
+        let csv_path = dir.join("humon-export-test.csv");
+        let n = export(c.clone(), db.clone(), users.clone(), args("", "{ name: 1 }", "{ name: 1, age: 1 }", 0, 3), ExportFormat::Csv, csv_path.clone()).await.unwrap();
+        let csv = std::fs::read_to_string(&csv_path).unwrap();
+        assert_eq!(n, 3);
+        assert_eq!(csv.lines().next(), Some("_id,name,age"));
+        assert_eq!(csv.lines().count(), 4);
+        let _ = (std::fs::remove_file(json_path), std::fs::remove_file(csv_path));
+
+        // Database and collection management, in a throwaway database.
+        let tmp = "humon_tmp_db".to_string();
+        drop_database(c.clone(), tmp.clone()).await.unwrap(); // leftovers from an aborted run
+        create_collection(c.clone(), tmp.clone(), "a".into()).await.unwrap();
+        assert!(create_collection(c.clone(), tmp.clone(), "a".into()).await.is_err(), "duplicate name");
+        rename_collection(c.clone(), tmp.clone(), "a".into(), "b".into()).await.unwrap();
+        let names: Vec<String> = collections(c.clone(), tmp.clone()).await.unwrap().into_iter().map(|x| x.name).collect();
+        assert_eq!(names, ["b"]);
+        drop_collection(c.clone(), tmp.clone(), "b".into()).await.unwrap();
+        create_collection(c.clone(), tmp.clone(), "c".into()).await.unwrap();
+        drop_database(c.clone(), tmp.clone()).await.unwrap();
+        let dbs: Vec<String> = databases(c.clone()).await.unwrap().into_iter().map(|d| d.name).collect();
+        assert!(!dbs.contains(&tmp));
     }
 }
