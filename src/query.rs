@@ -4,9 +4,9 @@
 //! (`{"$oid": "..."}`) is accepted too, so values copied from the UI paste back in.
 
 use mongodb::bson::oid::ObjectId;
-use rust_i18n::t;
 use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{Binary, Bson, DateTime, Decimal128, Document, Regex, Timestamp, Uuid};
+use rust_i18n::t;
 
 pub fn parse_document(src: &str) -> Result<Document, String> {
     if src.trim().is_empty() {
@@ -110,13 +110,7 @@ impl Parser<'_> {
 
     fn err(&self, msg: &str) -> String {
         let line = self.src[..self.pos].matches('\n').count() + 1;
-        let col = self.src[..self.pos]
-            .rsplit('\n')
-            .next()
-            .unwrap_or("")
-            .chars()
-            .count()
-            + 1;
+        let col = self.src[..self.pos].rsplit('\n').next().unwrap_or("").chars().count() + 1;
         t!("query.at", msg = msg, line = line, col = col).into()
     }
 
@@ -275,8 +269,8 @@ impl Parser<'_> {
             }
         }
         while let Some(c) = self.peek() {
-            let exponent_sign = matches!(c, '+' | '-')
-                && matches!(self.src[..self.pos].chars().last(), Some('e' | 'E'));
+            let exponent_sign =
+                matches!(c, '+' | '-') && matches!(self.src[..self.pos].chars().last(), Some('e' | 'E'));
             if c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E') || exponent_sign {
                 self.bump();
             } else {
@@ -303,11 +297,7 @@ impl Parser<'_> {
             }
             _ => {}
         }
-        let args = if self.eat('(') {
-            self.args()?
-        } else {
-            Vec::new()
-        };
+        let args = if self.eat('(') { self.args()? } else { Vec::new() };
         self.call(&name, args).map_err(|e| {
             Parser {
                 src: self.src,
@@ -350,9 +340,9 @@ impl Parser<'_> {
                 let v = as_i64(arg(0).ok_or_else(|| t!("query.number_int_value").to_string())?)?;
                 Bson::Int32(i32::try_from(v).map_err(|_| t!("query.number_int_range").to_string())?)
             }
-            "NumberLong" | "Long" | "Int64" => {
-                Bson::Int64(as_i64(arg(0).ok_or_else(|| t!("query.number_long_value").to_string())?)?)
-            }
+            "NumberLong" | "Long" | "Int64" => Bson::Int64(as_i64(
+                arg(0).ok_or_else(|| t!("query.number_long_value").to_string())?,
+            )?),
             "NumberDecimal" | "Decimal128" => {
                 let text = match arg(0) {
                     Some(Bson::String(s)) => s.clone(),
@@ -374,12 +364,8 @@ impl Parser<'_> {
             },
             "BinData" => match (arg(0), arg(1)) {
                 (Some(sub), Some(Bson::String(b64))) => {
-                    let sub =
-                        u8::try_from(as_i64(sub)?).map_err(|_| t!("query.bin_data_subtype").to_string())?;
-                    Bson::Binary(
-                        Binary::from_base64(b64, BinarySubtype::from(sub))
-                            .map_err(|e| e.to_string())?,
-                    )
+                    let sub = u8::try_from(as_i64(sub)?).map_err(|_| t!("query.bin_data_subtype").to_string())?;
+                    Bson::Binary(Binary::from_base64(b64, BinarySubtype::from(sub)).map_err(|e| e.to_string())?)
                 }
                 _ => return Err(t!("query.bin_data_form").into()),
             },
@@ -475,9 +461,7 @@ mod tests {
 
     #[test]
     fn shell_syntax() {
-        let d = parse(
-            "{ name: 'ali', age: { $gt: 18, }, 'a.b': -2.5, tags: [1, \"x\"], ok: true, n: null }",
-        );
+        let d = parse("{ name: 'ali', age: { $gt: 18, }, 'a.b': -2.5, tags: [1, \"x\"], ok: true, n: null }");
         assert_eq!(
             d,
             doc! { "name": "ali", "age": { "$gt": 18 }, "a.b": -2.5, "tags": [1, "x"], "ok": true, "n": null }
@@ -505,18 +489,9 @@ mod tests {
                 ts: Timestamp(10, 2),
             }"#,
         );
-        assert_eq!(
-            d.get_object_id("_id").unwrap().to_hex(),
-            "65a1b2c3d4e5f60718293a4b"
-        );
-        assert_eq!(
-            d.get_datetime("at").unwrap().timestamp_millis(),
-            1704153600000
-        );
-        assert_eq!(
-            d.get_datetime("at2").unwrap().timestamp_millis(),
-            1704153845006
-        );
+        assert_eq!(d.get_object_id("_id").unwrap().to_hex(), "65a1b2c3d4e5f60718293a4b");
+        assert_eq!(d.get_datetime("at").unwrap().timestamp_millis(), 1704153600000);
+        assert_eq!(d.get_datetime("at2").unwrap().timestamp_millis(), 1704153845006);
         assert_eq!(d.get_i64("big").unwrap(), 9007199254740993);
         assert_eq!(d.get_i32("small").unwrap(), 7);
         assert_eq!(d.get("dec").unwrap().to_string(), "1.10");
@@ -524,17 +499,8 @@ mod tests {
         let Some(Bson::RegularExpression(re)) = d.get("re") else {
             panic!()
         };
-        assert_eq!(
-            (re.pattern.as_str(), re.options.as_str()),
-            (r"^ab\/c[/]d", "im")
-        );
-        assert_eq!(
-            d.get_timestamp("ts").unwrap(),
-            Timestamp {
-                time: 10,
-                increment: 2
-            }
-        );
+        assert_eq!((re.pattern.as_str(), re.options.as_str()), (r"^ab\/c[/]d", "im"));
+        assert_eq!(d.get_timestamp("ts").unwrap(), Timestamp { time: 10, increment: 2 });
     }
 
     #[test]
@@ -570,10 +536,7 @@ mod tests {
         );
         assert_eq!(d.len(), 9);
         assert_eq!(d.get("ratio"), Some(&Bson::Double(1.0)));
-        assert_eq!(
-            d.get_document("address").unwrap().get_i32("zip").unwrap(),
-            34005
-        );
+        assert_eq!(d.get_document("address").unwrap().get_i32("zip").unwrap(), 34005);
     }
 
     #[test]

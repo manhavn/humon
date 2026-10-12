@@ -55,7 +55,11 @@ fn score(item: &Item, query: &str) -> Option<u32> {
                 if !db.starts_with(db_q) {
                     return None;
                 }
-                return if coll_q.is_empty() { Some(0) } else { tier(&coll, coll_q) };
+                return if coll_q.is_empty() {
+                    Some(0)
+                } else {
+                    tier(&coll, coll_q)
+                };
             }
             tier(&coll, query).or_else(|| tier(&format!("{db}.{coll}"), query).map(|t| t + 10))
         }
@@ -65,17 +69,35 @@ fn score(item: &Item, query: &str) -> Option<u32> {
 }
 
 /// Database methods in the shell's prelude; `db.<name>` would call these.
-const DB_METHODS: &[&str] = &["adminCommand", "createCollection", "dropDatabase", "getCollection", "getCollectionInfos", "getCollectionNames", "getName", "getSiblingDB", "runCommand", "serverStatus", "stats", "version"];
+const DB_METHODS: &[&str] = &[
+    "adminCommand",
+    "createCollection",
+    "dropDatabase",
+    "getCollection",
+    "getCollectionInfos",
+    "getCollectionNames",
+    "getName",
+    "getSiblingDB",
+    "runCommand",
+    "serverStatus",
+    "stats",
+    "version",
+];
 
 /// The command a shell opened from a collection starts with.
 pub fn shell_starter(coll: &str) -> String {
     let mut chars = coll.chars();
-    let identifier = chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
+    let identifier = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$');
     if identifier && !DB_METHODS.contains(&coll) && !coll.starts_with('_') {
         format!("db.{coll}.find()")
     } else {
-        format!("db.getCollection({}).find()", serde_json::to_string(coll).unwrap_or_default())
+        format!(
+            "db.getCollection({}).find()",
+            serde_json::to_string(coll).unwrap_or_default()
+        )
     }
 }
 
@@ -85,7 +107,13 @@ pub fn rank(items: &[Item], query: &str) -> Vec<usize> {
     let mut scored: Vec<(u32, usize)> = items
         .iter()
         .enumerate()
-        .filter_map(|(i, item)| if query.is_empty() { Some((0, i)) } else { score(item, &query).map(|s| (s, i)) })
+        .filter_map(|(i, item)| {
+            if query.is_empty() {
+                Some((0, i))
+            } else {
+                score(item, &query).map(|s| (s, i))
+            }
+        })
         .collect();
     scored.sort_by_key(|&(s, _)| s);
     scored.into_iter().map(|(_, i)| i).collect()
@@ -96,11 +124,21 @@ mod tests {
     use super::{DB_METHODS, Item, Target, rank, shell_starter};
 
     fn coll(db: &str, coll: &str) -> Item {
-        Item { conn_id: "c".into(), conn_name: "Local".into(), db: db.into(), target: Target::Collection(coll.into()) }
+        Item {
+            conn_id: "c".into(),
+            conn_name: "Local".into(),
+            db: db.into(),
+            target: Target::Collection(coll.into()),
+        }
     }
 
     fn shell(db: &str) -> Item {
-        Item { conn_id: "c".into(), conn_name: "Local".into(), db: db.into(), target: Target::Shell }
+        Item {
+            conn_id: "c".into(),
+            conn_name: "Local".into(),
+            db: db.into(),
+            target: Target::Shell,
+        }
     }
 
     fn labels(items: &[Item], query: &str) -> Vec<String> {
@@ -109,10 +147,27 @@ mod tests {
 
     #[test]
     fn best_matches_come_first() {
-        let items = vec![coll("shop", "orders"), coll("shop", "users"), coll("logs", "user_events"), coll("shop", "superusers")];
-        assert_eq!(labels(&items, "users"), ["shop.users", "shop.superusers", "logs.user_events"], "exact, contains, then letters in order");
-        assert_eq!(labels(&items, "user"), ["shop.users", "logs.user_events", "shop.superusers"], "prefix beats contains");
-        assert_eq!(labels(&items, "USR"), ["shop.users", "logs.user_events", "shop.superusers"], "letters in order, any case");
+        let items = vec![
+            coll("shop", "orders"),
+            coll("shop", "users"),
+            coll("logs", "user_events"),
+            coll("shop", "superusers"),
+        ];
+        assert_eq!(
+            labels(&items, "users"),
+            ["shop.users", "shop.superusers", "logs.user_events"],
+            "exact, contains, then letters in order"
+        );
+        assert_eq!(
+            labels(&items, "user"),
+            ["shop.users", "logs.user_events", "shop.superusers"],
+            "prefix beats contains"
+        );
+        assert_eq!(
+            labels(&items, "USR"),
+            ["shop.users", "logs.user_events", "shop.superusers"],
+            "letters in order, any case"
+        );
         assert!(labels(&items, "zzz").is_empty());
     }
 
@@ -128,7 +183,11 @@ mod tests {
         let items = vec![coll("shop", "users"), shell("shop"), shell("logs")];
         assert_eq!(labels(&items, "shell"), [">_ shop", ">_ logs"]);
         assert_eq!(labels(&items, ">_ lo"), [">_ logs"]);
-        assert_eq!(labels(&items, "shop"), [">_ shop", "shop.users"], "a database's shell before its collections");
+        assert_eq!(
+            labels(&items, "shop"),
+            [">_ shop", "shop.users"],
+            "a database's shell before its collections"
+        );
     }
 
     #[test]
@@ -148,7 +207,11 @@ mod tests {
         let end = js[start..].find("\n  });").unwrap() + start;
         let mut methods: Vec<&str> = js[start..end]
             .lines()
-            .filter_map(|l| l.strip_prefix("    ").and_then(|l| l.split_once('(')).map(|(name, _)| name))
+            .filter_map(|l| {
+                l.strip_prefix("    ")
+                    .and_then(|l| l.split_once('('))
+                    .map(|(name, _)| name)
+            })
             .filter(|name| name.chars().all(|c| c.is_ascii_alphanumeric()))
             .collect();
         methods.sort_unstable();

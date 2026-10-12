@@ -29,7 +29,10 @@ impl Settings {
 
 /// Every language with a file in `locales/`, sorted by code.
 pub fn languages() -> Vec<String> {
-    let mut codes: Vec<String> = rust_i18n::available_locales!().into_iter().map(|c| c.to_string()).collect();
+    let mut codes: Vec<String> = rust_i18n::available_locales!()
+        .into_iter()
+        .map(|c| c.to_string())
+        .collect();
     codes.sort();
     codes
 }
@@ -57,7 +60,11 @@ pub fn pick_language(saved: Option<&str>, system: &str, available: &[String]) ->
 
 pub fn initial_language() -> String {
     let saved = Settings::load_from(&Settings::default_path()).unwrap_or_default();
-    pick_language(saved.language.as_deref(), &sys_locale::get_locale().unwrap_or_default(), &languages())
+    pick_language(
+        saved.language.as_deref(),
+        &sys_locale::get_locale().unwrap_or_default(),
+        &languages(),
+    )
 }
 
 #[cfg(test)]
@@ -68,7 +75,11 @@ mod tests {
     fn settings_round_trip_and_default() {
         let path = crate::files::test_dir("settings").join("settings.json");
         assert_eq!(Settings::load_from(&path).unwrap().language, None);
-        Settings { language: Some("tr".into()) }.save_to(&path).unwrap();
+        Settings {
+            language: Some("tr".into()),
+        }
+        .save_to(&path)
+        .unwrap();
         assert_eq!(Settings::load_from(&path).unwrap().language.as_deref(), Some("tr"));
         std::fs::write(&path, "[").unwrap();
         assert!(Settings::load_from(&path).is_err());
@@ -78,7 +89,11 @@ mod tests {
     fn initial_language_prefers_saved_choice_when_available() {
         let available = vec!["en".to_string(), "tr".to_string()];
         assert_eq!(pick_language(Some("tr"), "en-US", &available), "tr");
-        assert_eq!(pick_language(Some("xx"), "tr-TR", &available), "tr", "unknown saved code falls back to system");
+        assert_eq!(
+            pick_language(Some("xx"), "tr-TR", &available),
+            "tr",
+            "unknown saved code falls back to system"
+        );
         assert_eq!(pick_language(None, "de-DE", &available), "en");
     }
 
@@ -94,8 +109,22 @@ mod tests {
     /// Keys used in the code, as string literals in a known namespace.
     fn keys_used_in_code() -> Vec<String> {
         const NAMESPACES: &[&str] = &[
-            "app.", "sidebar.", "form.", "tab.", "card.", "tree.", "status.", "kind.", "errors.", "settings.", "query.",
-            "history.", "manage.", "export.", "console.", "palette.",
+            "app.",
+            "sidebar.",
+            "form.",
+            "tab.",
+            "card.",
+            "tree.",
+            "status.",
+            "kind.",
+            "errors.",
+            "settings.",
+            "query.",
+            "history.",
+            "manage.",
+            "export.",
+            "console.",
+            "palette.",
         ];
         fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
             for entry in std::fs::read_dir(dir).unwrap() {
@@ -108,7 +137,10 @@ mod tests {
             }
         }
         let mut files = Vec::new();
-        rust_files(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+        rust_files(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+            &mut files,
+        );
         let mut keys = Vec::new();
         for path in files {
             let code = std::fs::read_to_string(path).unwrap();
@@ -131,7 +163,10 @@ mod tests {
         let en = include_str!("../locales/en.yml");
         let used = keys_used_in_code();
         assert!(used.len() > 50, "scanner found only {} keys", used.len());
-        let missing: Vec<_> = used.iter().filter(|k| !en.lines().any(|l| l.starts_with(&format!("{k}:")))).collect();
+        let missing: Vec<_> = used
+            .iter()
+            .filter(|k| !en.lines().any(|l| l.starts_with(&format!("{k}:"))))
+            .collect();
         assert!(missing.is_empty(), "missing from en.yml: {missing:?}");
     }
 
@@ -147,7 +182,10 @@ mod tests {
         for code in languages() {
             let text = std::fs::read_to_string(format!("{}/locales/{code}.yml", env!("CARGO_MANIFEST_DIR"))).unwrap();
             for key in &keys {
-                assert!(text.lines().any(|l| l.starts_with(&format!("{key}:"))), "{code}.yml is missing `{key}`");
+                assert!(
+                    text.lines().any(|l| l.starts_with(&format!("{key}:"))),
+                    "{code}.yml is missing `{key}`"
+                );
             }
         }
     }

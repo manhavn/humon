@@ -3,10 +3,23 @@
 use super::*;
 
 impl Humon {
-    pub(crate) fn render_card(&self, tab: &Tab, ix: usize, doc: &Value, syntax: &Arc<HighlightTheme>, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn render_card(
+        &self,
+        tab: &Tab,
+        ix: usize,
+        doc: &Value,
+        syntax: &Arc<HighlightTheme>,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let id = tab.id;
         let theme = cx.theme();
-        let (border, muted, danger, hover, bg) = (theme.border, theme.muted_foreground, theme.danger, theme.list_hover, theme.background);
+        let (border, muted, danger, hover, bg) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.danger,
+            theme.list_hover,
+            theme.background,
+        );
         let (primary, mono) = (theme.primary, theme.mono_font_family.clone());
 
         if let Some((edit_ix, _, editor)) = &tab.editing
@@ -44,16 +57,25 @@ impl Humon {
             .flex()
             .gap_1()
             .text_color(muted)
-            .when(!confirm, |d| d.opacity(0.).group_hover(group.clone(), |s| s.opacity(1.)));
+            .when(!confirm, |d| {
+                d.opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))
+            });
         if writable {
             actions = actions
-                .child(action(t!("card.edit").into(), "edit").on_click(cx.listener(move |this, _, window, cx| this.start_edit(id, ix, window, cx))))
-                .child(action(t!("card.clone").into(), "clone").on_click(cx.listener(move |this, _, window, cx| {
-                    let Some(doc) = this.tab_mut(id).and_then(|t| t.docs.get(ix).cloned()) else { return };
-                    let mut copy = doc.as_object().cloned().unwrap_or_default();
-                    copy.remove("_id");
-                    this.open_draft(id, to_shell(&Value::Object(copy), ""), window, cx);
-                })));
+                .child(
+                    action(t!("card.edit").into(), "edit")
+                        .on_click(cx.listener(move |this, _, window, cx| this.start_edit(id, ix, window, cx))),
+                )
+                .child(
+                    action(t!("card.clone").into(), "clone").on_click(cx.listener(move |this, _, window, cx| {
+                        let Some(doc) = this.tab_mut(id).and_then(|t| t.docs.get(ix).cloned()) else {
+                            return;
+                        };
+                        let mut copy = doc.as_object().cloned().unwrap_or_default();
+                        copy.remove("_id");
+                        this.open_draft(id, to_shell(&Value::Object(copy), ""), window, cx);
+                    })),
+                );
         }
         let shell = to_shell(doc, "");
         actions = actions.child(action(t!("card.copy").into(), "copy").on_click(move |_, _, cx| {
@@ -61,12 +83,20 @@ impl Humon {
         }));
         if writable {
             actions = actions.child(
-                action(if confirm { t!("card.confirm_delete") } else { t!("card.delete") }.into(), "delete")
-                    .when(confirm, |d| d.text_color(danger).border_color(danger))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.delete_doc(id, ix, window, cx);
-                        cx.notify();
-                    })),
+                action(
+                    if confirm {
+                        t!("card.confirm_delete")
+                    } else {
+                        t!("card.delete")
+                    }
+                    .into(),
+                    "delete",
+                )
+                .when(confirm, |d| d.text_color(danger).border_color(danger))
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    this.delete_doc(id, ix, window, cx);
+                    cx.notify();
+                })),
             );
         }
 
@@ -88,25 +118,52 @@ impl Humon {
             .text_xs()
             .children(rows)
             .child(actions)
-            .when_some(tab.card_error.as_ref().filter(|(i, _)| *i == ix).map(|(_, e)| e.clone()), |d, e| {
-                d.child(div().pt_1().text_color(danger).child(e))
-            })
+            .when_some(
+                tab.card_error
+                    .as_ref()
+                    .filter(|(i, _)| *i == ix)
+                    .map(|(_, e)| e.clone()),
+                |d, e| d.child(div().pt_1().text_color(danger).child(e)),
+            )
             .into_any_element()
     }
 
     /// One row per field; nested objects and arrays start collapsed.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn push_rows(&self, rows: &mut Vec<AnyElement>, tab: &Tab, parent: &str, key: &str, value: &Value, depth: usize, syntax: &Arc<HighlightTheme>, cx: &mut Context<Self>) {
+    pub(crate) fn push_rows(
+        &self,
+        rows: &mut Vec<AnyElement>,
+        tab: &Tab,
+        parent: &str,
+        key: &str,
+        value: &Value,
+        depth: usize,
+        syntax: &Arc<HighlightTheme>,
+        cx: &mut Context<Self>,
+    ) {
         let theme = cx.theme();
         let (muted, hover) = (theme.muted_foreground, theme.list_hover);
         let path = format!("{parent}/{key}");
         let container = match value {
-            Value::Object(m) if !is_typed(m) => Some(if m.is_empty() { "{}".to_string() } else { t!("tree.fields", n = m.len()).into() }),
+            Value::Object(m) if !is_typed(m) => Some(if m.is_empty() {
+                "{}".to_string()
+            } else {
+                t!("tree.fields", n = m.len()).into()
+            }),
             Value::Array(a) => Some(t!("tree.array", n = a.len()).into()),
             _ => None,
         };
-        let key_color = syntax.style("property").and_then(|s| s.color).unwrap_or(theme.foreground);
-        let row = div().flex().gap_1().pl(px(depth as f32 * 16.)).min_h(px(18.)).items_center().whitespace_nowrap();
+        let key_color = syntax
+            .style("property")
+            .and_then(|s| s.color)
+            .unwrap_or(theme.foreground);
+        let row = div()
+            .flex()
+            .gap_1()
+            .pl(px(depth as f32 * 16.))
+            .min_h(px(18.))
+            .items_center()
+            .whitespace_nowrap();
         let Some(summary) = container else {
             let text = to_shell(value, "");
             let highlights: Vec<_> = tokenize(&text)

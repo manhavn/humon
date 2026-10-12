@@ -4,23 +4,45 @@
 
 use std::ops::Range;
 
+use gpui_kit::component::input::EditorState;
 use gpui_kit::component::input::{FoldRange, HighlightStyleResolver, InputEdit, InputHighlighter, Rope};
 use gpui_kit::{Context, HighlightStyle, SharedString, Window};
-use gpui_kit::component::input::EditorState;
 
 /// A code editor with shell syntax colors, for editing or (read-only) for
 /// showing text that should be selectable and searchable.
 pub fn shell_editor(window: &mut Window, cx: &mut Context<EditorState>) -> EditorState {
-    let mut state = EditorState::new(window, cx).language("mongosh").line_number(false).folding(false);
-    state.set_highlighter_factory(std::rc::Rc::new(|_| Some(Box::new(ShellHighlighter::default()) as Box<dyn InputHighlighter>)), cx);
+    let mut state = EditorState::new(window, cx)
+        .language("mongosh")
+        .line_number(false)
+        .folding(false);
+    state.set_highlighter_factory(
+        std::rc::Rc::new(|_| Some(Box::new(ShellHighlighter::default()) as Box<dyn InputHighlighter>)),
+        cx,
+    );
     state
 }
 
 pub type Token = (Range<usize>, &'static str);
 
 const HELPERS: &[&str] = &[
-    "ObjectId", "ObjectID", "ISODate", "Date", "NumberInt", "NumberLong", "NumberDecimal",
-    "Int32", "Int64", "Long", "Decimal128", "UUID", "BinData", "Timestamp", "RegExp", "MinKey", "MaxKey", "new",
+    "ObjectId",
+    "ObjectID",
+    "ISODate",
+    "Date",
+    "NumberInt",
+    "NumberLong",
+    "NumberDecimal",
+    "Int32",
+    "Int64",
+    "Long",
+    "Decimal128",
+    "UUID",
+    "BinData",
+    "Timestamp",
+    "RegExp",
+    "MinKey",
+    "MaxKey",
+    "new",
 ];
 
 fn is_ident_char(c: char) -> bool {
@@ -34,13 +56,44 @@ fn followed_by_colon(text: &str, end: usize) -> bool {
 
 /// Whether a `/` at `pos` starts a regex rather than being stray punctuation.
 fn regex_allowed(text: &str, pos: usize) -> bool {
-    matches!(text[..pos].trim_end().chars().last(), None | Some(':' | ',' | '[' | '(' | '{'))
+    matches!(
+        text[..pos].trim_end().chars().last(),
+        None | Some(':' | ',' | '[' | '(' | '{')
+    )
 }
 
 const KEYWORDS: &[&str] = &[
-    "const", "let", "var", "function", "return", "if", "else", "for", "while", "do", "break", "continue", "new", "typeof",
-    "instanceof", "in", "of", "this", "throw", "try", "catch", "finally", "switch", "case", "default", "async", "await",
-    "class", "delete", "void", "yield",
+    "const",
+    "let",
+    "var",
+    "function",
+    "return",
+    "if",
+    "else",
+    "for",
+    "while",
+    "do",
+    "break",
+    "continue",
+    "new",
+    "typeof",
+    "instanceof",
+    "in",
+    "of",
+    "this",
+    "throw",
+    "try",
+    "catch",
+    "finally",
+    "switch",
+    "case",
+    "default",
+    "async",
+    "await",
+    "class",
+    "delete",
+    "void",
+    "yield",
 ];
 
 /// Colors `a.b.c` in code: `db` is special, a segment before `(` is a call,
@@ -102,7 +155,11 @@ pub fn tokenize(text: &str) -> Vec<Token> {
                     }
                 }
                 i = i.min(text.len());
-                let kind = if followed_by_colon(text, i) { "property" } else { "string" };
+                let kind = if followed_by_colon(text, i) {
+                    "property"
+                } else {
+                    "string"
+                };
                 out.push((start..i, kind));
             }
             '/' if text[i..].starts_with("//") => {
@@ -115,9 +172,18 @@ pub fn tokenize(text: &str) -> Vec<Token> {
                 while i < text.len() {
                     match bytes[i] {
                         b'\\' => i += 2,
-                        b'[' => { in_class = true; i += 1 }
-                        b']' => { in_class = false; i += 1 }
-                        b'/' if !in_class => { i += 1; break }
+                        b'[' => {
+                            in_class = true;
+                            i += 1
+                        }
+                        b']' => {
+                            in_class = false;
+                            i += 1
+                        }
+                        b'/' if !in_class => {
+                            i += 1;
+                            break;
+                        }
                         b'\n' => break,
                         _ => i += 1,
                     }
@@ -128,9 +194,15 @@ pub fn tokenize(text: &str) -> Vec<Token> {
                 i = i.min(text.len());
                 out.push((start..i, "string.regex"));
             }
-            '0'..='9' | '-' | '.' if c != '-' && c != '.' || text[i + 1..].starts_with(|n: char| n.is_ascii_digit()) => {
+            '0'..='9' | '-' | '.'
+                if c != '-' && c != '.' || text[i + 1..].starts_with(|n: char| n.is_ascii_digit()) =>
+            {
                 i += 1;
-                while i < text.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'.' || ((bytes[i] == b'-' || bytes[i] == b'+') && matches!(bytes[i - 1], b'e' | b'E'))) {
+                while i < text.len()
+                    && (bytes[i].is_ascii_alphanumeric()
+                        || bytes[i] == b'.'
+                        || ((bytes[i] == b'-' || bytes[i] == b'+') && matches!(bytes[i - 1], b'e' | b'E')))
+                {
                     i += 1;
                 }
                 out.push((start..i, "number"));
@@ -188,7 +260,11 @@ impl InputHighlighter for ShellHighlighter {
         self.tokens = tokenize(&text.to_string());
     }
 
-    fn styles(&self, range: &Range<usize>, resolver: &dyn HighlightStyleResolver) -> Vec<(Range<usize>, HighlightStyle)> {
+    fn styles(
+        &self,
+        range: &Range<usize>,
+        resolver: &dyn HighlightStyleResolver,
+    ) -> Vec<(Range<usize>, HighlightStyle)> {
         let mut runs = Vec::new();
         let mut pos = range.start;
         for (r, kind) in &self.tokens {
@@ -287,7 +363,10 @@ mod tests {
     fn escapes_before_multibyte_chars_do_not_split_them() {
         for text in ["{ a: \"\\ç\" }", "{ r: /\\ğ/ }", "\"\\🍃", "/\\é"] {
             for (r, _) in tokenize(text) {
-                assert!(text.is_char_boundary(r.start) && text.is_char_boundary(r.end), "{text:?}: {r:?}");
+                assert!(
+                    text.is_char_boundary(r.start) && text.is_char_boundary(r.end),
+                    "{text:?}: {r:?}"
+                );
             }
         }
     }

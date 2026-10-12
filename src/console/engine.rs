@@ -75,7 +75,10 @@ impl EngineHandle {
                 let _ = ready_tx.send(Ok(engine.stop_handle()));
                 for request in rx {
                     let outputs = engine.eval(&request.code);
-                    let _ = request.reply.send(Reply { outputs, db: engine.db() });
+                    let _ = request.reply.send(Reply {
+                        outputs,
+                        db: engine.db(),
+                    });
                 }
             })
             .map_err(|e| e.to_string())?;
@@ -172,7 +175,9 @@ fn run_command(ctx: &Ctx, client: Option<&Client>, db: &str, cmd: &str) -> rquic
     let throw = |msg: String| Exception::throw_message(ctx, &msg);
     let client = client.ok_or_else(|| throw(t!("console.not_connected").into()))?;
     let value: serde_json::Value = serde_json::from_str(cmd).map_err(|e| throw(e.to_string()))?;
-    let Ok(Bson::Document(doc)) = Bson::try_from(value) else { return Err(throw("a command must be a document".into())) };
+    let Ok(Bson::Document(doc)) = Bson::try_from(value) else {
+        return Err(throw("a command must be a document".into()));
+    };
     match RT.block_on(async { client.database(db).run_command(doc).await }) {
         Ok(reply) => Ok(Bson::Document(reply).into_canonical_extjson().to_string()),
         // The server's own message reads better than the driver's wrapper.
@@ -209,10 +214,13 @@ impl Engine {
         context.with(|ctx| -> Result<(), String> {
             let globals = ctx.globals();
             let sink = out.clone();
-            let print = Function::new(ctx.clone(), move |args: String| sink.borrow_mut().push(Output::Print(print_text(&args))))
-                .map_err(|e| e.to_string())?;
+            let print = Function::new(ctx.clone(), move |args: String| {
+                sink.borrow_mut().push(Output::Print(print_text(&args)))
+            })
+            .map_err(|e| e.to_string())?;
             globals.set("__print", print).map_err(|e| e.to_string())?;
-            let new_id = Function::new(ctx.clone(), || mongodb::bson::oid::ObjectId::new().to_hex()).map_err(|e| e.to_string())?;
+            let new_id = Function::new(ctx.clone(), || mongodb::bson::oid::ObjectId::new().to_hex())
+                .map_err(|e| e.to_string())?;
             globals.set("__newObjectId", new_id).map_err(|e| e.to_string())?;
             // Dates as mongosh reads them: a bare date or a missing zone means UTC.
             let iso_date = Function::new(ctx.clone(), |ctx: Ctx, text: String| -> rquickjs::Result<f64> {
@@ -223,20 +231,29 @@ impl Engine {
             .map_err(|e| e.to_string())?;
             globals.set("__isoDate", iso_date).map_err(|e| e.to_string())?;
             let sink = out.clone();
-            let info = Function::new(ctx.clone(), move |key: String, arg: String| sink.borrow_mut().push(Output::Info(message(&key, &arg))))
-                .map_err(|e| e.to_string())?;
+            let info = Function::new(ctx.clone(), move |key: String, arg: String| {
+                sink.borrow_mut().push(Output::Info(message(&key, &arg)))
+            })
+            .map_err(|e| e.to_string())?;
             globals.set("__info", info).map_err(|e| e.to_string())?;
             let tr = Function::new(ctx.clone(), |key: String| message(&key, "")).map_err(|e| e.to_string())?;
             globals.set("__tr", tr).map_err(|e| e.to_string())?;
-            let run = Function::new(ctx.clone(), move |ctx: Ctx, db: String, cmd: String| run_command(&ctx, client.as_ref(), &db, &cmd))
-                .map_err(|e| e.to_string())?;
+            let run = Function::new(ctx.clone(), move |ctx: Ctx, db: String, cmd: String| {
+                run_command(&ctx, client.as_ref(), &db, &cmd)
+            })
+            .map_err(|e| e.to_string())?;
             globals.set("__runCommand", run).map_err(|e| e.to_string())?;
             globals.set("__db", db).map_err(|e| e.to_string())?;
             #[cfg(test)]
             install_echo(&ctx).map_err(|e| e.to_string())?;
             ctx.eval::<(), _>(PRELUDE).map_err(|_| describe(&ctx, ctx.catch()))
         })?;
-        Ok(Self { context, _runtime: runtime, out, stop })
+        Ok(Self {
+            context,
+            _runtime: runtime,
+            out,
+            stop,
+        })
     }
 
     /// Setting this to true stops the running code. It interrupts JavaScript,
@@ -276,7 +293,9 @@ impl Engine {
 
     /// The database `db` refers to, for the prompt.
     pub fn db(&self) -> String {
-        self.context.with(|ctx| ctx.globals().get::<_, String>("__db")).unwrap_or_default()
+        self.context
+            .with(|ctx| ctx.globals().get::<_, String>("__db"))
+            .unwrap_or_default()
     }
 }
 
@@ -293,13 +312,24 @@ mod tests {
     fn print_errors_and_values() {
         let mut e = engine();
         assert_eq!(e.eval("print('hi', 2)"), vec![Output::Print("hi 2".into())]);
-        assert_eq!(e.eval("print({ a: 1, b: 'x' })"), vec![Output::Print("{\n  a: 1,\n  b: \"x\"\n}".into())]);
+        assert_eq!(
+            e.eval("print({ a: 1, b: 'x' })"),
+            vec![Output::Print("{\n  a: 1,\n  b: \"x\"\n}".into())]
+        );
         assert_eq!(e.eval("throw new Error('boom')"), vec![Output::Error("boom".into())]);
         let syntax = e.eval("let = ;");
-        assert!(matches!(&syntax[..], [Output::Error(m)] if m.starts_with("SyntaxError")), "{syntax:?}");
+        assert!(
+            matches!(&syntax[..], [Output::Error(m)] if m.starts_with("SyntaxError")),
+            "{syntax:?}"
+        );
         assert_eq!(e.eval("undefined"), vec![]);
         assert_eq!(e.eval("'text'"), vec![Output::Value(json!("text"))]);
-        assert_eq!(e.eval("({ a: [1, 1.5, true, null] })"), vec![Output::Value(json!({ "a": [{ "$numberInt": "1" }, { "$numberDouble": "1.5" }, true, null] }))]);
+        assert_eq!(
+            e.eval("({ a: [1, 1.5, true, null] })"),
+            vec![Output::Value(
+                json!({ "a": [{ "$numberInt": "1" }, { "$numberDouble": "1.5" }, true, null] })
+            )]
+        );
     }
 
     #[test]
@@ -321,16 +351,34 @@ mod tests {
     fn shell_types_become_extended_json() {
         let mut e = engine();
         let cases = [
-            (r#"ObjectId("65a1b2c3d4e5f60718293a4b")"#, json!({ "$oid": "65a1b2c3d4e5f60718293a4b" })),
-            (r#"ISODate("2024-01-02")"#, json!({ "$date": { "$numberLong": "1704153600000" } })),
+            (
+                r#"ObjectId("65a1b2c3d4e5f60718293a4b")"#,
+                json!({ "$oid": "65a1b2c3d4e5f60718293a4b" }),
+            ),
+            (
+                r#"ISODate("2024-01-02")"#,
+                json!({ "$date": { "$numberLong": "1704153600000" } }),
+            ),
             ("new Date(0)", json!({ "$date": { "$numberLong": "0" } })),
-            (r#"NumberLong("9007199254740993")"#, json!({ "$numberLong": "9007199254740993" })),
+            (
+                r#"NumberLong("9007199254740993")"#,
+                json!({ "$numberLong": "9007199254740993" }),
+            ),
             ("NumberLong(5)", json!({ "$numberLong": "5" })),
             ("NumberInt('7')", json!({ "$numberInt": "7" })),
             (r#"NumberDecimal("1.10")"#, json!({ "$numberDecimal": "1.10" })),
-            (r#"UUID("123e4567-e89b-12d3-a456-426614174000")"#, json!({ "$binary": { "base64": "Ej5FZ+ibEtOkVkJmFBdAAA==", "subType": "04" } })),
-            (r#"BinData(0, "AQID")"#, json!({ "$binary": { "base64": "AQID", "subType": "00" } })),
-            ("/ab+c/i", json!({ "$regularExpression": { "pattern": "ab+c", "options": "i" } })),
+            (
+                r#"UUID("123e4567-e89b-12d3-a456-426614174000")"#,
+                json!({ "$binary": { "base64": "Ej5FZ+ibEtOkVkJmFBdAAA==", "subType": "04" } }),
+            ),
+            (
+                r#"BinData(0, "AQID")"#,
+                json!({ "$binary": { "base64": "AQID", "subType": "00" } }),
+            ),
+            (
+                "/ab+c/i",
+                json!({ "$regularExpression": { "pattern": "ab+c", "options": "i" } }),
+            ),
             ("Timestamp(10, 2)", json!({ "$timestamp": { "t": 10, "i": 2 } })),
             ("MinKey()", json!({ "$minKey": 1 })),
             ("MaxKey()", json!({ "$maxKey": 1 })),
@@ -347,13 +395,28 @@ mod tests {
         // __echo sends a value to Rust as extended JSON and back, like a server reply.
         let mut e = engine();
         e.eval("var v = __echo({ id: ObjectId('65a1b2c3d4e5f60718293a4b'), at: new Date(5), n: NumberLong(9), d: NumberDecimal('2.5'), i: 3, f: 1.5, re: /x/m, u: UUID('123e4567-e89b-12d3-a456-426614174000') })");
-        assert_eq!(value(&mut e, "v.id instanceof ObjectId && v.id.toHexString()"), json!("65a1b2c3d4e5f60718293a4b"));
-        assert_eq!(value(&mut e, "v.at instanceof Date && v.at.getTime()"), json!({ "$numberInt": "5" }));
+        assert_eq!(
+            value(&mut e, "v.id instanceof ObjectId && v.id.toHexString()"),
+            json!("65a1b2c3d4e5f60718293a4b")
+        );
+        assert_eq!(
+            value(&mut e, "v.at instanceof Date && v.at.getTime()"),
+            json!({ "$numberInt": "5" })
+        );
         assert_eq!(value(&mut e, "v.n instanceof Long && v.n.toString()"), json!("9"));
-        assert_eq!(value(&mut e, "v.d instanceof Decimal128 && v.d.toString()"), json!("2.5"));
-        assert_eq!(value(&mut e, "[typeof v.i, typeof v.f, v.i + v.f]"), json!(["number", "number", { "$numberDouble": "4.5" }]));
+        assert_eq!(
+            value(&mut e, "v.d instanceof Decimal128 && v.d.toString()"),
+            json!("2.5")
+        );
+        assert_eq!(
+            value(&mut e, "[typeof v.i, typeof v.f, v.i + v.f]"),
+            json!(["number", "number", { "$numberDouble": "4.5" }])
+        );
         assert_eq!(value(&mut e, "v.re instanceof RegExp && v.re.flags"), json!("m"));
-        assert_eq!(value(&mut e, "v.u.toString()"), json!("123e4567-e89b-12d3-a456-426614174000"));
+        assert_eq!(
+            value(&mut e, "v.u.toString()"),
+            json!("123e4567-e89b-12d3-a456-426614174000")
+        );
         // And it all goes back unchanged.
         assert_eq!(
             value(&mut e, "v"),
@@ -380,7 +443,14 @@ mod tests {
         assert_eq!(preprocess("show tables"), r#"show("collections")"#);
         assert_eq!(preprocess("it"), "it()");
         // Ordinary code passes through, even when it mentions these words.
-        for code in ["db.users.find({ use: 1 })", "const it = 5", "use", "show", "let show = 1; show", "db.x.find()\nuse shop"] {
+        for code in [
+            "db.users.find({ use: 1 })",
+            "const it = 5",
+            "use",
+            "show",
+            "let show = 1; show",
+            "db.x.find()\nuse shop",
+        ] {
             assert_eq!(preprocess(code), code);
         }
     }
@@ -395,7 +465,10 @@ mod tests {
         });
         let out = e.eval("while (true) {}");
         timer.join().unwrap();
-        assert!(matches!(&out[..], [Output::Error(m)] if m.contains("interrupted")), "{out:?}");
+        assert!(
+            matches!(&out[..], [Output::Error(m)] if m.contains("interrupted")),
+            "{out:?}"
+        );
         assert_eq!(e.eval("1"), vec![Output::Value(json!({ "$numberInt": "1" }))]);
     }
 
@@ -408,7 +481,10 @@ mod tests {
         let h = EngineHandle::spawn(None, "test".into()).unwrap();
         let r = reply(h.eval("let n = 40".into()));
         assert_eq!((r.outputs, r.db.as_str()), (vec![], "test"));
-        assert_eq!(reply(h.eval("n + 2".into())).outputs, vec![Output::Value(json!({ "$numberInt": "42" }))]);
+        assert_eq!(
+            reply(h.eval("n + 2".into())).outputs,
+            vec![Output::Value(json!({ "$numberInt": "42" }))]
+        );
     }
 
     #[test]
@@ -418,7 +494,10 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(50));
         h.stop();
         let out = reply(rx).outputs;
-        assert!(matches!(&out[..], [Output::Error(m)] if m.contains("interrupted")), "{out:?}");
+        assert!(
+            matches!(&out[..], [Output::Error(m)] if m.contains("interrupted")),
+            "{out:?}"
+        );
     }
 
     #[test]
@@ -445,7 +524,12 @@ mod tests {
     }
 
     fn ints(values: &[i32]) -> serde_json::Value {
-        json!(values.iter().map(|n| json!({ "$numberInt": n.to_string() })).collect::<Vec<_>>())
+        json!(
+            values
+                .iter()
+                .map(|n| json!({ "$numberInt": n.to_string() }))
+                .collect::<Vec<_>>()
+        )
     }
 
     #[test]
@@ -453,14 +537,21 @@ mod tests {
     fn live_navigation() {
         let mut e = live();
         let dbs = e.eval("show dbs");
-        assert!(dbs.iter().any(|o| matches!(o, Output::Print(l) if l.starts_with("shop"))), "{dbs:?}");
+        assert!(
+            dbs.iter()
+                .any(|o| matches!(o, Output::Print(l) if l.starts_with("shop"))),
+            "{dbs:?}"
+        );
         assert_eq!(e.eval("use logs"), vec![Output::Info("switched to db logs".into())]);
         assert_eq!(e.db(), "logs");
         assert_eq!(value(&mut e, "db.getName()"), json!("logs"));
         let cols = e.eval("show collections");
         assert_eq!(cols, vec![Output::Print("events".into())]);
         e.eval("use shop");
-        assert_eq!(value(&mut e, "db.getSiblingDB('logs').events.countDocuments()"), json!({ "$numberInt": "1" }));
+        assert_eq!(
+            value(&mut e, "db.getSiblingDB('logs').events.countDocuments()"),
+            json!({ "$numberInt": "1" })
+        );
     }
 
     #[test]
@@ -468,21 +559,49 @@ mod tests {
     fn live_reads() {
         let mut e = live();
         // Ages cycle 18..=67 over 137 users; city is Izmir when i % 3 == 0.
-        assert_eq!(value(&mut e, "db.users.find({ age: { $gte: 60 } }).sort({ age: -1, name: 1 }).limit(3).toArray().map(u => u.age)"), ints(&[67, 67, 66]));
-        assert_eq!(value(&mut e, "db.users.findOne({ name: 'user5' }).age"), json!({ "$numberInt": "23" }));
-        assert_eq!(value(&mut e, "db.users.countDocuments({ 'address.city': 'Izmir' })"), json!({ "$numberInt": "46" }));
-        assert_eq!(value(&mut e, "db.users.estimatedDocumentCount()"), json!({ "$numberInt": "137" }));
-        assert_eq!(value(&mut e, "db.users.distinct('address.city').sort()"), json!(["Istanbul", "Izmir"]));
         assert_eq!(
-            value(&mut e, "db.users.aggregate([{ $group: { _id: '$address.city', n: { $sum: 1 } } }, { $sort: { _id: 1 } }]).toArray()"),
+            value(
+                &mut e,
+                "db.users.find({ age: { $gte: 60 } }).sort({ age: -1, name: 1 }).limit(3).toArray().map(u => u.age)"
+            ),
+            ints(&[67, 67, 66])
+        );
+        assert_eq!(
+            value(&mut e, "db.users.findOne({ name: 'user5' }).age"),
+            json!({ "$numberInt": "23" })
+        );
+        assert_eq!(
+            value(&mut e, "db.users.countDocuments({ 'address.city': 'Izmir' })"),
+            json!({ "$numberInt": "46" })
+        );
+        assert_eq!(
+            value(&mut e, "db.users.estimatedDocumentCount()"),
+            json!({ "$numberInt": "137" })
+        );
+        assert_eq!(
+            value(&mut e, "db.users.distinct('address.city').sort()"),
+            json!(["Istanbul", "Izmir"])
+        );
+        assert_eq!(
+            value(
+                &mut e,
+                "db.users.aggregate([{ $group: { _id: '$address.city', n: { $sum: 1 } } }, { $sort: { _id: 1 } }]).toArray()"
+            ),
             json!([{ "_id": "Istanbul", "n": { "$numberInt": "91" } }, { "_id": "Izmir", "n": { "$numberInt": "46" } }])
         );
         assert_eq!(
             e.eval("db.users.find({ age: 18 }).sort({ name: 1 }).forEach(u => print(u.name))"),
-            vec![Output::Print("user0".into()), Output::Print("user100".into()), Output::Print("user50".into())]
+            vec![
+                Output::Print("user0".into()),
+                Output::Print("user100".into()),
+                Output::Print("user50".into())
+            ]
         );
         let bad = e.eval("db.users.find({ $bad: 1 }).toArray()");
-        assert!(matches!(&bad[..], [Output::Error(m)] if m.contains("unknown top level operator")), "{bad:?}");
+        assert!(
+            matches!(&bad[..], [Output::Error(m)] if m.contains("unknown top level operator")),
+            "{bad:?}"
+        );
     }
 
     #[test]
@@ -490,16 +609,29 @@ mod tests {
     fn live_cursor_pages_with_it() {
         let mut e = live();
         let first = e.eval("db.users.find({}, { _id: 0, name: 1 }).sort({ name: 1 })");
-        let [Output::Value(docs), Output::Info(more)] = &first[..] else { panic!("{first:?}") };
+        let [Output::Value(docs), Output::Info(more)] = &first[..] else {
+            panic!("{first:?}")
+        };
         assert_eq!(docs.as_array().map(Vec::len), Some(20));
         assert_eq!(docs[0], json!({ "name": "user0" }));
         assert_eq!(more, "Type \"it\" for more");
         let second = e.eval("it");
-        let [Output::Value(docs), Output::Info(_)] = &second[..] else { panic!("{second:?}") };
-        assert_eq!(docs[0], json!({ "name": "user116" }), "continues where the first page stopped (checked against mongosh)");
+        let [Output::Value(docs), Output::Info(_)] = &second[..] else {
+            panic!("{second:?}")
+        };
+        assert_eq!(
+            docs[0],
+            json!({ "name": "user116" }),
+            "continues where the first page stopped (checked against mongosh)"
+        );
         // A small result needs no "it".
         let small = e.eval("db.users.find({ age: 18 }, { _id: 0, name: 1 }).sort({ name: 1 })");
-        assert_eq!(small, vec![Output::Value(json!([{ "name": "user0" }, { "name": "user100" }, { "name": "user50" }]))]);
+        assert_eq!(
+            small,
+            vec![Output::Value(
+                json!([{ "name": "user0" }, { "name": "user100" }, { "name": "user50" }])
+            )]
+        );
     }
 
     #[test]
@@ -509,15 +641,40 @@ mod tests {
         e.eval("db.humon_console_test.drop()");
         let inserted = value(&mut e, "db.humon_console_test.insertOne({ n: 1 })");
         assert_eq!(inserted["acknowledged"], json!(true));
-        assert_eq!(inserted["insertedId"]["$oid"].as_str().map(str::len), Some(24), "{inserted}");
-        assert_eq!(value(&mut e, "Object.keys(db.humon_console_test.insertMany([{ n: 2 }, { n: 3 }]).insertedIds).length"), json!({ "$numberInt": "2" }));
-        let updated = value(&mut e, "db.humon_console_test.updateMany({ n: { $gte: 2 } }, { $set: { big: true } })");
-        assert_eq!((updated["matchedCount"].clone(), updated["modifiedCount"].clone()), (json!({ "$numberInt": "2" }), json!({ "$numberInt": "2" })));
-        assert_eq!(value(&mut e, "db.humon_console_test.deleteOne({ n: 1 }).deletedCount"), json!({ "$numberInt": "1" }));
-        assert_eq!(value(&mut e, "db.humon_console_test.countDocuments({ big: true })"), json!({ "$numberInt": "2" }));
+        assert_eq!(
+            inserted["insertedId"]["$oid"].as_str().map(str::len),
+            Some(24),
+            "{inserted}"
+        );
+        assert_eq!(
+            value(
+                &mut e,
+                "Object.keys(db.humon_console_test.insertMany([{ n: 2 }, { n: 3 }]).insertedIds).length"
+            ),
+            json!({ "$numberInt": "2" })
+        );
+        let updated = value(
+            &mut e,
+            "db.humon_console_test.updateMany({ n: { $gte: 2 } }, { $set: { big: true } })",
+        );
+        assert_eq!(
+            (updated["matchedCount"].clone(), updated["modifiedCount"].clone()),
+            (json!({ "$numberInt": "2" }), json!({ "$numberInt": "2" }))
+        );
+        assert_eq!(
+            value(&mut e, "db.humon_console_test.deleteOne({ n: 1 }).deletedCount"),
+            json!({ "$numberInt": "1" })
+        );
+        assert_eq!(
+            value(&mut e, "db.humon_console_test.countDocuments({ big: true })"),
+            json!({ "$numberInt": "2" })
+        );
         e.eval("db.humon_console_test.insertOne({ _id: 1 })");
         let dup = e.eval("db.humon_console_test.insertOne({ _id: 1 })");
-        assert!(matches!(&dup[..], [Output::Error(m)] if m.contains("duplicate key")), "a write error must not look like success: {dup:?}");
+        assert!(
+            matches!(&dup[..], [Output::Error(m)] if m.contains("duplicate key")),
+            "a write error must not look like success: {dup:?}"
+        );
         assert_eq!(value(&mut e, "db.humon_console_test.drop()"), json!(true));
     }
 }

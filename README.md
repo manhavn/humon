@@ -103,9 +103,12 @@ against a real MongoDB.
 ```sh
 cargo test --release
 
-# Also against a real server (expects the "shop" test data):
+# Also against a real server on port 27018, after loading the test data:
+mongosh mongodb://127.0.0.1:27018 scripts/seed-test-db.js
 HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignored
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made.
 
 ## To do
 

@@ -15,7 +15,11 @@ fn is_ident(k: &str) -> bool {
 /// `ISODate("…")`, or `ISODate(<millis>)` for dates ISO 8601 can't express
 /// (past year 9999); the query parser reads both back to the same instant.
 fn date_shell(ms: &str) -> String {
-    match ms.parse::<i64>().ok().map(|ms| mongodb::bson::DateTime::from_millis(ms).try_to_rfc3339_string()) {
+    match ms
+        .parse::<i64>()
+        .ok()
+        .map(|ms| mongodb::bson::DateTime::from_millis(ms).try_to_rfc3339_string())
+    {
         Some(Ok(iso)) => format!("ISODate({})", quote(&iso)),
         _ => format!("ISODate({ms})"),
     }
@@ -86,7 +90,10 @@ pub fn to_shell(v: &Value, indent: &str) -> String {
         }
         Value::Array(items) if items.is_empty() => "[]".into(),
         Value::Array(items) => {
-            let lines: Vec<String> = items.iter().map(|x| format!("{inner}{}", to_shell(x, &inner))).collect();
+            let lines: Vec<String> = items
+                .iter()
+                .map(|x| format!("{inner}{}", to_shell(x, &inner)))
+                .collect();
             format!("[\n{}\n{indent}]", lines.join(",\n"))
         }
         Value::String(s) => quote(s),
@@ -102,7 +109,10 @@ mod tests {
     #[test]
     fn layout_is_two_space_indented_with_inline_empties() {
         let doc = json!({ "a": 1, "nested": { "b": [1, 2], "e": {}, "l": [] } });
-        assert_eq!(to_shell(&doc, ""), "{\n  a: 1,\n  nested: {\n    b: [\n      1,\n      2\n    ],\n    e: {},\n    l: []\n  }\n}");
+        assert_eq!(
+            to_shell(&doc, ""),
+            "{\n  a: 1,\n  nested: {\n    b: [\n      1,\n      2\n    ],\n    e: {},\n    l: []\n  }\n}"
+        );
     }
 
     #[test]
@@ -117,18 +127,39 @@ mod tests {
     #[test]
     fn typed_values_use_shell_helpers() {
         let cases = [
-            (json!({ "$oid": "65a1b2c3d4e5f60718293a4b" }), r#"ObjectId("65a1b2c3d4e5f60718293a4b")"#),
-            (json!({ "$date": { "$numberLong": "0" } }), r#"ISODate("1970-01-01T00:00:00Z")"#),
-            (json!({ "$date": { "$numberLong": "253402300800000" } }), "ISODate(253402300800000)"),
+            (
+                json!({ "$oid": "65a1b2c3d4e5f60718293a4b" }),
+                r#"ObjectId("65a1b2c3d4e5f60718293a4b")"#,
+            ),
+            (
+                json!({ "$date": { "$numberLong": "0" } }),
+                r#"ISODate("1970-01-01T00:00:00Z")"#,
+            ),
+            (
+                json!({ "$date": { "$numberLong": "253402300800000" } }),
+                "ISODate(253402300800000)",
+            ),
             (json!({ "$numberInt": "7" }), "7"),
-            (json!({ "$numberLong": "9007199254740993" }), r#"NumberLong("9007199254740993")"#),
+            (
+                json!({ "$numberLong": "9007199254740993" }),
+                r#"NumberLong("9007199254740993")"#,
+            ),
             (json!({ "$numberDouble": "1.0" }), "1.0"),
             (json!({ "$numberDouble": "0.1" }), "0.1"),
             (json!({ "$numberDouble": "-Infinity" }), "-Infinity"),
             (json!({ "$numberDecimal": "1.10" }), r#"NumberDecimal("1.10")"#),
-            (json!({ "$binary": { "base64": "EhISEhISEhISEhISEhISEg==", "subType": "04" } }), r#"UUID("12121212-1212-1212-1212-121212121212")"#),
-            (json!({ "$binary": { "base64": "AQID", "subType": "00" } }), r#"BinData(0, "AQID")"#),
-            (json!({ "$regularExpression": { "pattern": "^a", "options": "i" } }), "/^a/i"),
+            (
+                json!({ "$binary": { "base64": "EhISEhISEhISEhISEhISEg==", "subType": "04" } }),
+                r#"UUID("12121212-1212-1212-1212-121212121212")"#,
+            ),
+            (
+                json!({ "$binary": { "base64": "AQID", "subType": "00" } }),
+                r#"BinData(0, "AQID")"#,
+            ),
+            (
+                json!({ "$regularExpression": { "pattern": "^a", "options": "i" } }),
+                "/^a/i",
+            ),
             (json!({ "$timestamp": { "t": 10, "i": 2 } }), "Timestamp(10, 2)"),
             (json!({ "$minKey": 1 }), "MinKey()"),
         ];

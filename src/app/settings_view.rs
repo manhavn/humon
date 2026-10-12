@@ -5,7 +5,12 @@ use super::*;
 impl Humon {
     pub(crate) fn render_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let (border, muted, hover, active_bg) = (theme.border, theme.muted_foreground, theme.list_hover, theme.list_active);
+        let (border, muted, hover, active_bg) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.list_hover,
+            theme.list_active,
+        );
         let current = rust_i18n::locale().to_string();
         let mut languages = div().flex().flex_col().gap_1();
         for code in settings::languages() {
@@ -34,30 +39,44 @@ impl Humon {
                     })),
             );
         }
-        div()
-            .flex_1()
-            .flex()
-            .justify_center()
-            .p_8()
-            .child(
-                div()
-                    .w(px(460.))
-                    .flex()
-                    .flex_col()
-                    .gap_4()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .child(div().flex_1().text_xl().font_weight(FontWeight::SEMIBOLD).child(t!("settings.title").to_string()))
-                            .child(Button::new("settings-close").label(t!("settings.close")).on_click(cx.listener(|this, _, _, cx| {
-                                this.show_settings = false;
-                                cx.notify();
-                            }))),
-                    )
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child(t!("settings.language").to_string()))
-                    .child(languages)
-                    .child(div().text_xs().text_color(muted).child(t!("settings.contribute").to_string())),
-            )
+        div().flex_1().flex().justify_center().p_8().child(
+            div()
+                .w(px(460.))
+                .flex()
+                .flex_col()
+                .gap_4()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_xl()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .child(t!("settings.title").to_string()),
+                        )
+                        .child(
+                            Button::new("settings-close")
+                                .label(t!("settings.close"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.show_settings = false;
+                                    cx.notify();
+                                })),
+                        ),
+                )
+                .child(
+                    div()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(t!("settings.language").to_string()),
+                )
+                .child(languages)
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(muted)
+                        .child(t!("settings.contribute").to_string()),
+                ),
+        )
     }
 }

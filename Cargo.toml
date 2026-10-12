@@ -2,7 +2,12 @@
 name = "humon"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+description = "A small, fast MongoDB client for the desktop, built with gpui"
 license = "MIT"
+readme = "README.md"
+keywords = ["mongodb", "gui", "database", "client", "gpui"]
+categories = ["database", "gui"]
 repository = "https://github.com/yldrmzffr/humon"
 publish = false
 

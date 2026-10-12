@@ -79,7 +79,10 @@ pub async fn databases(client: Client) -> Result<Vec<DatabaseInfo>, String> {
         .await
         .map_err(err)?
         .into_iter()
-        .map(|d| DatabaseInfo { name: d.name, size_on_disk: d.size_on_disk })
+        .map(|d| DatabaseInfo {
+            name: d.name,
+            size_on_disk: d.size_on_disk,
+        })
         .collect();
     dbs.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(dbs)
@@ -144,7 +147,10 @@ pub async fn find(client: Client, db: String, coll: String, args: FindArgs) -> R
     let start = Instant::now();
     let docs: Vec<Document> = find.await.map_err(err)?.try_collect().await.map_err(err)?;
     let took = start.elapsed();
-    Ok(Page { docs: docs.into_iter().map(to_json).collect(), took })
+    Ok(Page {
+        docs: docs.into_iter().map(to_json).collect(),
+        took,
+    })
 }
 
 /// Total for the pager. `None` means an exact count would take too long.
@@ -157,7 +163,11 @@ pub async fn count(client: Client, db: String, coll: String, filter: String) -> 
             return Ok(Some(n));
         }
     }
-    match collection.count_documents(filter).max_time(Duration::from_secs(5)).await {
+    match collection
+        .count_documents(filter)
+        .max_time(Duration::from_secs(5))
+        .await
+    {
         Ok(n) => Ok(Some(n)),
         // MaxTimeMSExpired: report "unknown" rather than failing the tab.
         Err(e) if matches!(&*e.kind, ErrorKind::Command(c) if c.code == 50) => Ok(None),
@@ -218,7 +228,10 @@ pub async fn insert(client: Client, db: String, coll: String, src: String) -> Re
     let collection = client.database(&db).collection::<Document>(&coll);
     let n = docs.len();
     if n == 1 {
-        collection.insert_one(docs.into_iter().next().unwrap()).await.map_err(err)?;
+        collection
+            .insert_one(docs.into_iter().next().unwrap())
+            .await
+            .map_err(err)?;
     } else {
         collection.insert_many(docs).await.map_err(err)?;
     }
@@ -249,7 +262,14 @@ const CSV_HEADER_SAMPLE: usize = 1000;
 /// stays flat however many documents match. `limit` 0 exports everything.
 /// JSON is an array of relaxed extended JSON; CSV has one column per
 /// top-level field, with nested values written as JSON.
-pub async fn export(client: Client, db: String, coll: String, args: FindArgs, format: ExportFormat, path: std::path::PathBuf) -> Result<u64, String> {
+pub async fn export(
+    client: Client,
+    db: String,
+    coll: String,
+    args: FindArgs,
+    format: ExportFormat,
+    path: std::path::PathBuf,
+) -> Result<u64, String> {
     use std::io::Write;
 
     let filter = parse_arg("Filter", &args.filter)?;
@@ -277,10 +297,12 @@ pub async fn export(client: Client, db: String, coll: String, args: FindArgs, fo
             out.write_all(b"[").map_err(io)?;
             while let Some(doc) = cursor.try_next().await.map_err(err)? {
                 out.write_all(if written == 0 { b"\n" } else { b",\n" }).map_err(io)?;
-                serde_json::to_writer(&mut out, &Bson::Document(doc).into_relaxed_extjson()).map_err(|e| e.to_string())?;
+                serde_json::to_writer(&mut out, &Bson::Document(doc).into_relaxed_extjson())
+                    .map_err(|e| e.to_string())?;
                 written += 1;
             }
-            out.write_all(if written == 0 { b"]\n" } else { b"\n]\n" }).map_err(io)?;
+            out.write_all(if written == 0 { b"]\n" } else { b"\n]\n" })
+                .map_err(io)?;
         }
         ExportFormat::Csv => {
             let mut sample = Vec::new();
@@ -291,9 +313,17 @@ pub async fn export(client: Client, db: String, coll: String, args: FindArgs, fo
                 }
             }
             let headers = csv_headers(&sample);
-            writeln!(out, "{}", headers.iter().map(|h| csv_escape(h)).collect::<Vec<_>>().join(",")).map_err(io)?;
+            writeln!(
+                out,
+                "{}",
+                headers.iter().map(|h| csv_escape(h)).collect::<Vec<_>>().join(",")
+            )
+            .map_err(io)?;
             let write_row = |doc: &Document, out: &mut std::io::BufWriter<std::fs::File>| -> Result<(), String> {
-                let row: Vec<String> = headers.iter().map(|h| doc.get(h).map(csv_cell).map(|c| csv_escape(&c)).unwrap_or_default()).collect();
+                let row: Vec<String> = headers
+                    .iter()
+                    .map(|h| doc.get(h).map(csv_cell).map(|c| csv_escape(&c)).unwrap_or_default())
+                    .collect();
                 writeln!(out, "{}", row.join(",")).map_err(io)
             };
             for doc in &sample {
@@ -337,7 +367,9 @@ fn csv_cell(value: &Bson) -> String {
         Bson::Boolean(b) => b.to_string(),
         Bson::Null | Bson::Undefined => String::new(),
         Bson::ObjectId(id) => id.to_hex(),
-        Bson::DateTime(d) => d.try_to_rfc3339_string().unwrap_or_else(|_| d.timestamp_millis().to_string()),
+        Bson::DateTime(d) => d
+            .try_to_rfc3339_string()
+            .unwrap_or_else(|_| d.timestamp_millis().to_string()),
         Bson::Decimal128(d) => d.to_string(),
         other => other.clone().into_relaxed_extjson().to_string(),
     }
@@ -360,7 +392,12 @@ pub async fn create_collection(client: Client, db: String, name: String) -> Resu
 }
 
 pub async fn drop_collection(client: Client, db: String, name: String) -> Result<(), String> {
-    client.database(&db).collection::<Document>(&name).drop().await.map_err(err)
+    client
+        .database(&db)
+        .collection::<Document>(&name)
+        .drop()
+        .await
+        .map_err(err)
 }
 
 pub async fn rename_collection(client: Client, db: String, from: String, to: String) -> Result<(), String> {
@@ -386,12 +423,18 @@ mod csv_tests {
         assert_eq!(csv_cell(&Bson::Null), "");
         let id = mongodb::bson::oid::ObjectId::parse_str("65a1b2c3d4e5f60718293a4b").unwrap();
         assert_eq!(csv_cell(&Bson::ObjectId(id)), "65a1b2c3d4e5f60718293a4b");
-        assert_eq!(csv_cell(&Bson::DateTime(mongodb::bson::DateTime::from_millis(0))), "1970-01-01T00:00:00Z");
+        assert_eq!(
+            csv_cell(&Bson::DateTime(mongodb::bson::DateTime::from_millis(0))),
+            "1970-01-01T00:00:00Z"
+        );
         assert_eq!(csv_cell(&Bson::Document(doc! { "a": 1 })), r#"{"a":1}"#);
         assert_eq!(csv_escape("plain"), "plain");
         assert_eq!(csv_escape("a,b"), "\"a,b\"");
         assert_eq!(csv_escape("say \"hi\""), "\"say \"\"hi\"\"\"");
-        assert_eq!(csv_headers(&[doc! { "b": 1, "_id": 2 }, doc! { "c": 3 }]), ["_id", "b", "c"]);
+        assert_eq!(
+            csv_headers(&[doc! { "b": 1, "_id": 2 }, doc! { "c": 3 }]),
+            ["_id", "b", "c"]
+        );
     }
 }
 
@@ -404,7 +447,13 @@ mod tests {
     use serde_json::json;
 
     fn args(filter: &str, sort: &str, projection: &str, skip: u64, limit: i64) -> FindArgs {
-        FindArgs { filter: filter.into(), sort: sort.into(), projection: projection.into(), skip, limit }
+        FindArgs {
+            filter: filter.into(),
+            sort: sort.into(),
+            projection: projection.into(),
+            skip,
+            limit,
+        }
     }
 
     #[tokio::test]
@@ -414,43 +463,165 @@ mod tests {
         let c = open(uri).await.unwrap();
         let (db, users) = ("shop".to_string(), "users".to_string());
 
-        let dbs: Vec<String> = databases(c.clone()).await.unwrap().into_iter().map(|d| d.name).collect();
+        let dbs: Vec<String> = databases(c.clone())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|d| d.name)
+            .collect();
         assert!(dbs.contains(&db), "{dbs:?}");
         let cols = collections(c.clone(), db.clone()).await.unwrap();
         assert!(cols.iter().any(|x| x.name == "adults" && x.kind == CollKind::View));
 
         // Ages cycle 18..=67; city is Izmir when i % 3 == 0.
-        assert_eq!(count(c.clone(), db.clone(), users.clone(), "".into()).await.unwrap(), Some(137));
-        assert_eq!(count(c.clone(), db.clone(), users.clone(), "{ 'address.city': 'Izmir' }".into()).await.unwrap(), Some(46));
-        assert!(count(c.clone(), db.clone(), "adults".into(), "".into()).await.unwrap().unwrap() > 0);
-
-        let page = find(c.clone(), db.clone(), users.clone(), args("{ age: { $gte: 60 } }", "{ age: -1, name: 1 }", "{ _id: 0, name: 1, age: 1, big: 1 }", 0, 5))
+        assert_eq!(
+            count(c.clone(), db.clone(), users.clone(), "".into()).await.unwrap(),
+            Some(137)
+        );
+        assert_eq!(
+            count(
+                c.clone(),
+                db.clone(),
+                users.clone(),
+                "{ 'address.city': 'Izmir' }".into()
+            )
             .await
-            .unwrap()
-            .docs;
+            .unwrap(),
+            Some(46)
+        );
+        assert!(
+            count(c.clone(), db.clone(), "adults".into(), "".into())
+                .await
+                .unwrap()
+                .unwrap()
+                > 0
+        );
+
+        let page = find(
+            c.clone(),
+            db.clone(),
+            users.clone(),
+            args(
+                "{ age: { $gte: 60 } }",
+                "{ age: -1, name: 1 }",
+                "{ _id: 0, name: 1, age: 1, big: 1 }",
+                0,
+                5,
+            ),
+        )
+        .await
+        .unwrap()
+        .docs;
         assert_eq!(page.len(), 5);
         let first = page[0].as_object().unwrap();
         assert_eq!(first.keys().collect::<Vec<_>>(), ["name", "age", "big"]);
         assert_eq!(first["age"], json!({ "$numberInt": "67" }));
         assert_eq!(first["big"], json!({ "$numberLong": "9007199254740993" }));
-        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("", "{ name: 1 }", "", 135, 20)).await.unwrap().docs.len(), 2);
-        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ createdAt: { $lt: ISODate('2024-01-03') } }", "", "", 0, 50)).await.unwrap().docs.len(), 2);
-        assert_eq!(find(c.clone(), db.clone(), users.clone(), args("{ name: /^user1\\d$/ }", "", "", 0, 50)).await.unwrap().docs.len(), 10);
-        let bad = find(c.clone(), db.clone(), users.clone(), args("{ age: ", "", "", 0, 5)).await.unwrap_err();
+        assert_eq!(
+            find(
+                c.clone(),
+                db.clone(),
+                users.clone(),
+                args("", "{ name: 1 }", "", 135, 20)
+            )
+            .await
+            .unwrap()
+            .docs
+            .len(),
+            2
+        );
+        assert_eq!(
+            find(
+                c.clone(),
+                db.clone(),
+                users.clone(),
+                args("{ createdAt: { $lt: ISODate('2024-01-03') } }", "", "", 0, 50)
+            )
+            .await
+            .unwrap()
+            .docs
+            .len(),
+            2
+        );
+        assert_eq!(
+            find(
+                c.clone(),
+                db.clone(),
+                users.clone(),
+                args("{ name: /^user1\\d$/ }", "", "", 0, 50)
+            )
+            .await
+            .unwrap()
+            .docs
+            .len(),
+            10
+        );
+        let bad = find(c.clone(), db.clone(), users.clone(), args("{ age: ", "", "", 0, 5))
+            .await
+            .unwrap_err();
         assert!(bad.starts_with("Filter:"), "{bad}");
 
         let scratch = "humon_write_test".to_string();
-        assert_eq!(insert(c.clone(), db.clone(), scratch.clone(), "[{ n: 1 }, { n: 2 }]".into()).await.unwrap(), 2);
-        assert_eq!(insert(c.clone(), db.clone(), scratch.clone(), "{ _id: 'k', n: 3, at: ISODate('2024-05-01') }".into()).await.unwrap(), 1);
+        assert_eq!(
+            insert(c.clone(), db.clone(), scratch.clone(), "[{ n: 1 }, { n: 2 }]".into())
+                .await
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            insert(
+                c.clone(),
+                db.clone(),
+                scratch.clone(),
+                "{ _id: 'k', n: 3, at: ISODate('2024-05-01') }".into()
+            )
+            .await
+            .unwrap(),
+            1
+        );
         let key = json!("k");
-        replace(c.clone(), db.clone(), scratch.clone(), key.clone(), "{ n: NumberLong(4), extra: true }".into()).await.unwrap();
-        let stored = get(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap().unwrap();
-        assert_eq!(stored, json!({ "_id": "k", "n": { "$numberLong": "4" }, "extra": true }));
-        let changed_id = replace(c.clone(), db.clone(), scratch.clone(), key.clone(), "{ _id: 'other' }".into()).await.unwrap_err();
+        replace(
+            c.clone(),
+            db.clone(),
+            scratch.clone(),
+            key.clone(),
+            "{ n: NumberLong(4), extra: true }".into(),
+        )
+        .await
+        .unwrap();
+        let stored = get(c.clone(), db.clone(), scratch.clone(), key.clone())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            stored,
+            json!({ "_id": "k", "n": { "$numberLong": "4" }, "extra": true })
+        );
+        let changed_id = replace(
+            c.clone(),
+            db.clone(),
+            scratch.clone(),
+            key.clone(),
+            "{ _id: 'other' }".into(),
+        )
+        .await
+        .unwrap_err();
         assert_eq!(changed_id, t!("errors.id_immutable"));
-        delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap();
-        assert_eq!(delete(c.clone(), db.clone(), scratch.clone(), key.clone()).await.unwrap_err(), gone());
-        assert_eq!(replace(c.clone(), db.clone(), scratch.clone(), key, "{}".into()).await.unwrap_err(), gone());
+        delete(c.clone(), db.clone(), scratch.clone(), key.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            delete(c.clone(), db.clone(), scratch.clone(), key.clone())
+                .await
+                .unwrap_err(),
+            gone()
+        );
+        assert_eq!(
+            replace(c.clone(), db.clone(), scratch.clone(), key, "{}".into())
+                .await
+                .unwrap_err(),
+            gone()
+        );
         c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
 
         // Opening a document in the editor and saving it unchanged must store
@@ -474,10 +645,19 @@ mod tests {
             "min": Bson::MinKey, "max": Bson::MaxKey,
         };
         let id = Bson::from(exotic.get_object_id("_id").unwrap()).into_canonical_extjson();
-        c.database(&db).collection::<Document>(&scratch).insert_one(exotic).await.unwrap();
-        let before = get(c.clone(), db.clone(), scratch.clone(), id.clone()).await.unwrap().unwrap();
+        c.database(&db)
+            .collection::<Document>(&scratch)
+            .insert_one(exotic)
+            .await
+            .unwrap();
+        let before = get(c.clone(), db.clone(), scratch.clone(), id.clone())
+            .await
+            .unwrap()
+            .unwrap();
         let editor_text = crate::shell::to_shell(&before, "");
-        replace(c.clone(), db.clone(), scratch.clone(), id.clone(), editor_text.clone()).await.unwrap();
+        replace(c.clone(), db.clone(), scratch.clone(), id.clone(), editor_text.clone())
+            .await
+            .unwrap();
         let after = get(c.clone(), db.clone(), scratch.clone(), id).await.unwrap().unwrap();
         assert_eq!(after, before, "editor text was:\n{editor_text}");
         c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
@@ -485,13 +665,40 @@ mod tests {
         // Export streams every match to a file.
         let dir = std::env::temp_dir();
         let json_path = dir.join("humon-export-test.json");
-        let n = export(c.clone(), db.clone(), users.clone(), args("{ age: { $gte: 60 } }", "{ name: 1 }", "", 0, 0), ExportFormat::Json, json_path.clone()).await.unwrap();
+        let n = export(
+            c.clone(),
+            db.clone(),
+            users.clone(),
+            args("{ age: { $gte: 60 } }", "{ name: 1 }", "", 0, 0),
+            ExportFormat::Json,
+            json_path.clone(),
+        )
+        .await
+        .unwrap();
         let parsed: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(&json_path).unwrap()).unwrap();
         assert_eq!(parsed.len() as u64, n);
-        assert_eq!(n, count(c.clone(), db.clone(), users.clone(), "{ age: { $gte: 60 } }".into()).await.unwrap().unwrap());
-        assert!(parsed[0]["_id"]["$oid"].is_string(), "relaxed EJSON keeps ObjectId typed");
+        assert_eq!(
+            n,
+            count(c.clone(), db.clone(), users.clone(), "{ age: { $gte: 60 } }".into())
+                .await
+                .unwrap()
+                .unwrap()
+        );
+        assert!(
+            parsed[0]["_id"]["$oid"].is_string(),
+            "relaxed EJSON keeps ObjectId typed"
+        );
         let csv_path = dir.join("humon-export-test.csv");
-        let n = export(c.clone(), db.clone(), users.clone(), args("", "{ name: 1 }", "{ name: 1, age: 1 }", 0, 3), ExportFormat::Csv, csv_path.clone()).await.unwrap();
+        let n = export(
+            c.clone(),
+            db.clone(),
+            users.clone(),
+            args("", "{ name: 1 }", "{ name: 1, age: 1 }", 0, 3),
+            ExportFormat::Csv,
+            csv_path.clone(),
+        )
+        .await
+        .unwrap();
         let csv = std::fs::read_to_string(&csv_path).unwrap();
         assert_eq!(n, 3);
         assert_eq!(csv.lines().next(), Some("_id,name,age"));
@@ -502,14 +709,29 @@ mod tests {
         let tmp = "humon_tmp_db".to_string();
         drop_database(c.clone(), tmp.clone()).await.unwrap(); // leftovers from an aborted run
         create_collection(c.clone(), tmp.clone(), "a".into()).await.unwrap();
-        assert!(create_collection(c.clone(), tmp.clone(), "a".into()).await.is_err(), "duplicate name");
-        rename_collection(c.clone(), tmp.clone(), "a".into(), "b".into()).await.unwrap();
-        let names: Vec<String> = collections(c.clone(), tmp.clone()).await.unwrap().into_iter().map(|x| x.name).collect();
+        assert!(
+            create_collection(c.clone(), tmp.clone(), "a".into()).await.is_err(),
+            "duplicate name"
+        );
+        rename_collection(c.clone(), tmp.clone(), "a".into(), "b".into())
+            .await
+            .unwrap();
+        let names: Vec<String> = collections(c.clone(), tmp.clone())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|x| x.name)
+            .collect();
         assert_eq!(names, ["b"]);
         drop_collection(c.clone(), tmp.clone(), "b".into()).await.unwrap();
         create_collection(c.clone(), tmp.clone(), "c".into()).await.unwrap();
         drop_database(c.clone(), tmp.clone()).await.unwrap();
-        let dbs: Vec<String> = databases(c.clone()).await.unwrap().into_iter().map(|d| d.name).collect();
+        let dbs: Vec<String> = databases(c.clone())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|d| d.name)
+            .collect();
         assert!(!dbs.contains(&tmp));
     }
 }

@@ -4,19 +4,19 @@
 use std::future::Future;
 use std::sync::Arc;
 
+use gpui_kit::component::ActiveTheme;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
-use gpui_kit::component::ActiveTheme;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 use mongodb::Client;
 
-use crate::mongo::{self, CollKind, CollectionInfo, DatabaseInfo, RT};
-use crate::store::{SavedConnection, Store};
+use crate::console::view::ConsoleTab;
 use crate::history::History;
 use crate::manage::{EditForm, SidebarEdit};
+use crate::mongo::{self, CollKind, CollectionInfo, DatabaseInfo, RT};
 use crate::settings::{self, Settings};
-use crate::console::view::ConsoleTab;
+use crate::store::{SavedConnection, Store};
 use crate::tab::Tab;
 use rust_i18n::t;
 
@@ -78,28 +78,42 @@ gpui_kit::actions!(humon, [QuickOpen]);
 /// The app logo, embedded so the binary needs no files next to it.
 fn logo() -> Arc<Image> {
     static LOGO: std::sync::LazyLock<Arc<Image>> = std::sync::LazyLock::new(|| {
-        Arc::new(Image::from_bytes(ImageFormat::Png, include_bytes!("../../assets/logo-256.png").to_vec()))
+        Arc::new(Image::from_bytes(
+            ImageFormat::Png,
+            include_bytes!("../../assets/logo-256.png").to_vec(),
+        ))
     });
     LOGO.clone()
 }
 
 /// Connection label colors, stored as `#rrggbb`.
-const PALETTE: [&str; 8] = ["#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#12a594", "#0090ff", "#8e4ec6", "#d6409f"];
+const PALETTE: [&str; 8] = [
+    "#e5484d", "#f76b15", "#ffc53d", "#30a46c", "#12a594", "#0090ff", "#8e4ec6", "#d6409f",
+];
 
 fn parse_color(hex: &str) -> Option<Hsla> {
-    u32::from_str_radix(hex.strip_prefix('#')?, 16).ok().map(|v| rgb(v).into())
+    u32::from_str_radix(hex.strip_prefix('#')?, 16)
+        .ok()
+        .map(|v| rgb(v).into())
 }
 
 /// After closing tab `closed`, the tab to activate among `open_ids` (in tab
 /// order): the one to its right, else the one to its left.
 pub fn next_active(open_ids: &[usize], closed: usize) -> Option<usize> {
     let rest: Vec<usize> = open_ids.iter().copied().filter(|&id| id != closed).collect();
-    rest.iter().copied().find(|&id| id > closed).or_else(|| rest.iter().copied().rev().find(|&id| id < closed))
+    rest.iter()
+        .copied()
+        .find(|&id| id > closed)
+        .or_else(|| rest.iter().copied().rev().find(|&id| id < closed))
 }
 
 /// Which of a database's collections the tree shows for a search; `None`
 /// hides the database. An empty query or a matching database name shows all.
-pub fn visible_collections<'a>(db_name: &str, cols: Option<&'a [CollectionInfo]>, query: &str) -> Option<Vec<&'a CollectionInfo>> {
+pub fn visible_collections<'a>(
+    db_name: &str,
+    cols: Option<&'a [CollectionInfo]>,
+    query: &str,
+) -> Option<Vec<&'a CollectionInfo>> {
     let cols = cols.unwrap_or(&[]);
     let q = query.to_lowercase();
     if q.is_empty() || db_name.to_lowercase().contains(&q) {
@@ -128,7 +142,11 @@ pub fn format_size(bytes: u64) -> String {
         v /= 1024.0;
         unit = u;
     }
-    if v < 10.0 { format!("{v:.1} {unit}") } else { format!("{v:.0} {unit}") }
+    if v < 10.0 {
+        format!("{v:.1} {unit}")
+    } else {
+        format!("{v:.0} {unit}")
+    }
 }
 
 impl Humon {
@@ -143,17 +161,21 @@ impl Humon {
         });
         let (form, form_subs) = EditForm::new(window, cx);
         let palette_input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("palette.placeholder")));
-        let palette_sub = cx.subscribe_in(&palette_input, window, |this, _, ev: &InputEvent, window, cx| match ev {
-            InputEvent::Change => {
-                this.palette_selected = 0;
-                cx.notify();
-            }
-            InputEvent::PressEnter { .. } => {
-                this.activate_palette(window, cx);
-                cx.notify();
-            }
-            _ => {}
-        });
+        let palette_sub = cx.subscribe_in(
+            &palette_input,
+            window,
+            |this, _, ev: &InputEvent, window, cx| match ev {
+                InputEvent::Change => {
+                    this.palette_selected = 0;
+                    cx.notify();
+                }
+                InputEvent::PressEnter { .. } => {
+                    this.activate_palette(window, cx);
+                    cx.notify();
+                }
+                _ => {}
+            },
+        );
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let store = Store::default();
@@ -171,7 +193,14 @@ impl Humon {
         Self {
             conns: saved
                 .into_iter()
-                .map(|saved| ConnNode { saved, client: None, connecting: false, open: false, error: None, dbs: vec![] })
+                .map(|saved| ConnNode {
+                    saved,
+                    client: None,
+                    connecting: false,
+                    open: false,
+                    error: None,
+                    dbs: vec![],
+                })
                 .collect(),
             tabs: vec![],
             active_tab: None,
@@ -232,13 +261,20 @@ impl Humon {
 
     fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
         rust_i18n::set_locale(code);
-        let saved = Settings { language: Some(code.to_string()) }.save_to(&Settings::default_path());
+        let saved = Settings {
+            language: Some(code.to_string()),
+        }
+        .save_to(&Settings::default_path());
         if let Err(e) = saved {
             self.load_error = Some(e);
         }
         // Placeholders are held by the inputs, so they need re-setting; everything
         // else is read through t! on the next render.
-        for (input, key) in [(&self.form_name, "form.name"), (&self.form_uri, "form.uri"), (&self.search, "sidebar.search")] {
+        for (input, key) in [
+            (&self.form_name, "form.name"),
+            (&self.form_uri, "form.uri"),
+            (&self.search, "sidebar.search"),
+        ] {
             input.update(cx, |s, cx| s.set_placeholder(t!(key), window, cx));
         }
         self.relabel_tabs(window, cx);
@@ -246,15 +282,29 @@ impl Humon {
 
     /// Focuses the collection's tab or opens one; `new_tab` always opens another.
     #[allow(clippy::too_many_arguments)]
-    fn open_collection(&mut self, saved_id: &str, db: &str, coll: &str, kind: CollKind, new_tab: bool, window: &mut Window, cx: &mut Context<Self>) {
+    fn open_collection(
+        &mut self,
+        saved_id: &str,
+        db: &str,
+        coll: &str,
+        kind: CollKind,
+        new_tab: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !new_tab
-            && let Some(tab) = self.tabs.iter().find(|t| t.conn_id == saved_id && t.db == db && t.coll == coll)
+            && let Some(tab) = self
+                .tabs
+                .iter()
+                .find(|t| t.conn_id == saved_id && t.db == db && t.coll == coll)
         {
             self.active_tab = Some(tab.id);
             return;
         }
         let Some(ix) = self.conn_ix(saved_id) else { return };
-        let Some(client) = self.conns[ix].client.clone() else { return };
+        let Some(client) = self.conns[ix].client.clone() else {
+            return;
+        };
         let id = self.next_tab_id;
         self.next_tab_id += 1;
         let tab = Tab::new(id, saved_id, client, db, coll, kind, window, cx);
@@ -265,7 +315,12 @@ impl Humon {
 
     /// Every open tab's id, collections and shells together, in tab order.
     pub fn tab_ids(&self) -> Vec<usize> {
-        let mut ids: Vec<usize> = self.tabs.iter().map(|t| t.id).chain(self.consoles.iter().map(|c| c.id)).collect();
+        let mut ids: Vec<usize> = self
+            .tabs
+            .iter()
+            .map(|t| t.id)
+            .chain(self.consoles.iter().map(|c| c.id))
+            .collect();
         ids.sort_unstable();
         ids
     }
@@ -281,8 +336,18 @@ impl Humon {
     }
 
     /// Opens a shell tab on a connection, starting in `db`.
-    pub fn open_console(&mut self, saved_id: &str, db: &str, window: &mut Window, cx: &mut Context<Self>) -> Option<usize> {
-        let client = self.conns.iter().find(|c| c.saved.id == saved_id).and_then(|c| c.client.clone())?;
+    pub fn open_console(
+        &mut self,
+        saved_id: &str,
+        db: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<usize> {
+        let client = self
+            .conns
+            .iter()
+            .find(|c| c.saved.id == saved_id)
+            .and_then(|c| c.client.clone())?;
         let id = self.next_tab_id;
         self.next_tab_id += 1;
         let console = ConsoleTab::new(id, saved_id, client, db, window, cx);
@@ -297,7 +362,9 @@ impl Render for Humon {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let (bg, fg, muted) = (theme.background, theme.foreground, theme.muted_foreground);
-        let console = self.active_tab.and_then(|id| self.consoles.iter().position(|c| c.id == id));
+        let console = self
+            .active_tab
+            .and_then(|id| self.consoles.iter().position(|c| c.id == id));
         let content = match self.active_tab.and_then(|id| self.tabs.iter().position(|t| t.id == id)) {
             _ if self.show_settings => self.render_settings(cx).into_any_element(),
             _ if console.is_some() => self.render_console(console.unwrap_or_default(), cx).into_any_element(),
@@ -311,7 +378,14 @@ impl Render for Humon {
                 .justify_center()
                 .text_color(muted)
                 .child(img(logo()).size(px(112.)))
-                .child(if self.conns.is_empty() { t!("app.empty_first") } else { t!("app.empty_pick") }.to_string())
+                .child(
+                    if self.conns.is_empty() {
+                        t!("app.empty_first")
+                    } else {
+                        t!("app.empty_pick")
+                    }
+                    .to_string(),
+                )
                 .into_any_element(),
         };
         div()
@@ -349,7 +423,13 @@ mod tests {
     use crate::mongo::{CollKind, CollectionInfo};
 
     fn cols(names: &[&str]) -> Vec<CollectionInfo> {
-        names.iter().map(|n| CollectionInfo { name: n.to_string(), kind: CollKind::Collection }).collect()
+        names
+            .iter()
+            .map(|n| CollectionInfo {
+                name: n.to_string(),
+                kind: CollKind::Collection,
+            })
+            .collect()
     }
 
     fn names(v: Option<Vec<&CollectionInfo>>) -> Option<Vec<&str>> {
@@ -359,9 +439,20 @@ mod tests {
     #[test]
     fn search_filters_collections() {
         let c = cols(&["users", "orders", "UserEvents"]);
-        assert_eq!(names(visible_collections("shop", Some(&c), "")), Some(vec!["users", "orders", "UserEvents"]));
-        assert_eq!(names(visible_collections("shop", Some(&c), "user")), Some(vec!["users", "UserEvents"]), "case-insensitive");
-        assert_eq!(names(visible_collections("shop", Some(&c), "sho")), Some(vec!["users", "orders", "UserEvents"]), "db name match shows all");
+        assert_eq!(
+            names(visible_collections("shop", Some(&c), "")),
+            Some(vec!["users", "orders", "UserEvents"])
+        );
+        assert_eq!(
+            names(visible_collections("shop", Some(&c), "user")),
+            Some(vec!["users", "UserEvents"]),
+            "case-insensitive"
+        );
+        assert_eq!(
+            names(visible_collections("shop", Some(&c), "sho")),
+            Some(vec!["users", "orders", "UserEvents"]),
+            "db name match shows all"
+        );
         assert_eq!(names(visible_collections("shop", Some(&c), "zzz")), None);
         // Not loaded yet: visible while searching only if the db name matches.
         assert_eq!(names(visible_collections("shop", None, "sho")), Some(vec![]));
@@ -373,7 +464,11 @@ mod tests {
         assert_eq!(next_active(&[1, 2, 3], 2), Some(3), "the one to the right");
         assert_eq!(next_active(&[1, 2, 3], 3), Some(2), "or the left when it was last");
         assert_eq!(next_active(&[4], 4), None);
-        assert_eq!(next_active(&[1, 5, 9], 7), Some(9), "an id that is not open still picks a neighbour");
+        assert_eq!(
+            next_active(&[1, 5, 9], 7),
+            Some(9),
+            "an id that is not open still picks a neighbour"
+        );
     }
 
     #[test]

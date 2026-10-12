@@ -52,7 +52,9 @@ impl Humon {
     pub(crate) fn render_form(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let (border, danger, muted) = (theme.border, theme.danger, theme.muted_foreground);
-        let palette = self.render_palette("form", self.form_color.as_deref(), cx, |this, color| this.form_color = color);
+        let palette = self.render_palette("form", self.form_color.as_deref(), cx, |this, color| {
+            this.form_color = color
+        });
         div()
             .flex()
             .flex_col()
@@ -62,23 +64,41 @@ impl Humon {
             .border_color(border)
             .child(Input::new(&self.form_name))
             .child(Input::new(&self.form_uri))
-            .child(div().flex().items_center().gap_2().child(div().text_xs().text_color(muted).child(t!("form.color").to_string())).child(palette))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(div().text_xs().text_color(muted).child(t!("form.color").to_string()))
+                    .child(palette),
+            )
             .child(
                 div()
                     .flex()
                     .gap_2()
                     .justify_end()
                     .when(!self.conns.is_empty(), |d| {
-                        d.child(Button::new("form-cancel").label(t!("form.cancel")).on_click(cx.listener(|this, _, _, cx| {
-                            this.adding = false;
-                            cx.notify();
-                        })))
+                        d.child(
+                            Button::new("form-cancel")
+                                .label(t!("form.cancel"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.adding = false;
+                                    cx.notify();
+                                })),
+                        )
                     })
-                    .child(Button::new("form-save").primary().label(t!("form.save")).on_click(cx.listener(|this, _, window, cx| {
-                        this.save_connection(window, cx);
-                        cx.notify();
-                    }))),
+                    .child(
+                        Button::new("form-save")
+                            .primary()
+                            .label(t!("form.save"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.save_connection(window, cx);
+                                cx.notify();
+                            })),
+                    ),
             )
-            .when_some(self.form_error.clone(), |d, e| d.child(div().text_xs().text_color(danger).child(e)))
+            .when_some(self.form_error.clone(), |d, e| {
+                d.child(div().text_xs().text_color(danger).child(e))
+            })
     }
 }

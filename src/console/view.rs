@@ -42,24 +42,35 @@ pub struct ConsoleTab {
 }
 
 impl ConsoleTab {
-    pub fn new(id: usize, conn_id: &str, client: Client, db: &str, window: &mut Window, cx: &mut Context<Humon>) -> Self {
+    pub fn new(
+        id: usize,
+        conn_id: &str,
+        client: Client,
+        db: &str,
+        window: &mut Window,
+        cx: &mut Context<Humon>,
+    ) -> Self {
         let editor = cx.new(|cx| {
             let state = shell_editor(window, cx);
             state.focus(window, cx);
             state
         });
         let results = cx.new(|cx| shell_editor(window, cx));
-        let sub = cx.subscribe_in(&editor, window, move |this: &mut Humon, input, ev: &InputEvent, window, cx| match ev {
-            InputEvent::PressEnter { secondary: true, .. } => this.run_console(id, window, cx),
-            InputEvent::Change => {
-                let input = input.clone();
-                if let Some(console) = this.console_mut(id) {
-                    // The editor pairs brackets itself; only completion and wrapping run here.
-                    console.smart.on_change(&input, false, window, cx);
+        let sub = cx.subscribe_in(
+            &editor,
+            window,
+            move |this: &mut Humon, input, ev: &InputEvent, window, cx| match ev {
+                InputEvent::PressEnter { secondary: true, .. } => this.run_console(id, window, cx),
+                InputEvent::Change => {
+                    let input = input.clone();
+                    if let Some(console) = this.console_mut(id) {
+                        // The editor pairs brackets itself; only completion and wrapping run here.
+                        console.smart.on_change(&input, false, window, cx);
+                    }
                 }
-            }
-            _ => {}
-        });
+                _ => {}
+            },
+        );
         let (handle, start_error) = match EngineHandle::spawn(Some(client), db.to_string()) {
             Ok(h) => (Some(h), None),
             Err(e) => (None, Some(e)),
@@ -103,7 +114,14 @@ impl Humon {
         let last = text.lines().count().saturating_sub(1) as u32;
         console.results.update(cx, |s, cx| {
             s.set_value(text, window, cx);
-            s.set_cursor_position(Position { line: last, character: 0 }, window, cx);
+            s.set_cursor_position(
+                Position {
+                    line: last,
+                    character: 0,
+                },
+                window,
+                cx,
+            );
         });
     }
 
@@ -113,7 +131,11 @@ impl Humon {
         let Some(console) = self.console_mut(id) else { return };
         let state = console.editor.read(cx);
         let selected = state.selected_value().trim().to_string();
-        let code = if selected.is_empty() { state.value().trim().to_string() } else { selected };
+        let code = if selected.is_empty() {
+            state.value().trim().to_string()
+        } else {
+            selected
+        };
         if code.is_empty() || console.running {
             return;
         }
@@ -121,7 +143,14 @@ impl Humon {
         let rx = handle.eval(code.clone());
         console.recall.push(&code);
         console.history_open = false;
-        console.entries.push(Entry { db: console.db.clone(), code, lines: vec![Line { text: t!("console.running").into(), kind: LineKind::Info }] });
+        console.entries.push(Entry {
+            db: console.db.clone(),
+            code,
+            lines: vec![Line {
+                text: t!("console.running").into(),
+                kind: LineKind::Info,
+            }],
+        });
         console.running = true;
         self.show_results(id, window, cx);
         cx.spawn_in(window, async move |this, cx| {
@@ -148,7 +177,11 @@ impl Humon {
     fn console_history(&mut self, id: usize, back: bool, window: &mut Window, cx: &mut Context<Self>) {
         let Some(console) = self.console_mut(id) else { return };
         let current = console.editor.read(cx).value().to_string();
-        let text = if back { console.recall.prev(&current) } else { console.recall.next() };
+        let text = if back {
+            console.recall.prev(&current)
+        } else {
+            console.recall.next()
+        };
         if let Some(text) = text {
             self.set_console_input(id, text, window, cx);
         }
@@ -158,7 +191,13 @@ impl Humon {
         let console = &self.consoles[ix];
         let id = console.id;
         let theme = cx.theme();
-        let (border, muted, panel, hover, bg) = (theme.border, theme.muted_foreground, theme.sidebar, theme.list_hover, theme.background);
+        let (border, muted, panel, hover, bg) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.sidebar,
+            theme.list_hover,
+            theme.background,
+        );
         let mono = theme.mono_font_family.clone();
 
         let toolbar = div()
@@ -178,34 +217,81 @@ impl Humon {
                     .on_click(cx.listener(move |this, _, window, cx| this.run_console(id, window, cx))),
             )
             .when(console.running, |d| {
-                d.child(Button::new(("console-stop", id)).danger().label(format!("■ {}", t!("console.stop"))).on_click(cx.listener(move |this, _, _, cx| {
-                    if let Some(handle) = this.console_mut(id).and_then(|c| c.handle.as_ref()) {
-                        handle.stop();
-                    }
-                    cx.notify();
-                })))
+                d.child(
+                    Button::new(("console-stop", id))
+                        .danger()
+                        .label(format!("■ {}", t!("console.stop")))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(handle) = this.console_mut(id).and_then(|c| c.handle.as_ref()) {
+                                handle.stop();
+                            }
+                            cx.notify();
+                        })),
+                )
             })
-            .child(Button::new(("console-history", id)).label(t!("console.history")).when(console.history_open, |b| b.primary()).on_click(cx.listener(move |this, _, _, cx| {
-                if let Some(console) = this.console_mut(id) {
-                    console.history_open = !console.history_open;
-                }
-                cx.notify();
-            })))
-            .child(Button::new(("console-clear", id)).label(t!("console.clear")).on_click(cx.listener(move |this, _, window, cx| {
-                if let Some(console) = this.console_mut(id) {
-                    console.entries.clear();
-                }
-                this.show_results(id, window, cx);
-                cx.notify();
-            })))
-            .child(div().flex_1().text_xs().text_color(muted).child(t!("console.hint").to_string()))
-            .child(div().font_family(mono.clone()).text_xs().text_color(muted).child(format!("db: {}", console.db)));
+            .child(
+                Button::new(("console-history", id))
+                    .label(t!("console.history"))
+                    .when(console.history_open, |b| b.primary())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(console) = this.console_mut(id) {
+                            console.history_open = !console.history_open;
+                        }
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Button::new(("console-clear", id))
+                    .label(t!("console.clear"))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        if let Some(console) = this.console_mut(id) {
+                            console.entries.clear();
+                        }
+                        this.show_results(id, window, cx);
+                        cx.notify();
+                    })),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .text_xs()
+                    .text_color(muted)
+                    .child(t!("console.hint").to_string()),
+            )
+            .child(
+                div()
+                    .font_family(mono.clone())
+                    .text_xs()
+                    .text_color(muted)
+                    .child(format!("db: {}", console.db)),
+            );
 
         let history = console.history_open.then(|| {
-            let mut list = div().id(("console-history-list", id)).flex().flex_col().max_h(px(220.)).overflow_y_scroll().border_b_1().border_color(border).bg(panel).font_family(mono.clone()).text_xs();
-            let commands: Vec<String> = console.recall.newest_first().take(HISTORY_ROWS).map(str::to_string).collect();
+            let mut list = div()
+                .id(("console-history-list", id))
+                .flex()
+                .flex_col()
+                .max_h(px(220.))
+                .overflow_y_scroll()
+                .border_b_1()
+                .border_color(border)
+                .bg(panel)
+                .font_family(mono.clone())
+                .text_xs();
+            let commands: Vec<String> = console
+                .recall
+                .newest_first()
+                .take(HISTORY_ROWS)
+                .map(str::to_string)
+                .collect();
             if commands.is_empty() {
-                list = list.child(div().px_3().py_2().text_color(muted).child(t!("console.no_history").to_string()));
+                list = list.child(
+                    div()
+                        .px_3()
+                        .py_2()
+                        .text_color(muted)
+                        .child(t!("console.no_history").to_string()),
+                );
             }
             for (row, command) in commands.into_iter().enumerate() {
                 let first_line = command.lines().next().unwrap_or_default().to_string();
@@ -235,15 +321,29 @@ impl Humon {
             .id(("console", id))
             .key_context(KEY_CONTEXT)
             .on_action(cx.listener(move |this, _: &HistoryPrev, window, cx| this.console_history(id, true, window, cx)))
-            .on_action(cx.listener(move |this, _: &HistoryNext, window, cx| this.console_history(id, false, window, cx)))
+            .on_action(
+                cx.listener(move |this, _: &HistoryNext, window, cx| this.console_history(id, false, window, cx)),
+            )
             .flex_1()
             .min_h_0()
             .flex()
             .flex_col()
             .child(toolbar)
             .children(history)
-            .child(div().flex_none().border_b_1().border_color(border).child(Editor::new(&console.editor).h(px((editor_lines as f32 * 18. + 24.).clamp(120., 320.)))))
-            .child(div().flex_1().min_h_0().bg(bg).child(Editor::new(&console.results).readonly(true).h(relative(1.))))
+            .child(
+                div()
+                    .flex_none()
+                    .border_b_1()
+                    .border_color(border)
+                    .child(Editor::new(&console.editor).h(px((editor_lines as f32 * 18. + 24.).clamp(120., 320.)))),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .bg(bg)
+                    .child(Editor::new(&console.results).readonly(true).h(relative(1.))),
+            )
     }
 }
 

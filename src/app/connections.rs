@@ -15,7 +15,14 @@ impl Humon {
             Ok(saved) => {
                 self.form_error = None;
                 let id = saved.id.clone();
-                self.conns.push(ConnNode { saved, client: None, connecting: false, open: false, error: None, dbs: vec![] });
+                self.conns.push(ConnNode {
+                    saved,
+                    client: None,
+                    connecting: false,
+                    open: false,
+                    error: None,
+                    dbs: vec![],
+                });
                 self.adding = false;
                 self.connect(&id, window, cx);
             }
@@ -48,7 +55,12 @@ impl Humon {
                         conn.open = true;
                         conn.dbs = dbs
                             .into_iter()
-                            .map(|info| DbNode { info, open: false, loading: false, collections: None })
+                            .map(|info| DbNode {
+                                info,
+                                open: false,
+                                loading: false,
+                                collections: None,
+                            })
                             .collect();
                     }
                     Err(e) => conn.error = Some(e),
@@ -102,7 +114,9 @@ impl Humon {
 
     pub fn refresh_dbs(&mut self, saved_id: &str, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.conn_ix(saved_id) else { return };
-        let Some(client) = self.conns[ix].client.clone() else { return };
+        let Some(client) = self.conns[ix].client.clone() else {
+            return;
+        };
         let id = saved_id.to_string();
         self.run(mongo::databases(client), window, cx, move |this, res, _, _| {
             let Some(ix) = this.conn_ix(&id) else { return };
@@ -111,7 +125,12 @@ impl Humon {
                 Ok(dbs) => {
                     conn.dbs = dbs
                         .into_iter()
-                        .map(|info| DbNode { info, open: false, loading: false, collections: None })
+                        .map(|info| DbNode {
+                            info,
+                            open: false,
+                            loading: false,
+                            collections: None,
+                        })
                         .collect()
                 }
                 Err(e) => conn.error = Some(e),
@@ -130,29 +149,44 @@ impl Humon {
     }
 
     /// Fetches a database's collections once; later calls are no-ops.
-    pub(crate) fn load_collections(&mut self, saved_id: &str, db_name: &str, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn load_collections(
+        &mut self,
+        saved_id: &str,
+        db_name: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(ix) = self.conn_ix(saved_id) else { return };
         let conn = &mut self.conns[ix];
         let Some(client) = conn.client.clone() else { return };
-        let Some(db) = conn.dbs.iter_mut().find(|d| d.info.name == db_name) else { return };
+        let Some(db) = conn.dbs.iter_mut().find(|d| d.info.name == db_name) else {
+            return;
+        };
         if db.loading || db.collections.is_some() {
             return;
         }
         db.loading = true;
         let (id, name) = (saved_id.to_string(), db_name.to_string());
-        self.run(mongo::collections(client, name.clone()), window, cx, move |this, res, _, _| {
-            let Some(ix) = this.conn_ix(&id) else { return };
-            let conn = &mut this.conns[ix];
-            let Some(db) = conn.dbs.iter_mut().find(|d| d.info.name == name) else { return };
-            db.loading = false;
-            match res {
-                Ok(cols) => db.collections = Some(cols),
-                Err(e) => {
-                    db.open = false;
-                    conn.error = Some(e);
+        self.run(
+            mongo::collections(client, name.clone()),
+            window,
+            cx,
+            move |this, res, _, _| {
+                let Some(ix) = this.conn_ix(&id) else { return };
+                let conn = &mut this.conns[ix];
+                let Some(db) = conn.dbs.iter_mut().find(|d| d.info.name == name) else {
+                    return;
+                };
+                db.loading = false;
+                match res {
+                    Ok(cols) => db.collections = Some(cols),
+                    Err(e) => {
+                        db.open = false;
+                        conn.error = Some(e);
+                    }
                 }
-            }
-        });
+            },
+        );
     }
 
     /// Forgets a database's collections and fetches them again.

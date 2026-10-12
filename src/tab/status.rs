@@ -36,8 +36,10 @@ impl Humon {
             .when(!took.is_empty(), |d| d.child("·").child(took))
             .child(div().flex_1())
             .when_some(conn, |d, c| {
-                d.when_some(c.color(), |d, color| d.child(div().size(px(7.)).rounded_full().bg(color)))
-                    .child(format!("{} · {}.{}", c.saved.name, tab.db, tab.coll))
+                d.when_some(c.color(), |d, color| {
+                    d.child(div().size(px(7.)).rounded_full().bg(color))
+                })
+                .child(format!("{} · {}.{}", c.saved.name, tab.db, tab.coll))
             })
     }
 }

@@ -174,7 +174,11 @@ fn locate<'a>(old: &'a str, new: &'a str, caret: usize) -> (usize, &'a str, &'a 
         }
     } else if old.len() > new.len() {
         let end = caret + (old.len() - new.len());
-        if old.is_char_boundary(caret) && old.is_char_boundary(end) && old[..caret] == new[..caret] && old[end..] == new[caret..] {
+        if old.is_char_boundary(caret)
+            && old.is_char_boundary(end)
+            && old[..caret] == new[..caret]
+            && old[end..] == new[caret..]
+        {
             return (caret, &old[caret..end], "");
         }
     }
@@ -189,7 +193,11 @@ impl Smart {
     pub fn plan(&mut self, text: &str, caret: usize, auto_close: bool) -> Option<Plan> {
         let prev = std::mem::replace(&mut self.prev, text.to_string());
         let (at, removed, inserted) = locate(&prev, text, caret);
-        let typed = if removed.is_empty() && inserted.chars().count() == 1 { inserted.chars().next() } else { None };
+        let typed = if removed.is_empty() && inserted.chars().count() == 1 {
+            inserted.chars().next()
+        } else {
+            None
+        };
 
         // Swallow the rest of a completed name typed out of habit.
         if let Some((pos, rest)) = self.pending.take()
@@ -201,7 +209,11 @@ impl Smart {
             if !rest.is_empty() {
                 self.pending = Some((pos, rest));
             }
-            return Some(Plan { range: at..at + c.len_utf8(), text: String::new(), caret: at });
+            return Some(Plan {
+                range: at..at + c.len_utf8(),
+                text: String::new(),
+                caret: at,
+            });
         }
 
         // Pasted literal outside a string.
@@ -209,7 +221,11 @@ impl Smart {
             let trimmed = inserted.trim();
             if let Some(wrapped) = wrap_literal(trimmed) {
                 let caret = at + wrapped.len();
-                return Some(Plan { range: at..at + inserted.len(), text: wrapped, caret });
+                return Some(Plan {
+                    range: at..at + inserted.len(),
+                    text: wrapped,
+                    caret,
+                });
             }
         }
 
@@ -219,7 +235,11 @@ impl Smart {
             if let Some(close) = pair(opener)
                 && text[at..].starts_with(close)
             {
-                return Some(Plan { range: at..at + close.len_utf8(), text: String::new(), caret: at });
+                return Some(Plan {
+                    range: at..at + close.len_utf8(),
+                    text: String::new(),
+                    caret: at,
+                });
             }
         }
 
@@ -231,7 +251,11 @@ impl Smart {
             // A closer typed in front of the same closer steps over it.
             let is_closer = matches!(c, '}' | ']' | ')') || (matches!(c, '"' | '\'') && in_string(&prev, at));
             if is_closer && next == Some(c) {
-                return Some(Plan { range: after..after + c.len_utf8(), text: String::new(), caret: after });
+                return Some(Plan {
+                    range: after..after + c.len_utf8(),
+                    text: String::new(),
+                    caret: after,
+                });
             }
             if let Some(close) = pair(c)
                 && !in_string(&prev, at)
@@ -240,7 +264,11 @@ impl Smart {
                 let word_before = prev_char.is_some_and(|p| p.is_alphanumeric() || p == '\\');
                 let next_ok = next.is_none_or(|n| n.is_whitespace() || "}]),:".contains(n));
                 if next_ok && !(close == c && word_before) {
-                    return Some(Plan { range: after..after, text: close.to_string(), caret: after });
+                    return Some(Plan {
+                        range: after..after,
+                        text: close.to_string(),
+                        caret: after,
+                    });
                 }
             }
         }
@@ -250,11 +278,18 @@ impl Smart {
             let before = &text[..at];
             let token_start = at.saturating_sub(24);
             let token = &before[token_start..];
-            let boundary = before[..token_start].chars().last().is_none_or(|p| !(p.is_alphanumeric() || p == '"' || p == '\'' || p == '_'));
+            let boundary = before[..token_start]
+                .chars()
+                .last()
+                .is_none_or(|p| !(p.is_alphanumeric() || p == '"' || p == '\'' || p == '_'));
             if token.len() == 24 && token.chars().all(|ch| ch.is_ascii_hexdigit()) && boundary {
                 let wrapped = format!("ObjectId(\"{token}\")");
                 let caret = token_start + wrapped.len() + c.len_utf8();
-                return Some(Plan { range: token_start..at, text: wrapped, caret });
+                return Some(Plan {
+                    range: token_start..at,
+                    text: wrapped,
+                    caret,
+                });
             }
         }
 
@@ -263,14 +298,24 @@ impl Smart {
             let before = &text[..after];
             let word_len = before.chars().rev().take_while(|ch| ch.is_ascii_alphabetic()).count();
             let start = after - word_len;
-            let boundary = text[..start].chars().last().is_none_or(|p| !(p.is_alphanumeric() || "_$\"'.".contains(p)));
+            let boundary = text[..start]
+                .chars()
+                .last()
+                .is_none_or(|p| !(p.is_alphanumeric() || "_$\"'.".contains(p)));
             let next_is_word = text[after..].chars().next().is_some_and(|n| n.is_alphanumeric());
-            if boundary && !next_is_word && !in_string(text, start) && is_value_position(text, start)
+            if boundary
+                && !next_is_word
+                && !in_string(text, start)
+                && is_value_position(text, start)
                 && let Some((name, open, close)) = complete_helper(&text[start..after])
             {
                 let caret = start + name.len() + open.len();
                 self.pending = Some((caret, format!("{}{open}", &name[word_len..])));
-                return Some(Plan { range: start..after, text: format!("{name}{open}{close}"), caret });
+                return Some(Plan {
+                    range: start..after,
+                    text: format!("{name}{open}{close}"),
+                    caret,
+                });
             }
         }
         None
@@ -294,7 +339,9 @@ impl Smart {
             let state = input.read(cx);
             (state.value().to_string(), state.cursor())
         };
-        let Some(plan) = self.plan(&text, caret, auto_close) else { return };
+        let Some(plan) = self.plan(&text, caret, auto_close) else {
+            return;
+        };
         let mut result = text.clone();
         result.replace_range(plan.range.clone(), &plan.text);
         // Set before editing: the resulting change event must diff to nothing.
@@ -355,7 +402,14 @@ mod tests {
     fn backspace_removes_pair() {
         let mut smart = Smart::default();
         smart.reset("{}");
-        assert_eq!(smart.plan("}", 0, true), Some(Plan { range: 0..1, text: String::new(), caret: 0 }));
+        assert_eq!(
+            smart.plan("}", 0, true),
+            Some(Plan {
+                range: 0..1,
+                text: String::new(),
+                caret: 0
+            })
+        );
     }
 
     #[test]
@@ -381,11 +435,23 @@ mod tests {
 
     #[test]
     fn wraps_ids_and_dates() {
-        assert_eq!(paste("{ _id: ", "65a1b2c3d4e5f60718293a4b"), "{ _id: ObjectId(\"65a1b2c3d4e5f60718293a4b\")|");
-        assert_eq!(paste("{ _id: \"", "65a1b2c3d4e5f60718293a4b"), "{ _id: \"65a1b2c3d4e5f60718293a4b|");
-        assert_eq!(paste("{ u: ", "123e4567-e89b-12d3-a456-426614174000"), "{ u: UUID(\"123e4567-e89b-12d3-a456-426614174000\")|");
+        assert_eq!(
+            paste("{ _id: ", "65a1b2c3d4e5f60718293a4b"),
+            "{ _id: ObjectId(\"65a1b2c3d4e5f60718293a4b\")|"
+        );
+        assert_eq!(
+            paste("{ _id: \"", "65a1b2c3d4e5f60718293a4b"),
+            "{ _id: \"65a1b2c3d4e5f60718293a4b|"
+        );
+        assert_eq!(
+            paste("{ u: ", "123e4567-e89b-12d3-a456-426614174000"),
+            "{ u: UUID(\"123e4567-e89b-12d3-a456-426614174000\")|"
+        );
         assert_eq!(paste("{ at: ", "2024-01-02"), "{ at: ISODate(\"2024-01-02\")|");
-        assert_eq!(type_keys("{ _id: 65a1b2c3d4e5f60718293a4b }", true), "{ _id: ObjectId(\"65a1b2c3d4e5f60718293a4b\") }|");
+        assert_eq!(
+            type_keys("{ _id: 65a1b2c3d4e5f60718293a4b }", true),
+            "{ _id: ObjectId(\"65a1b2c3d4e5f60718293a4b\") }|"
+        );
     }
 
     #[test]
@@ -402,10 +468,16 @@ mod tests {
     #[test]
     fn literal_wrapping_rejects_near_misses() {
         assert_eq!(wrap_literal("65a1b2c3d4e5f60718293a4"), None, "23 hex digits");
-        assert_eq!(wrap_literal("65A1B2C3D4E5F60718293A4B"), Some("ObjectId(\"65A1B2C3D4E5F60718293A4B\")".into()));
+        assert_eq!(
+            wrap_literal("65A1B2C3D4E5F60718293A4B"),
+            Some("ObjectId(\"65A1B2C3D4E5F60718293A4B\")".into())
+        );
         assert_eq!(wrap_literal("65a1b2c3d4e5f60718293a4g"), None, "not hex");
         assert_eq!(wrap_literal("123e4567-e89b-12d3-a456-42661417400"), None, "short UUID");
-        assert_eq!(wrap_literal("2024-01-02T03:04:05.006Z"), Some("ISODate(\"2024-01-02T03:04:05.006Z\")".into()));
+        assert_eq!(
+            wrap_literal("2024-01-02T03:04:05.006Z"),
+            Some("ISODate(\"2024-01-02T03:04:05.006Z\")".into())
+        );
         assert_eq!(wrap_literal("2024/01/02"), None);
         assert_eq!(wrap_literal("hello"), None);
     }

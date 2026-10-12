@@ -27,7 +27,11 @@ impl Query {
 
     /// One line for lists: the filter, plus sort and projection when set.
     pub fn summary(&self) -> String {
-        let mut parts = vec![if self.filter.trim().is_empty() { "{}".to_string() } else { self.filter.trim().to_string() }];
+        let mut parts = vec![if self.filter.trim().is_empty() {
+            "{}".to_string()
+        } else {
+            self.filter.trim().to_string()
+        }];
         if !self.sort.trim().is_empty() {
             parts.push(format!("sort {}", self.sort.trim()));
         }
@@ -119,7 +123,8 @@ impl History {
 
     /// Drops everything stored for collections of a connection, db or collection.
     pub fn forget(&mut self, prefix: &str) {
-        self.entries.retain(|k, _| !(k == prefix || k.starts_with(&format!("{prefix}/"))));
+        self.entries
+            .retain(|k, _| !(k == prefix || k.starts_with(&format!("{prefix}/"))));
     }
 
     /// Moves a collection's entry after a rename.
@@ -135,7 +140,10 @@ mod tests {
     use super::*;
 
     fn q(filter: &str) -> Query {
-        Query { filter: filter.into(), ..Default::default() }
+        Query {
+            filter: filter.into(),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -201,7 +209,11 @@ mod tests {
 
     #[test]
     fn summary_shows_only_what_is_set() {
-        let full = Query { filter: "{ a: 1 }".into(), sort: "{ _id: -1 }".into(), projection: String::new() };
+        let full = Query {
+            filter: "{ a: 1 }".into(),
+            sort: "{ _id: -1 }".into(),
+            projection: String::new(),
+        };
         assert_eq!(full.summary(), "{ a: 1 } · sort { _id: -1 }");
         assert_eq!(Query::default().summary(), "{}");
     }

@@ -73,7 +73,12 @@ impl Store {
             "" => display_host(&uri),
             n => n.to_string(),
         };
-        let conn = SavedConnection { id: ObjectId::new().to_hex(), name, uri, color };
+        let conn = SavedConnection {
+            id: ObjectId::new().to_hex(),
+            name,
+            uri,
+            color,
+        };
         // Read both files first, so an unreadable one stops us before anything is written.
         let mut all = self.list()?;
         let mut secrets = self.secrets()?;
@@ -89,7 +94,9 @@ impl Store {
     /// Sets or clears a connection's color; an unknown id changes nothing.
     pub fn set_color(&self, id: &str, color: Option<String>) -> Result<(), String> {
         let mut all = self.list()?;
-        let Some(conn) = all.iter_mut().find(|c| c.id == id) else { return Ok(()) };
+        let Some(conn) = all.iter_mut().find(|c| c.id == id) else {
+            return Ok(());
+        };
         conn.color = color;
         self.write_list(&all)
     }
@@ -150,11 +157,16 @@ mod tests {
     fn save_then_list() {
         let store = Store::new(test_dir("store-save"));
         let a = store.save("Local", "mongodb://localhost:27017", None).unwrap();
-        let b = store.save("", "mongodb://db.example.com:27017/app", Some("#e5484d".into())).unwrap();
+        let b = store
+            .save("", "mongodb://db.example.com:27017/app", Some("#e5484d".into()))
+            .unwrap();
         let all = store.list().unwrap();
         assert_eq!(all.len(), 2);
         assert_eq!((all[0].id.as_str(), all[0].name.as_str()), (a.id.as_str(), "Local"));
-        assert_eq!(all[1].name, "db.example.com:27017", "an empty name defaults to the host");
+        assert_eq!(
+            all[1].name, "db.example.com:27017",
+            "an empty name defaults to the host"
+        );
         assert_eq!(all[1].color.as_deref(), Some("#e5484d"));
         assert_ne!(a.id, b.id);
     }
@@ -163,11 +175,19 @@ mod tests {
     fn password_is_kept_apart_and_restored_on_connect() {
         let dir = test_dir("store-password");
         let store = Store::new(dir.clone());
-        let saved = store.save("Atlas", "mongodb+srv://ali:s3cret@c.mongodb.net/?w=1", None).unwrap();
+        let saved = store
+            .save("Atlas", "mongodb+srv://ali:s3cret@c.mongodb.net/?w=1", None)
+            .unwrap();
         assert_eq!(saved.uri, "mongodb+srv://ali@c.mongodb.net/?w=1");
         let listed = std::fs::read_to_string(dir.join("connections.json")).unwrap();
-        assert!(!listed.contains("s3cret"), "connections.json must not hold the password");
-        assert_eq!(store.resolve_uri(&saved).unwrap(), "mongodb+srv://ali:s3cret@c.mongodb.net/?w=1");
+        assert!(
+            !listed.contains("s3cret"),
+            "connections.json must not hold the password"
+        );
+        assert_eq!(
+            store.resolve_uri(&saved).unwrap(),
+            "mongodb+srv://ali:s3cret@c.mongodb.net/?w=1"
+        );
     }
 
     #[test]
@@ -177,7 +197,10 @@ mod tests {
         let keep = store.save("keep", "mongodb://a:1@h1", None).unwrap();
         let gone = store.save("gone", "mongodb://b:2@h2", None).unwrap();
         store.delete(&gone.id).unwrap();
-        assert_eq!(store.list().unwrap().iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), [keep.id.as_str()]);
+        assert_eq!(
+            store.list().unwrap().iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            [keep.id.as_str()]
+        );
         let secrets = std::fs::read_to_string(dir.join("secrets.json")).unwrap();
         assert!(!secrets.contains(&gone.id) && secrets.contains(&keep.id));
     }
@@ -199,20 +222,33 @@ mod tests {
         std::fs::write(dir.join("connections.json"), "{ broken").unwrap();
         let store = Store::new(dir.clone());
         assert!(store.list().is_err());
-        assert!(store.save("x", "mongodb://h", None).is_err(), "saving must not wipe the unreadable file");
-        assert_eq!(std::fs::read_to_string(dir.join("connections.json")).unwrap(), "{ broken");
+        assert!(
+            store.save("x", "mongodb://h", None).is_err(),
+            "saving must not wipe the unreadable file"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join("connections.json")).unwrap(),
+            "{ broken"
+        );
     }
 
     #[test]
     fn display_host_strips_credentials_and_options() {
-        assert_eq!(display_host("mongodb+srv://ali@cluster0.ab.mongodb.net/?x=1"), "cluster0.ab.mongodb.net");
+        assert_eq!(
+            display_host("mongodb+srv://ali@cluster0.ab.mongodb.net/?x=1"),
+            "cluster0.ab.mongodb.net"
+        );
         assert_eq!(display_host("mongodb://localhost:27017"), "localhost:27017");
         assert_eq!(display_host("mongodb://u:p@h1:1,h2:2/db"), "h1:1,h2:2");
     }
 
     #[test]
     fn uris_without_a_password_are_untouched() {
-        for uri in ["mongodb://localhost:27017", "mongodb://ali@h1,h2/db?x=1", "mongodb://h/?a=b@c"] {
+        for uri in [
+            "mongodb://localhost:27017",
+            "mongodb://ali@h1,h2/db?x=1",
+            "mongodb://h/?a=b@c",
+        ] {
             assert_eq!(split_password(uri), (uri.to_string(), None));
         }
     }

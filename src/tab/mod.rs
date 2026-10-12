@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::highlighter::HighlightTheme;
-use gpui_kit::component::input::{Editor, EditorState, HighlightStyleResolver, Input, InputEvent, InputHighlighter, InputState};
+use gpui_kit::component::input::{
+    Editor, EditorState, HighlightStyleResolver, Input, InputEvent, InputHighlighter, InputState,
+};
 use gpui_kit::component::{ActiveTheme, Disableable};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -15,8 +17,8 @@ use mongodb::Client;
 use serde_json::{Map, Value};
 
 use crate::app::Humon;
-use crate::history::{self, Query};
 use crate::highlight::{ShellHighlighter, tokenize};
+use crate::history::{self, Query};
 use crate::mongo::{self, CollKind, ExportFormat, FindArgs, RT};
 use crate::shell::to_shell;
 use crate::smart::Smart;
@@ -107,11 +109,15 @@ impl Tab {
             .into_iter()
             .enumerate()
             .map(|(which, input)| {
-                cx.subscribe_in(input, window, move |this: &mut Humon, _, ev: &InputEvent, window, cx| match ev {
-                    InputEvent::PressEnter { .. } => this.run_query(id, window, cx),
-                    InputEvent::Change => this.query_input_changed(id, which, window, cx),
-                    _ => {}
-                })
+                cx.subscribe_in(
+                    input,
+                    window,
+                    move |this: &mut Humon, _, ev: &InputEvent, window, cx| match ev {
+                        InputEvent::PressEnter { .. } => this.run_query(id, window, cx),
+                        InputEvent::Change => this.query_input_changed(id, which, window, cx),
+                        _ => {}
+                    },
+                )
             })
             .collect();
         Self {
@@ -197,7 +203,10 @@ impl Humon {
     /// Re-sets input placeholders after a language change.
     pub fn relabel_tabs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         for tab in &self.tabs {
-            for (input, key) in [(&tab.filter, "tab.filter_placeholder"), (&tab.projection, "tab.projection_placeholder")] {
+            for (input, key) in [
+                (&tab.filter, "tab.filter_placeholder"),
+                (&tab.projection, "tab.projection_placeholder"),
+            ] {
                 input.update(cx, |s, cx| s.set_placeholder(t!(key), window, cx));
             }
         }
@@ -211,7 +220,9 @@ impl Humon {
 
     /// Applies what is typed in the query bar and goes back to the first page.
     pub fn run_query(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else { return };
+        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else {
+            return;
+        };
         tab.applied = Query {
             filter: tab.filter.read(cx).value().to_string(),
             sort: tab.sort.read(cx).value().to_string(),
@@ -242,7 +253,9 @@ impl Humon {
     }
 
     fn save_favorite(&mut self, id: usize, cx: &mut Context<Self>) {
-        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else { return };
+        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else {
+            return;
+        };
         let query = Query {
             filter: tab.filter.read(cx).value().to_string(),
             sort: tab.sort.read(cx).value().to_string(),
@@ -261,7 +274,12 @@ impl Humon {
         tab.count = None;
         tab.count_seq += 1;
         let seq = tab.count_seq;
-        let fut = mongo::count(tab.client.clone(), tab.db.clone(), tab.coll.clone(), tab.applied.filter.clone());
+        let fut = mongo::count(
+            tab.client.clone(),
+            tab.db.clone(),
+            tab.coll.clone(),
+            tab.applied.filter.clone(),
+        );
         self.run(fut, window, cx, move |this, res, _, _| {
             if let Some(tab) = this.tab_mut(id)
                 && tab.count_seq == seq
@@ -340,7 +358,9 @@ impl Humon {
             return;
         }
         tab.confirm_delete = None;
-        let Some(doc_id) = tab.docs.get(ix).and_then(doc_id) else { return };
+        let Some(doc_id) = tab.docs.get(ix).and_then(doc_id) else {
+            return;
+        };
         let fut = mongo::delete(tab.client.clone(), tab.db.clone(), tab.coll.clone(), doc_id);
         self.run(fut, window, cx, move |this, res, window, cx| match res {
             Ok(()) => this.refresh(id, window, cx),
@@ -358,23 +378,57 @@ mod tests {
     fn json_view_shows_the_page_as_one_shell_array() {
         use serde_json::json;
         assert_eq!(json_view_text(&[]), "[]");
-        let docs = vec![json!({ "_id": { "$oid": "65a1b2c3d4e5f60718293a4b" } }), json!({ "n": { "$numberInt": "1" } })];
-        assert_eq!(json_view_text(&docs), "[\n  {\n    _id: ObjectId(\"65a1b2c3d4e5f60718293a4b\")\n  },\n  {\n    n: 1\n  }\n]");
+        let docs = vec![
+            json!({ "_id": { "$oid": "65a1b2c3d4e5f60718293a4b" } }),
+            json!({ "n": { "$numberInt": "1" } }),
+        ];
+        assert_eq!(
+            json_view_text(&docs),
+            "[\n  {\n    _id: ObjectId(\"65a1b2c3d4e5f60718293a4b\")\n  },\n  {\n    n: 1\n  }\n]"
+        );
     }
 
     #[test]
     fn page_window_bounds_and_next() {
         // Page 0 of 20, count known.
-        assert_eq!(page_window(0, 20, 20, Some(Some(137))), PageWindow { from: 1, to: 20, has_next: true });
+        assert_eq!(
+            page_window(0, 20, 20, Some(Some(137))),
+            PageWindow {
+                from: 1,
+                to: 20,
+                has_next: true
+            }
+        );
         // Last full page: exactly page_size * (page + 1) documents means no next page.
-        assert_eq!(page_window(1, 20, 20, Some(Some(40))), PageWindow { from: 21, to: 40, has_next: false });
+        assert_eq!(
+            page_window(1, 20, 20, Some(Some(40))),
+            PageWindow {
+                from: 21,
+                to: 40,
+                has_next: false
+            }
+        );
         // Partial last page.
-        assert_eq!(page_window(6, 20, 17, Some(Some(137))), PageWindow { from: 121, to: 137, has_next: false });
+        assert_eq!(
+            page_window(6, 20, 17, Some(Some(137))),
+            PageWindow {
+                from: 121,
+                to: 137,
+                has_next: false
+            }
+        );
         // Count unknown (still counting or too slow): a full page suggests more.
         assert!(page_window(0, 20, 20, None).has_next);
         assert!(page_window(0, 20, 20, Some(None)).has_next);
         assert!(!page_window(0, 20, 7, None).has_next);
         // Nothing shown.
-        assert_eq!(page_window(0, 20, 0, Some(Some(0))), PageWindow { from: 0, to: 0, has_next: false });
+        assert_eq!(
+            page_window(0, 20, 0, Some(Some(0))),
+            PageWindow {
+                from: 0,
+                to: 0,
+                has_next: false
+            }
+        );
     }
 }

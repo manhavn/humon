@@ -36,7 +36,13 @@ pub fn transcript(entries: &[Entry]) -> String {
             .code
             .lines()
             .enumerate()
-            .map(|(i, line)| if i == 0 { format!("// {prompt}{line}") } else { format!("// {}{line}", " ".repeat(prompt.len())) })
+            .map(|(i, line)| {
+                if i == 0 {
+                    format!("// {prompt}{line}")
+                } else {
+                    format!("// {}{line}", " ".repeat(prompt.len()))
+                }
+            })
             .collect();
         out.extend(entry.lines.iter().map(|l| match l.kind {
             LineKind::Value | LineKind::Print => l.text.clone(),
@@ -50,7 +56,12 @@ pub fn transcript(entries: &[Entry]) -> String {
 
 pub fn lines(outputs: &[Output]) -> Vec<Line> {
     let mut out = Vec::new();
-    let mut push = |text: &str, kind| out.extend(text.split('\n').map(|t| Line { text: t.to_string(), kind }));
+    let mut push = |text: &str, kind| {
+        out.extend(text.split('\n').map(|t| Line {
+            text: t.to_string(),
+            kind,
+        }))
+    };
     for output in outputs {
         match output {
             Output::Value(v) => push(&to_shell(v, ""), LineKind::Value),
@@ -69,7 +80,10 @@ mod tests {
     use serde_json::json;
 
     fn l(text: &str, kind: LineKind) -> Line {
-        Line { text: text.into(), kind }
+        Line {
+            text: text.into(),
+            kind,
+        }
     }
 
     #[test]
@@ -98,8 +112,19 @@ mod tests {
     #[test]
     fn transcript_is_copyable_text_with_commented_prompts_and_notes() {
         let entries = vec![
-            Entry { db: "shop".into(), code: "db.a.find()\n  .limit(1)".into(), lines: vec![l("[]", LineKind::Value), l("Type \"it\" for more", LineKind::Info)] },
-            Entry { db: "shop".into(), code: "print('hi'); oops".into(), lines: vec![l("hi", LineKind::Print), l("ReferenceError: oops is not defined", LineKind::Error)] },
+            Entry {
+                db: "shop".into(),
+                code: "db.a.find()\n  .limit(1)".into(),
+                lines: vec![l("[]", LineKind::Value), l("Type \"it\" for more", LineKind::Info)],
+            },
+            Entry {
+                db: "shop".into(),
+                code: "print('hi'); oops".into(),
+                lines: vec![
+                    l("hi", LineKind::Print),
+                    l("ReferenceError: oops is not defined", LineKind::Error),
+                ],
+            },
         ];
         assert_eq!(
             transcript(&entries),
@@ -110,7 +135,10 @@ mod tests {
 
     #[test]
     fn scalars_are_one_line() {
-        assert_eq!(lines(&[Output::Value(json!("text"))]), vec![l("\"text\"", LineKind::Value)]);
+        assert_eq!(
+            lines(&[Output::Value(json!("text"))]),
+            vec![l("\"text\"", LineKind::Value)]
+        );
         assert_eq!(lines(&[Output::Value(json!([]))]), vec![l("[]", LineKind::Value)]);
     }
 }

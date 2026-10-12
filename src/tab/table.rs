@@ -8,34 +8,85 @@ pub(crate) const ACTIONS_WIDTH: f32 = 72.;
 
 impl Humon {
     /// Top-level fields as columns; nested values show as a summary.
-    pub(crate) fn render_table(&self, tab: &Tab, syntax: &Arc<HighlightTheme>, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(crate) fn render_table(
+        &self,
+        tab: &Tab,
+        syntax: &Arc<HighlightTheme>,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let theme = cx.theme();
-        let (border, muted, hover, panel, danger, fg) = (theme.border, theme.muted_foreground, theme.list_hover, theme.sidebar, theme.danger, theme.foreground);
+        let (border, muted, hover, panel, danger, fg) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.list_hover,
+            theme.sidebar,
+            theme.danger,
+            theme.foreground,
+        );
         let mono = theme.mono_font_family.clone();
         let id = tab.id;
         let columns = table_columns(&tab.docs);
         let width = ACTIONS_WIDTH + COLUMN_WIDTH * columns.len() as f32;
         let writable = tab.writable();
 
-        let cell = |w: f32| div().flex_none().w(px(w)).px_2().py_1().border_r_1().border_color(border).truncate();
-        let mut header = div().flex().flex_none().w(px(width)).bg(panel).border_b_1().border_color(border).font_weight(FontWeight::SEMIBOLD).child(cell(ACTIONS_WIDTH));
+        let cell = |w: f32| {
+            div()
+                .flex_none()
+                .w(px(w))
+                .px_2()
+                .py_1()
+                .border_r_1()
+                .border_color(border)
+                .truncate()
+        };
+        let mut header = div()
+            .flex()
+            .flex_none()
+            .w(px(width))
+            .bg(panel)
+            .border_b_1()
+            .border_color(border)
+            .font_weight(FontWeight::SEMIBOLD)
+            .child(cell(ACTIONS_WIDTH));
         for c in &columns {
             header = header.child(cell(COLUMN_WIDTH).text_color(fg).child(c.clone()));
         }
-        let mut table = div().flex().flex_col().flex_none().w(px(width)).border_1().border_color(border).rounded_md().font_family(mono).text_xs().child(header);
+        let mut table = div()
+            .flex()
+            .flex_col()
+            .flex_none()
+            .w(px(width))
+            .border_1()
+            .border_color(border)
+            .rounded_md()
+            .font_family(mono)
+            .text_xs()
+            .child(header);
 
         for (ix, doc) in tab.docs.iter().enumerate() {
             let confirm = tab.confirm_delete == Some(ix);
             let has_id = doc.get("_id").is_some();
             let icon = |key: &str, label: &'static str| {
-                div().id(SharedString::from(format!("t{key}-{id}-{ix}"))).px_1().rounded_sm().cursor_pointer().hover(|s| s.bg(hover)).child(label)
+                div()
+                    .id(SharedString::from(format!("t{key}-{id}-{ix}")))
+                    .px_1()
+                    .rounded_sm()
+                    .cursor_pointer()
+                    .hover(|s| s.bg(hover))
+                    .child(label)
             };
             let mut actions = div().flex().gap_1().text_color(muted);
             if writable && has_id {
-                actions = actions.child(icon("edit", "✎").on_click(cx.listener(move |this, _, window, cx| this.start_edit(id, ix, window, cx))));
+                actions = actions.child(
+                    icon("edit", "✎")
+                        .on_click(cx.listener(move |this, _, window, cx| this.start_edit(id, ix, window, cx))),
+                );
             }
             let shell = to_shell(doc, "");
-            actions = actions.child(icon("copy", "⧉").on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(shell.clone()))));
+            actions = actions.child(
+                icon("copy", "⧉")
+                    .on_click(move |_, _, cx| cx.write_to_clipboard(ClipboardItem::new_string(shell.clone()))),
+            );
             if writable && has_id {
                 actions = actions.child(
                     icon("delete", if confirm { "?" } else { "🗑" })
@@ -57,12 +108,17 @@ impl Humon {
             for c in &columns {
                 let content = match doc.get(c) {
                     None => div(),
-                    Some(Value::Object(m)) if !is_typed(m) => div().text_color(muted).child(t!("tree.fields", n = m.len()).to_string()),
+                    Some(Value::Object(m)) if !is_typed(m) => div()
+                        .text_color(muted)
+                        .child(t!("tree.fields", n = m.len()).to_string()),
                     Some(Value::Array(a)) => div().text_color(muted).child(t!("tree.array", n = a.len()).to_string()),
                     Some(v) => {
                         // One line per cell: newlines would break the row height.
                         let text = to_shell(v, "").replace('\n', "⏎");
-                        let highlights: Vec<_> = tokenize(&text).into_iter().filter_map(|(r, k)| syntax.style(k).map(|s| (r, s))).collect();
+                        let highlights: Vec<_> = tokenize(&text)
+                            .into_iter()
+                            .filter_map(|(r, k)| syntax.style(k).map(|s| (r, s)))
+                            .collect();
                         div().child(StyledText::new(text).with_highlights(highlights))
                     }
                 };

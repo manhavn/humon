@@ -25,7 +25,11 @@ pub enum SidebarEdit {
 impl SidebarEdit {
     fn conn(&self) -> &str {
         match self {
-            Self::NewDb { conn } | Self::NewColl { conn, .. } | Self::RenameColl { conn, .. } | Self::DropColl { conn, .. } | Self::DropDb { conn, .. } => conn,
+            Self::NewDb { conn }
+            | Self::NewColl { conn, .. }
+            | Self::RenameColl { conn, .. }
+            | Self::DropColl { conn, .. }
+            | Self::DropDb { conn, .. } => conn,
         }
     }
 
@@ -51,7 +55,11 @@ pub enum Validation {
 pub fn validate(edit: &SidebarEdit, name: &str, second: &str) -> Validation {
     let (name, second) = (name.trim(), second.trim());
     if let Some(expected) = edit.confirm_name() {
-        return if name == expected { Validation::Ok } else { Validation::NotReady };
+        return if name == expected {
+            Validation::Ok
+        } else {
+            Validation::NotReady
+        };
     }
     if name.is_empty() || (matches!(edit, SidebarEdit::NewDb { .. }) && second.is_empty()) {
         Validation::NameRequired
@@ -86,7 +94,16 @@ impl EditForm {
                 })
             })
             .collect();
-        (Self { edit: None, name, second, error: None, busy: false }, subs)
+        (
+            Self {
+                edit: None,
+                name,
+                second,
+                error: None,
+                busy: false,
+            },
+            subs,
+        )
     }
 
     pub fn is(&self, edit: &SidebarEdit) -> bool {
@@ -100,7 +117,9 @@ impl Humon {
             SidebarEdit::NewDb { .. } => (String::new(), t!("manage.db_name"), t!("manage.first_coll")),
             SidebarEdit::NewColl { .. } => (String::new(), t!("manage.coll_name"), "".into()),
             SidebarEdit::RenameColl { coll, .. } => (coll.clone(), t!("manage.new_name"), "".into()),
-            SidebarEdit::DropColl { coll: name, .. } | SidebarEdit::DropDb { db: name, .. } => (String::new(), name.clone().into(), "".into()),
+            SidebarEdit::DropColl { coll: name, .. } | SidebarEdit::DropDb { db: name, .. } => {
+                (String::new(), name.clone().into(), "".into())
+            }
         };
         let form = &mut self.form;
         form.error = None;
@@ -136,7 +155,14 @@ impl Humon {
                 return;
             }
         }
-        let Some(client) = self.conns.iter().find(|c| c.saved.id == edit.conn()).and_then(|c| c.client.clone()) else { return };
+        let Some(client) = self
+            .conns
+            .iter()
+            .find(|c| c.saved.id == edit.conn())
+            .and_then(|c| c.client.clone())
+        else {
+            return;
+        };
         self.form.busy = true;
         self.form.error = None;
         let fut = {
@@ -169,10 +195,15 @@ impl Humon {
             SidebarEdit::NewDb { conn } => self.refresh_dbs(&conn, window, cx),
             SidebarEdit::NewColl { conn, db } => self.reload_collections(&conn, &db, window, cx),
             SidebarEdit::RenameColl { conn, db, coll } => {
-                for tab in self.tabs.iter_mut().filter(|t| t.conn_id == conn && t.db == db && t.coll == coll) {
+                for tab in self
+                    .tabs
+                    .iter_mut()
+                    .filter(|t| t.conn_id == conn && t.db == db && t.coll == coll)
+                {
                     tab.coll = new_name.to_string();
                 }
-                self.history.rename(&history::key(&conn, &db, &coll), &history::key(&conn, &db, new_name));
+                self.history
+                    .rename(&history::key(&conn, &db, &coll), &history::key(&conn, &db, new_name));
                 self.persist_history();
                 self.reload_collections(&conn, &db, window, cx);
             }
@@ -212,7 +243,9 @@ impl Humon {
             None => return div(),
         };
         let confirm = edit.as_ref().and_then(|e| e.confirm_name().map(str::to_string));
-        let ready = edit.as_ref().is_some_and(|e| validate(e, &form.name.read(cx).value(), "") != Validation::NotReady);
+        let ready = edit
+            .as_ref()
+            .is_some_and(|e| validate(e, &form.name.read(cx).value(), "") != Validation::NotReady);
         div()
             .flex()
             .flex_col()
@@ -222,20 +255,45 @@ impl Humon {
             .py_2()
             .border_y_1()
             .border_color(border)
-            .child(div().text_xs().font_weight(FontWeight::SEMIBOLD).child(title.to_string()))
-            .when_some(confirm.clone(), |d, name| d.child(div().text_xs().text_color(danger).child(t!("manage.type_to_confirm", name = name).to_string())))
-            .when(matches!(edit, Some(SidebarEdit::NewDb { .. })), |d| d.child(div().text_xs().text_color(muted).child(t!("manage.new_db_hint").to_string())))
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(title.to_string()),
+            )
+            .when_some(confirm.clone(), |d, name| {
+                d.child(
+                    div()
+                        .text_xs()
+                        .text_color(danger)
+                        .child(t!("manage.type_to_confirm", name = name).to_string()),
+                )
+            })
+            .when(matches!(edit, Some(SidebarEdit::NewDb { .. })), |d| {
+                d.child(
+                    div()
+                        .text_xs()
+                        .text_color(muted)
+                        .child(t!("manage.new_db_hint").to_string()),
+                )
+            })
             .child(Input::new(&form.name))
-            .when(matches!(edit, Some(SidebarEdit::NewDb { .. })), |d| d.child(Input::new(&form.second)))
+            .when(matches!(edit, Some(SidebarEdit::NewDb { .. })), |d| {
+                d.child(Input::new(&form.second))
+            })
             .child(
                 div()
                     .flex()
                     .gap_2()
                     .justify_end()
-                    .child(Button::new("edit-cancel").label(t!("manage.cancel")).on_click(cx.listener(|this, _, _, cx| {
-                        this.cancel_edit();
-                        cx.notify();
-                    })))
+                    .child(
+                        Button::new("edit-cancel")
+                            .label(t!("manage.cancel"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.cancel_edit();
+                                cx.notify();
+                            })),
+                    )
                     .child(
                         Button::new("edit-submit")
                             .label(button)
@@ -247,7 +305,9 @@ impl Humon {
                             })),
                     ),
             )
-            .when_some(form.error.clone(), |d, e| d.child(div().text_xs().text_color(danger).child(e)))
+            .when_some(form.error.clone(), |d, e| {
+                d.child(div().text_xs().text_color(danger).child(e))
+            })
     }
 }
 
@@ -256,26 +316,48 @@ mod tests {
     use super::{SidebarEdit, Validation, validate};
 
     fn drop_coll() -> SidebarEdit {
-        SidebarEdit::DropColl { conn: "c".into(), db: "shop".into(), coll: "users".into() }
+        SidebarEdit::DropColl {
+            conn: "c".into(),
+            db: "shop".into(),
+            coll: "users".into(),
+        }
     }
 
     #[test]
     fn drops_need_the_exact_name() {
         assert_eq!(validate(&drop_coll(), "", ""), Validation::NotReady);
         assert_eq!(validate(&drop_coll(), "user", ""), Validation::NotReady);
-        assert_eq!(validate(&drop_coll(), "Users", ""), Validation::NotReady, "case matters");
-        assert_eq!(validate(&drop_coll(), "  users ", ""), Validation::Ok, "surrounding spaces are trimmed");
-        let drop_db = SidebarEdit::DropDb { conn: "c".into(), db: "shop".into() };
+        assert_eq!(
+            validate(&drop_coll(), "Users", ""),
+            Validation::NotReady,
+            "case matters"
+        );
+        assert_eq!(
+            validate(&drop_coll(), "  users ", ""),
+            Validation::Ok,
+            "surrounding spaces are trimmed"
+        );
+        let drop_db = SidebarEdit::DropDb {
+            conn: "c".into(),
+            db: "shop".into(),
+        };
         assert_eq!(validate(&drop_db, "shop", ""), Validation::Ok);
     }
 
     #[test]
     fn names_are_required() {
-        let new_coll = SidebarEdit::NewColl { conn: "c".into(), db: "shop".into() };
+        let new_coll = SidebarEdit::NewColl {
+            conn: "c".into(),
+            db: "shop".into(),
+        };
         assert_eq!(validate(&new_coll, "  ", ""), Validation::NameRequired);
         assert_eq!(validate(&new_coll, "events", ""), Validation::Ok);
         let new_db = SidebarEdit::NewDb { conn: "c".into() };
-        assert_eq!(validate(&new_db, "logs", ""), Validation::NameRequired, "a database needs its first collection");
+        assert_eq!(
+            validate(&new_db, "logs", ""),
+            Validation::NameRequired,
+            "a database needs its first collection"
+        );
         assert_eq!(validate(&new_db, "logs", "events"), Validation::Ok);
     }
 }

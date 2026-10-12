@@ -13,7 +13,12 @@ impl Humon {
         let mut items = Vec::new();
         for conn in self.conns.iter().filter(|c| c.client.is_some()) {
             for db in &conn.dbs {
-                let item = |target| Item { conn_id: conn.saved.id.clone(), conn_name: conn.saved.name.clone(), db: db.info.name.clone(), target };
+                let item = |target| Item {
+                    conn_id: conn.saved.id.clone(),
+                    conn_name: conn.saved.name.clone(),
+                    db: db.info.name.clone(),
+                    target,
+                };
                 for coll in db.collections.iter().flatten() {
                     items.push(item(Target::Collection(coll.name.clone())));
                 }
@@ -35,7 +40,12 @@ impl Humon {
             .conns
             .iter()
             .filter(|c| c.client.is_some())
-            .flat_map(|c| c.dbs.iter().filter(|d| d.collections.is_none()).map(|d| (c.saved.id.clone(), d.info.name.clone())))
+            .flat_map(|c| {
+                c.dbs
+                    .iter()
+                    .filter(|d| d.collections.is_none())
+                    .map(|d| (c.saved.id.clone(), d.info.name.clone()))
+            })
             .collect();
         for (id, db) in missing {
             self.load_collections(&id, &db, window, cx);
@@ -50,7 +60,9 @@ impl Humon {
 
     pub(crate) fn activate_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (items, ranked) = self.palette_matches(cx);
-        let Some(item) = ranked.get(self.palette_selected).map(|&i| items[i].clone()) else { return };
+        let Some(item) = ranked.get(self.palette_selected).map(|&i| items[i].clone()) else {
+            return;
+        };
         self.palette_open = false;
         match item.target {
             Target::Shell => {
@@ -74,7 +86,11 @@ impl Humon {
     fn palette_move(&mut self, down: bool, cx: &mut Context<Self>) {
         let count = self.palette_matches(cx).1.len().min(MAX_ROWS);
         if count > 0 {
-            self.palette_selected = if down { (self.palette_selected + 1) % count } else { (self.palette_selected + count - 1) % count };
+            self.palette_selected = if down {
+                (self.palette_selected + 1) % count
+            } else {
+                (self.palette_selected + count - 1) % count
+            };
         }
         cx.notify();
     }
@@ -82,46 +98,77 @@ impl Humon {
     /// The search box above the tabs; clicking it opens quick open.
     pub(crate) fn render_quick_open_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let (border, muted, panel, bg, hover) = (theme.border, theme.muted_foreground, theme.sidebar, theme.background, theme.list_hover);
-        div().flex().flex_none().justify_center().items_center().h(px(38.)).border_b_1().border_color(border).bg(panel).child(
-            div()
-                .id("quick-open")
-                .flex()
-                .items_center()
-                .gap_2()
-                .w(px(440.))
-                .px_3()
-                .py_1()
-                .rounded_md()
-                .border_1()
-                .border_color(border)
-                .bg(bg)
-                .text_color(muted)
-                .cursor_pointer()
-                .hover(|s| s.bg(hover))
-                .child("⌕")
-                .child(div().flex_1().child(t!("palette.placeholder").to_string()))
-                .child(div().text_xs().child("⌘K"))
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.open_palette(window, cx);
-                    cx.notify();
-                })),
-        )
+        let (border, muted, panel, bg, hover) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.sidebar,
+            theme.background,
+            theme.list_hover,
+        );
+        div()
+            .flex()
+            .flex_none()
+            .justify_center()
+            .items_center()
+            .h(px(38.))
+            .border_b_1()
+            .border_color(border)
+            .bg(panel)
+            .child(
+                div()
+                    .id("quick-open")
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .w(px(440.))
+                    .px_3()
+                    .py_1()
+                    .rounded_md()
+                    .border_1()
+                    .border_color(border)
+                    .bg(bg)
+                    .text_color(muted)
+                    .cursor_pointer()
+                    .hover(|s| s.bg(hover))
+                    .child("⌕")
+                    .child(div().flex_1().child(t!("palette.placeholder").to_string()))
+                    .child(div().text_xs().child("⌘K"))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.open_palette(window, cx);
+                        cx.notify();
+                    })),
+            )
     }
 
     /// The quick open list over the window; clicking outside closes it.
     pub(crate) fn render_quick_open(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let (border, muted, bg, hover, active) = (theme.border, theme.muted_foreground, theme.background, theme.list_hover, theme.list_active);
+        let (border, muted, bg, hover, active) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.background,
+            theme.list_hover,
+            theme.list_active,
+        );
         let (items, ranked) = self.palette_matches(cx);
         let selected = self.palette_selected.min(ranked.len().saturating_sub(1));
         let mut rows = div().flex().flex_col().py_1();
         if ranked.is_empty() {
-            rows = rows.child(div().px_3().py_2().text_color(muted).child(t!("palette.empty").to_string()));
+            rows = rows.child(
+                div()
+                    .px_3()
+                    .py_2()
+                    .text_color(muted)
+                    .child(t!("palette.empty").to_string()),
+            );
         }
         for (row, &ix) in ranked.iter().take(MAX_ROWS).enumerate() {
             let item = &items[ix];
-            let color = self.conns.iter().find(|c| c.saved.id == item.conn_id).and_then(ConnNode::color);
+            let color = self
+                .conns
+                .iter()
+                .find(|c| c.saved.id == item.conn_id)
+                .and_then(ConnNode::color);
             let icon = if item.target == Target::Shell { ">_" } else { "▤" };
             rows = rows.child(
                 div()
@@ -155,10 +202,13 @@ impl Humon {
             .justify_center()
             .pt(px(56.))
             .bg(gpui_kit::hsla(0., 0., 0., 0.25))
-            .on_mouse_down(MouseButton::Left, cx.listener(|this, _, _, cx| {
-                this.palette_open = false;
-                cx.notify();
-            }))
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|this, _, _, cx| {
+                    this.palette_open = false;
+                    cx.notify();
+                }),
+            )
             .child(
                 div()
                     .id("palette")
@@ -188,7 +238,13 @@ impl Humon {
                         this.palette_open = false;
                         cx.notify();
                     }))
-                    .child(div().p_2().border_b_1().border_color(border).child(Input::new(&self.palette_input)))
+                    .child(
+                        div()
+                            .p_2()
+                            .border_b_1()
+                            .border_color(border)
+                            .child(Input::new(&self.palette_input)),
+                    )
                     .child(rows),
             )
     }

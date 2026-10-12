@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Format, lint, test
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --release --all-targets -- -D warnings
+      - name: Start MongoDB and load the test data
+        run: |
+          curl -sfL https://fastdl.mongodb.org/osx/mongodb-macos-arm64-8.0.4.tgz | tar xz
+          mkdir -p "$RUNNER_TEMP/db"
+          ./mongodb-macos-aarch64-8.0.4/bin/mongod --dbpath "$RUNNER_TEMP/db" --port 27018 --fork --logpath "$RUNNER_TEMP/mongod.log"
+          brew install mongosh
+          mongosh --quiet mongodb://127.0.0.1:27018 scripts/seed-test-db.js
+      - name: Test (including the live tests)
+        run: cargo test --release -- --include-ignored
+        env:
+          HUMON_TEST_URI: mongodb://127.0.0.1:27018

@@ -5,7 +5,9 @@ use super::*;
 impl Humon {
     /// Asks where to save, then streams the export there on tokio.
     pub(crate) fn export(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else { return };
+        let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) else {
+            return;
+        };
         if tab.exporting {
             return;
         }
@@ -14,7 +16,11 @@ impl Humon {
             filter: tab.applied.filter.clone(),
             sort: tab.applied.sort.clone(),
             projection: tab.applied.projection.clone(),
-            skip: if tab.export_all { 0 } else { tab.page * tab.page_size as u64 },
+            skip: if tab.export_all {
+                0
+            } else {
+                tab.page * tab.page_size as u64
+            },
             limit: if tab.export_all { 0 } else { tab.page_size },
         };
         let (client, db, coll) = (tab.client.clone(), tab.db.clone(), tab.coll.clone());
@@ -38,7 +44,10 @@ impl Humon {
                     return;
                 }
             };
-            let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+            let file = path
+                .file_name()
+                .map(|f| f.to_string_lossy().into_owned())
+                .unwrap_or_default();
             let res = RT.spawn(mongo::export(client, db, coll, args, format, path)).await;
             this.update(cx, |this, cx| {
                 if let Some(tab) = this.tab_mut(id) {
@@ -70,7 +79,17 @@ impl Humon {
         let theme = cx.theme();
         let (border, muted, panel) = (theme.border, theme.muted_foreground, theme.sidebar);
         let id = tab.id;
-        let mut row = div().flex().flex_wrap().items_center().gap_2().px_3().py_2().border_b_1().border_color(border).bg(panel).text_xs();
+        let mut row = div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(border)
+            .bg(panel)
+            .text_xs();
         for (format, label) in [(ExportFormat::Json, "JSON"), (ExportFormat::Csv, "CSV")] {
             row = row.child(
                 Button::new(SharedString::from(format!("format-{label}")))
@@ -89,7 +108,10 @@ impl Humon {
             _ => t!("export.all").to_string(),
         };
         row = row.child(div().w(px(12.)));
-        for (all, label) in [(false, t!("export.page", n = tab.docs.len()).to_string()), (true, all_label)] {
+        for (all, label) in [
+            (false, t!("export.page", n = tab.docs.len()).to_string()),
+            (true, all_label),
+        ] {
             row = row.child(
                 Button::new(SharedString::from(format!("scope-{all}")))
                     .label(label)
@@ -103,11 +125,17 @@ impl Humon {
             );
         }
         row.child(div().flex_1())
-            .when(tab.export_format == ExportFormat::Csv, |d| d.child(div().text_color(muted).child(t!("export.csv_note").to_string())))
+            .when(tab.export_format == ExportFormat::Csv, |d| {
+                d.child(div().text_color(muted).child(t!("export.csv_note").to_string()))
+            })
             .child(
                 Button::new("export-save")
                     .primary()
-                    .label(if tab.exporting { t!("export.running") } else { t!("export.save") })
+                    .label(if tab.exporting {
+                        t!("export.running")
+                    } else {
+                        t!("export.save")
+                    })
                     .disabled(tab.exporting)
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.export(id, window, cx);
@@ -119,7 +147,13 @@ impl Humon {
     /// Favorites first, then recent queries; clicking one runs it.
     pub(crate) fn render_history(&self, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let (border, muted, hover, panel, warning) = (theme.border, theme.muted_foreground, theme.list_hover, theme.sidebar, theme.warning);
+        let (border, muted, hover, panel, warning) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.list_hover,
+            theme.sidebar,
+            theme.warning,
+        );
         let mono = theme.mono_font_family.clone();
         let id = tab.id;
         let key = history::key(&tab.conn_id, &tab.db, &tab.coll);
@@ -137,37 +171,78 @@ impl Humon {
                 .cursor_pointer()
                 .hover(|s| s.bg(hover))
                 .child(div().w(px(14.)).text_color(color).child(icon))
-                .child(div().flex_1().min_w_0().overflow_hidden().whitespace_nowrap().font_family(mono.clone()).child(query.summary()))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .font_family(mono.clone())
+                        .child(query.summary()),
+                )
                 .on_click(cx.listener(move |this, _, window, cx| {
                     this.apply_query(id, q.clone(), window, cx);
                     cx.notify();
                 }))
         };
-        let mut list = div().id(("history", id)).flex().flex_col().max_h(px(260.)).overflow_y_scroll().border_b_1().border_color(border).bg(panel).text_xs();
+        let mut list = div()
+            .id(("history", id))
+            .flex()
+            .flex_col()
+            .max_h(px(260.))
+            .overflow_y_scroll()
+            .border_b_1()
+            .border_color(border)
+            .bg(panel)
+            .text_xs();
         if favorites.is_empty() && recent.is_empty() {
-            return list.child(div().px_3().py_2().text_color(muted).child(t!("history.empty").to_string()));
+            return list.child(
+                div()
+                    .px_3()
+                    .py_2()
+                    .text_color(muted)
+                    .child(t!("history.empty").to_string()),
+            );
         }
         if !favorites.is_empty() {
-            list = list.child(div().px_3().pt_2().pb_1().text_color(muted).font_weight(FontWeight::SEMIBOLD).child(t!("history.favorites").to_string()));
+            list = list.child(
+                div()
+                    .px_3()
+                    .pt_2()
+                    .pb_1()
+                    .text_color(muted)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(t!("history.favorites").to_string()),
+            );
             for (i, fav) in favorites.iter().enumerate() {
                 let k = key.clone();
-                list = list.child(row(format!("fav-{i}"), fav, "★", warning).child(
-                    div()
-                        .id(SharedString::from(format!("unfav-{i}-{id}")))
-                        .px_1()
-                        .text_color(muted)
-                        .child("×")
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            cx.stop_propagation();
-                            this.history.remove_favorite(&k, i);
-                            this.persist_history();
-                            cx.notify();
-                        })),
-                ));
+                list = list.child(
+                    row(format!("fav-{i}"), fav, "★", warning).child(
+                        div()
+                            .id(SharedString::from(format!("unfav-{i}-{id}")))
+                            .px_1()
+                            .text_color(muted)
+                            .child("×")
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.stop_propagation();
+                                this.history.remove_favorite(&k, i);
+                                this.persist_history();
+                                cx.notify();
+                            })),
+                    ),
+                );
             }
         }
         if !recent.is_empty() {
-            list = list.child(div().px_3().pt_2().pb_1().text_color(muted).font_weight(FontWeight::SEMIBOLD).child(t!("history.recent").to_string()));
+            list = list.child(
+                div()
+                    .px_3()
+                    .pt_2()
+                    .pb_1()
+                    .text_color(muted)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(t!("history.recent").to_string()),
+            );
             for (i, q) in recent.iter().enumerate() {
                 list = list.child(row(format!("recent-{i}"), q, "↺", muted));
             }

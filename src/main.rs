@@ -34,7 +34,10 @@ fn main() {
         gpui_kit::open_window(
             WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(TitlebarOptions { title: Some("humon".into()), ..Default::default() }),
+                titlebar: Some(TitlebarOptions {
+                    title: Some("humon".into()),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
             cx,
