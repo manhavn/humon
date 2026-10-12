@@ -17,6 +17,9 @@ pub struct Settings {
     /// Documents to sample for the schema behind query completion; None means the default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_sample: Option<u32>,
+    /// The first-launch welcome (the settings page) has been shown and closed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub welcomed: Option<bool>,
 }
 
 /// Above this a sample stops being a sample; it only makes the server work.
@@ -25,6 +28,12 @@ pub const MAX_SCHEMA_SAMPLE: u32 = 100_000;
 impl Settings {
     pub fn check_updates(&self) -> bool {
         self.check_updates.unwrap_or(true)
+    }
+
+    /// Whether to open on the welcome page. Saved connections mean someone
+    /// used humon before the welcome existed, so they don't see it.
+    pub fn is_first_launch(&self, has_connections: bool) -> bool {
+        self.welcomed != Some(true) && !has_connections
     }
 
     pub fn schema_sample(&self) -> u32 {
@@ -103,6 +112,23 @@ mod tests {
     }
 
     #[test]
+    fn welcome_shows_only_on_a_fresh_install() {
+        assert!(Settings::default().is_first_launch(false));
+        assert!(
+            !Settings::default().is_first_launch(true),
+            "people from before the welcome already have connections"
+        );
+        let seen = Settings {
+            welcomed: Some(true),
+            ..Default::default()
+        };
+        assert!(
+            !seen.is_first_launch(false),
+            "shown once, even with no connection saved"
+        );
+    }
+
+    #[test]
     fn schema_sample_defaults_and_stays_in_range() {
         use crate::schema::DEFAULT_SAMPLE;
         assert_eq!(Settings::default().schema_sample(), DEFAULT_SAMPLE);
@@ -130,6 +156,7 @@ mod tests {
             language: Some("tr".into()),
             check_updates: Some(false),
             schema_sample: Some(500),
+            welcomed: Some(true),
         }
         .save_to(&path)
         .unwrap();
@@ -137,6 +164,7 @@ mod tests {
         assert_eq!(loaded.language.as_deref(), Some("tr"));
         assert!(!loaded.check_updates(), "every setting survives a save");
         assert_eq!(loaded.schema_sample(), 500);
+        assert!(!loaded.is_first_launch(false));
         std::fs::write(&path, "[").unwrap();
         assert!(Settings::load_from(&path).is_err());
     }

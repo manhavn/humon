@@ -2,6 +2,7 @@
 
 /// The version in Cargo.toml, the one source of truth.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const REPO_URL: &str = "https://github.com/yldrmzffr/humon";
 
 /// GitHub's API for the newest published release.
 const LATEST_URL: &str = "https://api.github.com/repos/yldrmzffr/humon/releases/latest";

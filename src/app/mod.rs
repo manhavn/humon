@@ -66,6 +66,8 @@ pub struct Humon {
     store: Store,
     pub form: EditForm,
     show_settings: bool,
+    /// The settings page is showing as the first-launch welcome.
+    welcome: bool,
     /// Kept in memory and saved whole, so changing one setting keeps the others.
     pub settings: Settings,
     /// A newer release on GitHub, shown at the bottom of the sidebar.
@@ -206,6 +208,7 @@ impl Humon {
         };
         let load_error = load_error.or(history_error);
         let adding = saved.is_empty();
+        let welcome = settings.is_first_launch(!saved.is_empty());
         Self {
             conns: saved
                 .into_iter()
@@ -235,7 +238,8 @@ impl Humon {
             history,
             store,
             form,
-            show_settings: false,
+            show_settings: welcome,
+            welcome,
             settings,
             update: None,
             palette_open: false,
@@ -387,8 +391,20 @@ impl Humon {
         let console = ConsoleTab::new(id, saved_id, client, db, window, cx);
         self.consoles.push(console);
         self.active_tab = Some(id);
-        self.show_settings = false;
+        self.close_settings();
         Some(id)
+    }
+}
+
+impl Humon {
+    /// Leaves the settings page; the first time, that ends the welcome for good.
+    pub(crate) fn close_settings(&mut self) {
+        self.show_settings = false;
+        if self.welcome {
+            self.welcome = false;
+            self.settings.welcomed = Some(true);
+            self.save_settings();
+        }
     }
 }
 

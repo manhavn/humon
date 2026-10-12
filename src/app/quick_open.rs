@@ -76,7 +76,7 @@ impl Humon {
                     .and_then(|c| c.dbs.iter().find(|d| d.info.name == item.db))
                     .and_then(|d| d.collections.iter().flatten().find(|c| c.name == coll))
                     .map_or(CollKind::Collection, |c| c.kind);
-                self.show_settings = false;
+                self.close_settings();
                 let at = CollectionAt {
                     conn_id: item.conn_id,
                     db: item.db,

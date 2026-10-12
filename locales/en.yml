@@ -131,6 +131,10 @@ settings.schema_hint: More documents find rare fields but take longer and put mo
 update.available: "%{version} available ↗"
 settings.version: "humon %{version}"
 settings.close: Close
+settings.welcome_title: Welcome to humon
+settings.welcome: Pick your language and options; you can change them any time with ⚙ in the sidebar. Then add your first connection.
+settings.continue: Continue
+settings.github: GitHub ↗
 
 query.at: "%{msg} (line %{line}, column %{col})"
 query.must_be_object: "the query must be an object: { ... }"

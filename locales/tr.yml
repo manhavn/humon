@@ -129,6 +129,10 @@ settings.schema_hint: Daha çok belge nadir alanları da bulur ama daha uzun sü
 update.available: "%{version} hazır ↗"
 settings.version: "humon %{version}"
 settings.close: Kapat
+settings.welcome_title: humon'a hoş geldin
+settings.welcome: Dilini ve ayarlarını seç; bunları kenar çubuğundaki ⚙ ile istediğin zaman değiştirebilirsin. Sonra ilk bağlantını ekle.
+settings.continue: Devam et
+settings.github: GitHub ↗
 
 query.at: "%{msg} (satır %{line}, sütun %{col})"
 query.must_be_object: "sorgu { ... } biçiminde bir nesne olmalı"

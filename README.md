@@ -62,6 +62,9 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 **Query**
 - Filter, sort and project in mongo shell syntax:
   `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
+- Field suggestions as you type: field names with their types, operators that fit
+  each field, and values like `1`/`-1` for sort, learned from a sample of the
+  collection (sample size in Settings)
 - Tree, table and JSON views; the JSON view can be selected, copied and searched
 - Query history and favorites for every collection
 - Status bar with the document count and how long the query took

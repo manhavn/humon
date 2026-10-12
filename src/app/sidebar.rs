@@ -48,7 +48,11 @@ impl Humon {
                                     .hover(|s| s.bg(hover))
                                     .child("⚙")
                                     .on_click(cx.listener(|this, _, _, cx| {
-                                        this.show_settings = !this.show_settings;
+                                        if this.show_settings {
+                                            this.close_settings();
+                                        } else {
+                                            this.show_settings = true;
+                                        }
                                         cx.notify();
                                     })),
                             )
@@ -509,7 +513,16 @@ impl Humon {
             .border_color(border)
             .text_xs()
             .text_color(muted)
-            .child(format!("humon {}", crate::version::VERSION))
+            .child(
+                div()
+                    .id("repo")
+                    .px_1()
+                    .rounded_sm()
+                    .cursor_pointer()
+                    .hover(|s| s.bg(hover))
+                    .child(format!("humon {}", crate::version::VERSION))
+                    .on_click(|_, _, cx| cx.open_url(crate::version::REPO_URL)),
+            )
             .when_some(self.update.clone(), |d, release| {
                 d.child(
                     div()
