@@ -22,6 +22,7 @@ use rust_i18n::t;
 
 mod connection_form;
 mod connections;
+mod quick_open;
 mod settings_view;
 mod sidebar;
 mod tabs_bar;
@@ -65,8 +66,14 @@ pub struct Humon {
     store: Store,
     pub form: EditForm,
     show_settings: bool,
+    pub palette_open: bool,
+    palette_input: Entity<InputState>,
+    palette_selected: usize,
+    focus: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
+
+gpui_kit::actions!(humon, [QuickOpen]);
 
 /// The app logo, embedded so the binary needs no files next to it.
 fn logo() -> Arc<Image> {
@@ -135,6 +142,15 @@ impl Humon {
             }
         });
         let (form, form_subs) = EditForm::new(window, cx);
+        let palette_input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("palette.placeholder")));
+        let palette_sub = cx.subscribe_in(&palette_input, window, |this, _, ev: &InputEvent, _, cx| {
+            if let InputEvent::Change = ev {
+                this.palette_selected = 0;
+                cx.notify();
+            }
+        });
+        let focus = cx.focus_handle();
+        window.focus(&focus, cx);
         let store = Store::default();
         // An unreadable history file is reported and left alone, never overwritten.
         let (history, history_error) = match History::open(History::default_path()) {
@@ -170,7 +186,11 @@ impl Humon {
             store,
             form,
             show_settings: false,
-            _subscriptions: std::iter::once(search_sub).chain(form_subs).collect(),
+            palette_open: false,
+            palette_input,
+            palette_selected: 0,
+            focus,
+            _subscriptions: [search_sub, palette_sub].into_iter().chain(form_subs).collect(),
         }
     }
 
@@ -256,14 +276,15 @@ impl Humon {
     }
 
     /// Opens a shell tab on a connection, starting in `db`.
-    pub fn open_console(&mut self, saved_id: &str, db: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(client) = self.conns.iter().find(|c| c.saved.id == saved_id).and_then(|c| c.client.clone()) else { return };
+    pub fn open_console(&mut self, saved_id: &str, db: &str, window: &mut Window, cx: &mut Context<Self>) -> Option<usize> {
+        let client = self.conns.iter().find(|c| c.saved.id == saved_id).and_then(|c| c.client.clone())?;
         let id = self.next_tab_id;
         self.next_tab_id += 1;
         let console = ConsoleTab::new(id, saved_id, client, db, window, cx);
         self.consoles.push(console);
         self.active_tab = Some(id);
         self.show_settings = false;
+        Some(id)
     }
 }
 
@@ -290,10 +311,16 @@ impl Render for Humon {
         };
         div()
             .size_full()
+            .relative()
             .flex()
             .bg(bg)
             .text_color(fg)
             .text_sm()
+            .track_focus(&self.focus)
+            .on_action(cx.listener(|this, _: &QuickOpen, window, cx| {
+                this.open_palette(window, cx);
+                cx.notify();
+            }))
             .child(self.render_sidebar(cx))
             .child(
                 div()
@@ -301,9 +328,12 @@ impl Render for Humon {
                     .min_w_0()
                     .flex()
                     .flex_col()
+                    .child(self.render_quick_open_bar(cx))
                     .when(!self.tab_ids().is_empty(), |d| d.child(self.render_tabs(cx)))
                     .child(content),
             )
+            // Painted last so it sits above everything else.
+            .when(self.palette_open, |d| d.child(self.render_quick_open(cx)))
     }
 }
 

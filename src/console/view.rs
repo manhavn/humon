@@ -89,7 +89,7 @@ impl Humon {
         self.consoles.iter_mut().find(|c| c.id == id)
     }
 
-    fn set_console_input(&mut self, id: usize, text: String, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn set_console_input(&mut self, id: usize, text: String, window: &mut Window, cx: &mut Context<Self>) {
         let Some(console) = self.console_mut(id) else { return };
         console.smart.reset(&text);
         console.input.update(cx, |s, cx| s.set_value(text, window, cx));

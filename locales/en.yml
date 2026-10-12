@@ -112,6 +112,10 @@ console.more: 'Type "it" for more'
 console.no_cursor: no cursor to continue
 console.not_connected: not connected
 
+palette.placeholder: Search collections or open a shell…
+palette.empty: No matches
+tab.shell: ">_ Shell"
+
 settings.title: Settings
 settings.language: Language
 settings.contribute: Missing your language? Copy locales/en.yml to locales/<code>.yml, translate it and send a pull request.

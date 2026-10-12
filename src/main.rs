@@ -7,6 +7,7 @@ mod highlight;
 mod history;
 mod manage;
 mod mongo;
+mod palette;
 mod query;
 mod settings;
 mod shell;
@@ -24,6 +25,7 @@ fn main() {
     rust_i18n::set_locale(&settings::initial_language());
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
+        cx.bind_keys([KeyBinding::new("cmd-k", app::QuickOpen, None)]);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
         gpui_kit::open_window(
             WindowOptions {

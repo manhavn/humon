@@ -64,6 +64,15 @@ impl Humon {
             .when_some(tab.notice.clone(), |d, n| d.child(div().text_xs().text_color(accent).child(n)))
             .child(div().flex_1());
         toolbar = toolbar.child(
+            Button::new("open-shell").label(t!("tab.shell")).on_click(cx.listener(move |this, _, window, cx| {
+                let Some((conn, db, coll)) = this.tab_mut(id).map(|t| (t.conn_id.clone(), t.db.clone(), t.coll.clone())) else { return };
+                if let Some(console) = this.open_console(&conn, &db, window, cx) {
+                    this.set_console_input(console, crate::palette::shell_starter(&coll), window, cx);
+                }
+                cx.notify();
+            })),
+        );
+        toolbar = toolbar.child(
             Button::new("export-toggle").label(t!("export.button")).when(tab.export_open, |b| b.primary()).on_click(cx.listener(move |this, _, _, cx| {
                 if let Some(tab) = this.tab_mut(id) {
                     tab.export_open = !tab.export_open;

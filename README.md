@@ -48,6 +48,8 @@ these (macOS Keychain) is the first item on the to-do list below.
 
 - Save connections and give each one a color; its tabs carry the same color
 - Browse connections → databases → collections, with a quick collection search
+- Quick open (⌘K or the search box at the top): jump to any collection or open a
+  database's shell by typing, e.g. `users`, `shop.ord` or `>_ logs`
 - Open collections in tabs (⌘-click or middle-click opens another tab)
 - Filter, sort and project with mongo shell syntax:
   `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
@@ -57,7 +59,7 @@ these (macOS Keychain) is the first item on the to-do list below.
 - Export results to JSON or CSV, streamed to disk so big exports stay light
 - Helpful typing: brackets close themselves, `Obj` becomes `ObjectId("")`,
   and pasted ids, UUIDs and dates are wrapped for you
-- A built-in shell (`>_` on a connection or database): mongosh-style JavaScript
+- A built-in shell (`>_` on a connection, a database, or a collection's toolbar): mongosh-style JavaScript
   with `db.users.find(...)`, `use`, `show dbs`, `it`, `print` and more, running on
   an embedded QuickJS engine, so no Node.js or mongosh needed
 - Status bar with document count and query time
@@ -130,6 +132,7 @@ HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignor
 | `src/app/` | The window: sidebar, connections, tab bar, settings |
 | `src/tab/` | A collection tab: queries and paging, tree and table views, editor, history and export panels, status bar |
 | `src/console/` | The shell: QuickJS engine, mongosh-like API (`prelude.js`), history, tab view |
+| `src/palette.rs` | Quick open's matching and ranking |
 | `src/manage.rs` | Creating, renaming and dropping databases and collections |
 | `src/mongo.rs` | Talking to MongoDB (runs on tokio) |
 | `src/query.rs` | Mongo shell syntax → BSON |

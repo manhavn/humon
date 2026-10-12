@@ -95,7 +95,7 @@ mod tests {
     fn keys_used_in_code() -> Vec<String> {
         const NAMESPACES: &[&str] = &[
             "app.", "sidebar.", "form.", "tab.", "card.", "tree.", "status.", "kind.", "errors.", "settings.", "query.",
-            "history.", "manage.", "export.", "console.",
+            "history.", "manage.", "export.", "console.", "palette.",
         ];
         fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
             for entry in std::fs::read_dir(dir).unwrap() {

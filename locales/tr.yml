@@ -110,6 +110,10 @@ console.more: 'Devamı için "it" yaz'
 console.no_cursor: devam edecek cursor yok
 console.not_connected: bağlı değil
 
+palette.placeholder: Collection ara ya da shell aç…
+palette.empty: Eşleşme yok
+tab.shell: ">_ Shell"
+
 settings.title: Ayarlar
 settings.language: Dil
 settings.contribute: Dilin yok mu? locales/en.yml dosyasını locales/<kod>.yml olarak kopyala, çevir ve pull request gönder.
