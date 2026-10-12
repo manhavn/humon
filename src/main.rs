@@ -1,6 +1,7 @@
 //! humon on gpui: a lightweight MongoDB client.
 
 mod app;
+mod files;
 mod highlight;
 mod history;
 mod manage;
@@ -19,7 +20,7 @@ use gpui_kit::*;
 rust_i18n::i18n!("locales", fallback = "en");
 
 fn main() {
-    rust_i18n::set_locale(&settings::initial_language(&settings::Settings::load()));
+    rust_i18n::set_locale(&settings::initial_language());
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);

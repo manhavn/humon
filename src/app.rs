@@ -12,7 +12,7 @@ use gpui_kit::*;
 use mongodb::Client;
 
 use crate::mongo::{self, CollKind, CollectionInfo, DatabaseInfo, RT};
-use crate::store::{self, SavedConnection};
+use crate::store::{SavedConnection, Store};
 use crate::history::History;
 use crate::manage::{EditForm, SidebarEdit};
 use crate::settings::{self, Settings};
@@ -54,6 +54,7 @@ pub struct Humon {
     query: String,
     pub load_error: Option<String>,
     pub history: History,
+    store: Store,
     pub form: EditForm,
     show_settings: bool,
     _subscriptions: Vec<Subscription>,
@@ -107,10 +108,17 @@ impl Humon {
             }
         });
         let (form, form_subs) = EditForm::new(window, cx);
-        let (saved, load_error) = match store::list() {
+        let store = Store::default();
+        // An unreadable history file is reported and left alone, never overwritten.
+        let (history, history_error) = match History::open(History::default_path()) {
+            Ok(h) => (h, None),
+            Err(e) => (History::default(), Some(e)),
+        };
+        let (saved, load_error) = match store.list() {
             Ok(list) => (list, None),
             Err(e) => (vec![], Some(e)),
         };
+        let load_error = load_error.or(history_error);
         let adding = saved.is_empty();
         Self {
             conns: saved
@@ -130,7 +138,8 @@ impl Humon {
             search,
             query: String::new(),
             load_error,
-            history: History::load(),
+            history,
+            store,
             form,
             show_settings: false,
             _subscriptions: std::iter::once(search_sub).chain(form_subs).collect(),
@@ -168,7 +177,7 @@ impl Humon {
             self.form_error = Some(t!("form.uri_required").into());
             return;
         }
-        match store::save(&name, &uri, self.form_color.take()) {
+        match self.store.save(&name, &uri, self.form_color.take()) {
             Ok(saved) => {
                 self.form_error = None;
                 let id = saved.id.clone();
@@ -182,10 +191,10 @@ impl Humon {
 
     fn connect(&mut self, saved_id: &str, window: &mut Window, cx: &mut Context<Self>) {
         let Some(ix) = self.conn_ix(saved_id) else { return };
+        let uri = self.store.resolve_uri(&self.conns[ix].saved);
         let conn = &mut self.conns[ix];
         conn.connecting = true;
         conn.error = None;
-        let uri = store::resolve_uri(&conn.saved);
         let id = saved_id.to_string();
         self.run(
             async move {
@@ -246,7 +255,7 @@ impl Humon {
         }
         self.confirm_delete = None;
         self.disconnect(saved_id);
-        match store::delete(saved_id) {
+        match self.store.delete(saved_id) {
             Ok(()) => self.conns.retain(|c| c.saved.id != saved_id),
             Err(e) => {
                 if let Some(ix) = self.conn_ix(saved_id) {
@@ -356,7 +365,7 @@ impl Humon {
 
     fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
         rust_i18n::set_locale(code);
-        let saved = Settings { language: Some(code.to_string()) }.save();
+        let saved = Settings { language: Some(code.to_string()) }.save_to(&Settings::default_path());
         if let Err(e) = saved {
             self.load_error = Some(e);
         }
@@ -371,7 +380,7 @@ impl Humon {
     fn set_color(&mut self, saved_id: &str, color: Option<String>) {
         self.color_picker = None;
         let Some(ix) = self.conn_ix(saved_id) else { return };
-        match store::set_color(saved_id, color.clone()) {
+        match self.store.set_color(saved_id, color.clone()) {
             Ok(()) => self.conns[ix].saved.color = color,
             Err(e) => self.conns[ix].error = Some(e),
         }

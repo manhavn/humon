@@ -1,9 +1,10 @@
 //! App settings (currently the UI language), stored next to the saved connections.
 
-use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+
+use crate::files;
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -12,26 +13,17 @@ pub struct Settings {
     pub language: Option<String>,
 }
 
-fn path() -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok()?;
-    Some(PathBuf::from(home).join("Library/Application Support/dev.muzaffer.humon/settings.json"))
-}
-
 impl Settings {
-    pub fn load() -> Self {
-        path()
-            .and_then(|p| fs::read(p).ok())
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default()
+    pub fn default_path() -> PathBuf {
+        files::config_dir().join("settings.json")
     }
 
-    pub fn save(&self) -> Result<(), String> {
-        let path = path().ok_or("HOME is not set")?;
-        if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-        }
-        let json = serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?;
-        fs::write(path, json).map_err(|e| e.to_string())
+    pub fn load_from(path: &Path) -> Result<Self, String> {
+        files::read_json(path)
+    }
+
+    pub fn save_to(&self, path: &Path) -> Result<(), String> {
+        files::write_json(path, self)
     }
 }
 
@@ -54,18 +46,41 @@ pub fn resolve(system: &str, available: &[String]) -> String {
         .unwrap_or_else(|| "en".into())
 }
 
-/// The language to start in: the saved choice, else the system language.
-pub fn initial_language(settings: &Settings) -> String {
-    let available = languages();
-    if let Some(code) = settings.language.as_ref().filter(|c| available.contains(c)) {
-        return code.clone();
+/// The language to start in: the saved choice if it still exists, else the
+/// system language.
+pub fn pick_language(saved: Option<&str>, system: &str, available: &[String]) -> String {
+    match saved {
+        Some(code) if available.iter().any(|c| c == code) => code.to_string(),
+        _ => resolve(system, available),
     }
-    resolve(&sys_locale::get_locale().unwrap_or_default(), &available)
+}
+
+pub fn initial_language() -> String {
+    let saved = Settings::load_from(&Settings::default_path()).unwrap_or_default();
+    pick_language(saved.language.as_deref(), &sys_locale::get_locale().unwrap_or_default(), &languages())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_round_trip_and_default() {
+        let path = crate::files::test_dir("settings").join("settings.json");
+        assert_eq!(Settings::load_from(&path).unwrap().language, None);
+        Settings { language: Some("tr".into()) }.save_to(&path).unwrap();
+        assert_eq!(Settings::load_from(&path).unwrap().language.as_deref(), Some("tr"));
+        std::fs::write(&path, "[").unwrap();
+        assert!(Settings::load_from(&path).is_err());
+    }
+
+    #[test]
+    fn initial_language_prefers_saved_choice_when_available() {
+        let available = vec!["en".to_string(), "tr".to_string()];
+        assert_eq!(pick_language(Some("tr"), "en-US", &available), "tr");
+        assert_eq!(pick_language(Some("xx"), "tr-TR", &available), "tr", "unknown saved code falls back to system");
+        assert_eq!(pick_language(None, "de-DE", &available), "en");
+    }
 
     #[test]
     fn resolves_system_locales() {
@@ -74,6 +89,39 @@ mod tests {
         assert_eq!(resolve("en_US", &available), "en");
         assert_eq!(resolve("de-DE", &available), "en");
         assert_eq!(resolve("", &available), "en");
+    }
+
+    /// Keys used in the code, as string literals in a known namespace.
+    fn keys_used_in_code() -> Vec<String> {
+        const NAMESPACES: &[&str] = &[
+            "app.", "sidebar.", "form.", "tab.", "card.", "tree.", "status.", "kind.", "errors.", "settings.", "query.",
+            "history.", "manage.", "export.",
+        ];
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut keys = Vec::new();
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let code = std::fs::read_to_string(entry.unwrap().path()).unwrap();
+            for literal in code.split('"').skip(1).step_by(2) {
+                let is_key = NAMESPACES.iter().any(|ns| literal.starts_with(ns))
+                    && !literal.ends_with('.')
+                    && !literal.ends_with(".json")
+                    && literal.chars().all(|c| c.is_ascii_lowercase() || c == '_' || c == '.');
+                if is_key && !keys.contains(&literal.to_string()) {
+                    keys.push(literal.to_string());
+                }
+            }
+        }
+        keys
+    }
+
+    #[test]
+    fn every_key_used_in_code_exists() {
+        // A mistyped key renders as the raw key at runtime, with no error.
+        let en = include_str!("../locales/en.yml");
+        let used = keys_used_in_code();
+        assert!(used.len() > 50, "scanner found only {} keys", used.len());
+        let missing: Vec<_> = used.iter().filter(|k| !en.lines().any(|l| l.starts_with(&format!("{k}:")))).collect();
+        assert!(missing.is_empty(), "missing from en.yml: {missing:?}");
     }
 
     #[test]

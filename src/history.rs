@@ -2,10 +2,11 @@
 //! to the saved connections.
 
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+
+use crate::files;
 
 const MAX_RECENT: usize = 20;
 
@@ -46,35 +47,37 @@ struct Entry {
 }
 
 /// All collections' queries, keyed by "connection id/db/collection".
+/// `History::default()` is detached: usable in memory, never written.
 #[derive(Serialize, Deserialize, Default)]
 pub struct History {
     #[serde(flatten)]
     entries: BTreeMap<String, Entry>,
+    #[serde(skip)]
+    path: Option<PathBuf>,
 }
 
 pub fn key(conn_id: &str, db: &str, coll: &str) -> String {
     format!("{conn_id}/{db}/{coll}")
 }
 
-fn path() -> Option<PathBuf> {
-    let home = std::env::var("HOME").ok()?;
-    Some(PathBuf::from(home).join("Library/Application Support/dev.muzaffer.humon/history.json"))
-}
-
 impl History {
-    pub fn load() -> Self {
-        path()
-            .and_then(|p| fs::read(p).ok())
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default()
+    pub fn default_path() -> PathBuf {
+        files::config_dir().join("history.json")
+    }
+
+    /// Loads history that `save` writes back to the same file. A corrupt
+    /// file is an error, so the caller can keep it instead of overwriting it.
+    pub fn open(path: PathBuf) -> Result<Self, String> {
+        let mut history: Self = files::read_json(&path)?;
+        history.path = Some(path);
+        Ok(history)
     }
 
     pub fn save(&self) -> Result<(), String> {
-        let path = path().ok_or("HOME is not set")?;
-        if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        match &self.path {
+            Some(path) => files::write_json(path, self),
+            None => Ok(()),
         }
-        fs::write(path, serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
     }
 
     pub fn recent(&self, key: &str) -> &[Query] {
@@ -164,6 +167,36 @@ mod tests {
         h.add_favorite(&k, q("{ b: 1 }"));
         h.remove_favorite(&k, 0);
         assert!(h.favorites(&k).is_empty());
+    }
+
+    #[test]
+    fn saved_history_opens_again() {
+        let path = crate::files::test_dir("history-save").join("history.json");
+        let mut h = History::open(path.clone()).unwrap();
+        h.record(&key("c", "db", "users"), q("{ a: 1 }"));
+        h.add_favorite(&key("c", "db", "users"), q("{ fav: 1 }"));
+        h.save().unwrap();
+        let again = History::open(path).unwrap();
+        assert_eq!(again.recent(&key("c", "db", "users")), &[q("{ a: 1 }")]);
+        assert_eq!(again.favorites(&key("c", "db", "users")), &[q("{ fav: 1 }")]);
+    }
+
+    #[test]
+    fn missing_file_opens_empty() {
+        let path = crate::files::test_dir("history-missing").join("history.json");
+        assert!(History::open(path).unwrap().recent("x").is_empty());
+    }
+
+    #[test]
+    fn corrupt_file_is_an_error_and_a_detached_history_never_writes() {
+        let path = crate::files::test_dir("history-corrupt").join("history.json");
+        std::fs::write(&path, "nope").unwrap();
+        assert!(History::open(path.clone()).is_err());
+        // What the app falls back to: usable in memory, but saving is a no-op.
+        let mut h = History::default();
+        h.record("k", q("{ a: 1 }"));
+        h.save().unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "nope");
     }
 
     #[test]
