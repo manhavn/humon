@@ -37,6 +37,49 @@ fn regex_allowed(text: &str, pos: usize) -> bool {
     matches!(text[..pos].trim_end().chars().last(), None | Some(':' | ',' | '[' | '(' | '{'))
 }
 
+const KEYWORDS: &[&str] = &[
+    "const", "let", "var", "function", "return", "if", "else", "for", "while", "do", "break", "continue", "new", "typeof",
+    "instanceof", "in", "of", "this", "throw", "try", "catch", "finally", "switch", "case", "default", "async", "await",
+    "class", "delete", "void", "yield",
+];
+
+/// Colors `a.b.c` in code: `db` is special, a segment before `(` is a call,
+/// other segments after a dot are properties.
+fn identifiers(text: &str, start: usize, end: usize, out: &mut Vec<Token>) {
+    let calls = text[end..].trim_start().starts_with('(');
+    let mut pos = start;
+    let segments: Vec<&str> = text[start..end].split('.').collect();
+    for (n, word) in segments.iter().enumerate() {
+        let range = pos..pos + word.len();
+        pos += word.len() + 1;
+        if word.is_empty() {
+            continue;
+        }
+        let last = n == segments.len() - 1;
+        let kind = if n == 0 && segments.len() == 1 && KEYWORDS.contains(word) {
+            // `if (`, `for (`: keywords, though a paren follows.
+            "keyword"
+        } else if last && calls {
+            "function"
+        } else if n > 0 {
+            "property"
+        } else if *word == "db" {
+            "variable.special"
+        } else if matches!(*word, "true" | "false") {
+            "boolean"
+        } else if matches!(*word, "null" | "undefined" | "Infinity" | "NaN") {
+            "constant"
+        } else if KEYWORDS.contains(word) {
+            "keyword"
+        } else if HELPERS.contains(word) {
+            "function"
+        } else {
+            "variable"
+        };
+        out.push((range, kind));
+    }
+}
+
 pub fn tokenize(text: &str) -> Vec<Token> {
     let mut out = Vec::new();
     let bytes = text.as_bytes();
@@ -100,19 +143,20 @@ pub fn tokenize(text: &str) -> Vec<Token> {
                     }
                     i += ch.len_utf8();
                 }
-                let word = &text[start..i];
-                let kind = if followed_by_colon(text, i) {
-                    "property"
-                } else if matches!(word, "true" | "false") {
-                    "boolean"
-                } else if matches!(word, "null" | "undefined" | "Infinity" | "NaN") {
-                    "constant"
-                } else if HELPERS.contains(&word) {
-                    "function"
+                // A trailing dot belongs to what follows (`db.` while typing).
+                while text[start..i].ends_with('.') {
+                    i -= 1;
+                }
+                if followed_by_colon(text, i) {
+                    // A key, dotted paths included: `address.city: 1`.
+                    out.push((start..i, "property"));
                 } else {
-                    "variable"
-                };
-                out.push((start..i, kind));
+                    identifiers(text, start, i, &mut out);
+                }
+            }
+            '=' if text[i..].starts_with("=>") => {
+                i += 2;
+                out.push((start..i, "keyword"));
             }
             '{' | '}' | '[' | ']' | '(' | ')' => {
                 i += 1;
@@ -246,6 +290,36 @@ mod tests {
                 assert!(text.is_char_boundary(r.start) && text.is_char_boundary(r.end), "{text:?}: {r:?}");
             }
         }
+    }
+
+    #[test]
+    fn shell_code_gets_colors_too() {
+        let k = kinds("db.users.find({ age: 1 }).sort({ age: -1 })");
+        assert!(k.contains(&("db", "variable.special")), "{k:?}");
+        assert!(k.contains(&("users", "property")), "{k:?}");
+        assert!(k.contains(&("find", "function")), "{k:?}");
+        assert!(k.contains(&("sort", "function")), "{k:?}");
+        assert!(k.contains(&("age", "property")), "{k:?}");
+
+        let k = kinds("const names = db.users.find().map((u) => print(u.name))");
+        assert!(k.contains(&("const", "keyword")), "{k:?}");
+        assert!(k.contains(&("map", "function")), "{k:?}");
+        assert!(k.contains(&("=>", "keyword")), "{k:?}");
+        assert!(k.contains(&("print", "function")), "{k:?}");
+        assert!(k.contains(&("name", "property")), "{k:?}");
+        assert!(k.contains(&("names", "variable")), "{k:?}");
+
+        let k = kinds("for (let i = 0; i < 3; i++) { if (i) { return new Date() } }");
+        for word in ["for", "let", "if", "return", "new"] {
+            assert!(k.contains(&(word, "keyword")), "{word}: {k:?}");
+        }
+        assert!(k.contains(&("Date", "function")), "{k:?}");
+    }
+
+    #[test]
+    fn dotted_keys_stay_one_property() {
+        let k = kinds("{ address.city: 1 }");
+        assert!(k.contains(&("address.city", "property")), "{k:?}");
     }
 
     #[test]
