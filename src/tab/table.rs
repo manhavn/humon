@@ -108,7 +108,7 @@ impl Humon {
             for c in &columns {
                 let content = match doc.get(c) {
                     None => div(),
-                    Some(Value::Object(m)) if !is_typed(m) => div()
+                    Some(Value::Object(m)) if !is_wrapper(m) => div()
                         .text_color(muted)
                         .child(t!("tree.fields", n = m.len()).to_string()),
                     Some(Value::Array(a)) => div().text_color(muted).child(t!("tree.array", n = a.len()).to_string()),

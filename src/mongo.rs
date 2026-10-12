@@ -128,118 +128,6 @@ pub struct Page {
     pub took: Duration,
 }
 
-pub async fn find(client: Client, db: String, coll: String, args: FindArgs) -> Result<Page, String> {
-    let filter = parse_arg("Filter", &args.filter)?;
-    let sort = parse_arg("Sort", &args.sort)?;
-    let projection = parse_arg("Project", &args.projection)?;
-    let collection = client.database(&db).collection::<Document>(&coll);
-    let mut find = collection
-        .find(filter)
-        .skip(args.skip)
-        .limit(args.limit)
-        .max_time(Duration::from_secs(60));
-    if !sort.is_empty() {
-        find = find.sort(sort);
-    }
-    if !projection.is_empty() {
-        find = find.projection(projection);
-    }
-    let start = Instant::now();
-    let docs: Vec<Document> = find.await.map_err(err)?.try_collect().await.map_err(err)?;
-    let took = start.elapsed();
-    Ok(Page {
-        docs: docs.into_iter().map(to_json).collect(),
-        took,
-    })
-}
-
-/// Total for the pager. `None` means an exact count would take too long.
-pub async fn count(client: Client, db: String, coll: String, filter: String) -> Result<Option<u64>, String> {
-    let filter = parse_arg("Filter", &filter)?;
-    let collection = client.database(&db).collection::<Document>(&coll);
-    if filter.is_empty() {
-        // Metadata-only count; views don't support it, so fall through on error.
-        if let Ok(n) = collection.estimated_document_count().await {
-            return Ok(Some(n));
-        }
-    }
-    match collection
-        .count_documents(filter)
-        .max_time(Duration::from_secs(5))
-        .await
-    {
-        Ok(n) => Ok(Some(n)),
-        // MaxTimeMSExpired: report "unknown" rather than failing the tab.
-        Err(e) if matches!(&*e.kind, ErrorKind::Command(c) if c.code == 50) => Ok(None),
-        Err(e) => Err(err(e)),
-    }
-}
-
-/// The full stored document, ignoring any projection the tab has applied.
-pub async fn get(client: Client, db: String, coll: String, id: Value) -> Result<Option<Value>, String> {
-    let doc = client
-        .database(&db)
-        .collection::<Document>(&coll)
-        .find_one(doc! { "_id": parse_id(&id)? })
-        .await
-        .map_err(err)?;
-    Ok(doc.map(to_json))
-}
-
-/// Replaces a document by `_id`; the edited text may not change `_id`.
-pub async fn replace(client: Client, db: String, coll: String, id: Value, src: String) -> Result<(), String> {
-    let id = parse_id(&id)?;
-    let edited = query::parse_document(&src)?;
-    let mut doc = Document::new();
-    match edited.get("_id") {
-        Some(v) if *v != id => return Err(t!("errors.id_immutable").into()),
-        // Keep _id first, where MongoDB stores it anyway.
-        _ => doc.insert("_id", id.clone()),
-    };
-    doc.extend(edited.into_iter().filter(|(k, _)| k != "_id"));
-    let res = client
-        .database(&db)
-        .collection::<Document>(&coll)
-        .replace_one(doc! { "_id": id }, doc)
-        .await
-        .map_err(err)?;
-    if res.matched_count == 0 {
-        return Err(gone());
-    }
-    Ok(())
-}
-
-pub async fn delete(client: Client, db: String, coll: String, id: Value) -> Result<(), String> {
-    let res = client
-        .database(&db)
-        .collection::<Document>(&coll)
-        .delete_one(doc! { "_id": parse_id(&id)? })
-        .await
-        .map_err(err)?;
-    if res.deleted_count == 0 {
-        return Err(gone());
-    }
-    Ok(())
-}
-
-/// Inserts one document or an array of them; returns how many were written.
-pub async fn insert(client: Client, db: String, coll: String, src: String) -> Result<usize, String> {
-    let docs = query::parse_documents(&src)?;
-    let collection = client.database(&db).collection::<Document>(&coll);
-    let n = docs.len();
-    if n == 1 {
-        collection
-            .insert_one(docs.into_iter().next().unwrap())
-            .await
-            .map_err(err)?;
-    } else {
-        collection.insert_many(docs).await.map_err(err)?;
-    }
-    Ok(n)
-}
-
-/// Creates a collection; an existing name is an error (MongoDB 7+ would
-/// silently accept it).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ExportFormat {
     Json,
@@ -257,88 +145,6 @@ impl ExportFormat {
 
 /// CSV columns are taken from the first this-many documents.
 const CSV_HEADER_SAMPLE: usize = 1000;
-
-/// Writes the query's results to `path`, streaming from the cursor so memory
-/// stays flat however many documents match. `limit` 0 exports everything.
-/// JSON is an array of relaxed extended JSON; CSV has one column per
-/// top-level field, with nested values written as JSON.
-pub async fn export(
-    client: Client,
-    db: String,
-    coll: String,
-    args: FindArgs,
-    format: ExportFormat,
-    path: std::path::PathBuf,
-) -> Result<u64, String> {
-    use std::io::Write;
-
-    let filter = parse_arg("Filter", &args.filter)?;
-    let sort = parse_arg("Sort", &args.sort)?;
-    let projection = parse_arg("Project", &args.projection)?;
-    let collection = client.database(&db).collection::<Document>(&coll);
-    let mut find = collection.find(filter).skip(args.skip);
-    if args.limit > 0 {
-        find = find.limit(args.limit);
-    }
-    if !sort.is_empty() {
-        find = find.sort(sort);
-    }
-    if !projection.is_empty() {
-        find = find.projection(projection);
-    }
-    let mut cursor = find.await.map_err(err)?;
-    let file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
-    let mut out = std::io::BufWriter::new(file);
-    let io = |e: std::io::Error| e.to_string();
-    let mut written = 0u64;
-
-    match format {
-        ExportFormat::Json => {
-            out.write_all(b"[").map_err(io)?;
-            while let Some(doc) = cursor.try_next().await.map_err(err)? {
-                out.write_all(if written == 0 { b"\n" } else { b",\n" }).map_err(io)?;
-                serde_json::to_writer(&mut out, &Bson::Document(doc).into_relaxed_extjson())
-                    .map_err(|e| e.to_string())?;
-                written += 1;
-            }
-            out.write_all(if written == 0 { b"]\n" } else { b"\n]\n" })
-                .map_err(io)?;
-        }
-        ExportFormat::Csv => {
-            let mut sample = Vec::new();
-            while sample.len() < CSV_HEADER_SAMPLE {
-                match cursor.try_next().await.map_err(err)? {
-                    Some(doc) => sample.push(doc),
-                    None => break,
-                }
-            }
-            let headers = csv_headers(&sample);
-            writeln!(
-                out,
-                "{}",
-                headers.iter().map(|h| csv_escape(h)).collect::<Vec<_>>().join(",")
-            )
-            .map_err(io)?;
-            let write_row = |doc: &Document, out: &mut std::io::BufWriter<std::fs::File>| -> Result<(), String> {
-                let row: Vec<String> = headers
-                    .iter()
-                    .map(|h| doc.get(h).map(csv_cell).map(|c| csv_escape(&c)).unwrap_or_default())
-                    .collect();
-                writeln!(out, "{}", row.join(",")).map_err(io)
-            };
-            for doc in &sample {
-                write_row(doc, &mut out)?;
-                written += 1;
-            }
-            while let Some(doc) = cursor.try_next().await.map_err(err)? {
-                write_row(&doc, &mut out)?;
-                written += 1;
-            }
-        }
-    }
-    out.flush().map_err(io)?;
-    Ok(written)
-}
 
 /// `_id` first, then fields in the order they first appear.
 fn csv_headers(docs: &[Document]) -> Vec<String> {
@@ -383,32 +189,6 @@ fn csv_escape(s: &str) -> String {
     }
 }
 
-pub async fn create_collection(client: Client, db: String, name: String) -> Result<(), String> {
-    let database = client.database(&db);
-    if database.list_collection_names().await.map_err(err)?.contains(&name) {
-        return Err(t!("errors.collection_exists", name = name).into());
-    }
-    database.create_collection(&name).await.map_err(err)
-}
-
-pub async fn drop_collection(client: Client, db: String, name: String) -> Result<(), String> {
-    client
-        .database(&db)
-        .collection::<Document>(&name)
-        .drop()
-        .await
-        .map_err(err)
-}
-
-pub async fn rename_collection(client: Client, db: String, from: String, to: String) -> Result<(), String> {
-    client
-        .database("admin")
-        .run_command(doc! { "renameCollection": format!("{db}.{from}"), "to": format!("{db}.{to}") })
-        .await
-        .map(|_| ())
-        .map_err(err)
-}
-
 pub async fn drop_database(client: Client, db: String) -> Result<(), String> {
     client.database(&db).drop().await.map_err(err)
 }
@@ -438,13 +218,260 @@ mod csv_tests {
     }
 }
 
-/// Runs against a live server: `HUMON_TEST_URI=mongodb://... cargo test -- --ignored`.
-/// Expects the `shop` seed data (137 users, an `adults` view); writes go to a
-/// scratch collection that is dropped at the end.
+/// One collection on one connection. Cheap to clone (the client is shared),
+/// so each operation takes it by value and can run as a `'static` future.
+#[derive(Clone)]
+pub struct CollectionRef {
+    pub client: Client,
+    pub db: String,
+    pub name: String,
+}
+
+impl CollectionRef {
+    pub fn new(client: Client, db: &str, name: &str) -> Self {
+        Self {
+            client,
+            db: db.to_string(),
+            name: name.to_string(),
+        }
+    }
+
+    pub fn handle(&self) -> mongodb::Collection<Document> {
+        self.client.database(&self.db).collection(&self.name)
+    }
+
+    pub async fn find(self, args: FindArgs) -> Result<Page, String> {
+        let filter = parse_arg("Filter", &args.filter)?;
+        let sort = parse_arg("Sort", &args.sort)?;
+        let projection = parse_arg("Project", &args.projection)?;
+        let collection = self.handle();
+        let mut find = collection
+            .find(filter)
+            .skip(args.skip)
+            .limit(args.limit)
+            .max_time(Duration::from_secs(60));
+        if !sort.is_empty() {
+            find = find.sort(sort);
+        }
+        if !projection.is_empty() {
+            find = find.projection(projection);
+        }
+        let start = Instant::now();
+        let docs: Vec<Document> = find.await.map_err(err)?.try_collect().await.map_err(err)?;
+        let took = start.elapsed();
+        Ok(Page {
+            docs: docs.into_iter().map(to_json).collect(),
+            took,
+        })
+    }
+
+    /// Total for the pager. `None` means an exact count would take too long.
+    pub async fn count(self, filter: String) -> Result<Option<u64>, String> {
+        let filter = parse_arg("Filter", &filter)?;
+        let collection = self.handle();
+        if filter.is_empty() {
+            // Metadata-only count; views don't support it, so fall through on error.
+            if let Ok(n) = collection.estimated_document_count().await {
+                return Ok(Some(n));
+            }
+        }
+        match collection
+            .count_documents(filter)
+            .max_time(Duration::from_secs(5))
+            .await
+        {
+            Ok(n) => Ok(Some(n)),
+            // MaxTimeMSExpired: report "unknown" rather than failing the tab.
+            Err(e) if matches!(&*e.kind, ErrorKind::Command(c) if c.code == 50) => Ok(None),
+            Err(e) => Err(err(e)),
+        }
+    }
+
+    /// The full stored document, ignoring any projection the tab has applied.
+    pub async fn get(self, id: Value) -> Result<Option<Value>, String> {
+        let doc = self
+            .handle()
+            .find_one(doc! { "_id": parse_id(&id)? })
+            .await
+            .map_err(err)?;
+        Ok(doc.map(to_json))
+    }
+
+    /// Replaces a document by `_id`; the edited text may not change `_id`.
+    pub async fn replace(self, id: Value, src: String) -> Result<(), String> {
+        let id = parse_id(&id)?;
+        let edited = query::parse_document(&src)?;
+        let mut doc = Document::new();
+        match edited.get("_id") {
+            Some(v) if *v != id => return Err(t!("errors.id_immutable").into()),
+            // Keep _id first, where MongoDB stores it anyway.
+            _ => doc.insert("_id", id.clone()),
+        };
+        doc.extend(edited.into_iter().filter(|(k, _)| k != "_id"));
+        let res = self.handle().replace_one(doc! { "_id": id }, doc).await.map_err(err)?;
+        if res.matched_count == 0 {
+            return Err(gone());
+        }
+        Ok(())
+    }
+
+    pub async fn delete(self, id: Value) -> Result<(), String> {
+        let res = self
+            .handle()
+            .delete_one(doc! { "_id": parse_id(&id)? })
+            .await
+            .map_err(err)?;
+        if res.deleted_count == 0 {
+            return Err(gone());
+        }
+        Ok(())
+    }
+
+    /// Inserts one document or an array of them; returns how many were written.
+    pub async fn insert(self, src: String) -> Result<usize, String> {
+        let docs = query::parse_documents(&src)?;
+        let collection = self.handle();
+        let n = docs.len();
+        if n == 1 {
+            collection
+                .insert_one(docs.into_iter().next().unwrap())
+                .await
+                .map_err(err)?;
+        } else {
+            collection.insert_many(docs).await.map_err(err)?;
+        }
+        Ok(n)
+    }
+
+    /// Writes the query's results to `path`, streaming from the cursor so memory
+    /// stays flat however many documents match. `limit` 0 exports everything.
+    /// JSON is an array of relaxed extended JSON; CSV has one column per
+    /// top-level field, with nested values written as JSON.
+    pub async fn export(self, args: FindArgs, format: ExportFormat, path: std::path::PathBuf) -> Result<u64, String> {
+        use std::io::Write;
+
+        let filter = parse_arg("Filter", &args.filter)?;
+        let sort = parse_arg("Sort", &args.sort)?;
+        let projection = parse_arg("Project", &args.projection)?;
+        let collection = self.handle();
+        let mut find = collection.find(filter).skip(args.skip);
+        if args.limit > 0 {
+            find = find.limit(args.limit);
+        }
+        if !sort.is_empty() {
+            find = find.sort(sort);
+        }
+        if !projection.is_empty() {
+            find = find.projection(projection);
+        }
+        let mut cursor = find.await.map_err(err)?;
+        let file = std::fs::File::create(&path).map_err(|e| e.to_string())?;
+        let mut out = std::io::BufWriter::new(file);
+        let io = |e: std::io::Error| e.to_string();
+        let mut written = 0u64;
+
+        match format {
+            ExportFormat::Json => {
+                out.write_all(b"[").map_err(io)?;
+                while let Some(doc) = cursor.try_next().await.map_err(err)? {
+                    out.write_all(if written == 0 { b"\n" } else { b",\n" }).map_err(io)?;
+                    serde_json::to_writer(&mut out, &Bson::Document(doc).into_relaxed_extjson())
+                        .map_err(|e| e.to_string())?;
+                    written += 1;
+                }
+                out.write_all(if written == 0 { b"]\n" } else { b"\n]\n" })
+                    .map_err(io)?;
+            }
+            ExportFormat::Csv => {
+                let mut sample = Vec::new();
+                while sample.len() < CSV_HEADER_SAMPLE {
+                    match cursor.try_next().await.map_err(err)? {
+                        Some(doc) => sample.push(doc),
+                        None => break,
+                    }
+                }
+                let headers = csv_headers(&sample);
+                writeln!(
+                    out,
+                    "{}",
+                    headers.iter().map(|h| csv_escape(h)).collect::<Vec<_>>().join(",")
+                )
+                .map_err(io)?;
+                let write_row = |doc: &Document, out: &mut std::io::BufWriter<std::fs::File>| -> Result<(), String> {
+                    let row: Vec<String> = headers
+                        .iter()
+                        .map(|h| doc.get(h).map(csv_cell).map(|c| csv_escape(&c)).unwrap_or_default())
+                        .collect();
+                    writeln!(out, "{}", row.join(",")).map_err(io)
+                };
+                for doc in &sample {
+                    write_row(doc, &mut out)?;
+                    written += 1;
+                }
+                while let Some(doc) = cursor.try_next().await.map_err(err)? {
+                    write_row(&doc, &mut out)?;
+                    written += 1;
+                }
+            }
+        }
+        out.flush().map_err(io)?;
+        Ok(written)
+    }
+
+    /// Creates the collection; an existing name is an error (MongoDB 7+
+    /// would silently accept it).
+    pub async fn create(self) -> Result<(), String> {
+        let database = self.client.database(&self.db);
+        if database
+            .list_collection_names()
+            .await
+            .map_err(err)?
+            .contains(&self.name)
+        {
+            return Err(t!("errors.collection_exists", name = self.name).into());
+        }
+        database.create_collection(&self.name).await.map_err(err)
+    }
+
+    pub async fn drop(self) -> Result<(), String> {
+        self.handle().drop().await.map_err(err)
+    }
+
+    pub async fn rename(self, to: String) -> Result<(), String> {
+        let (db, from) = (&self.db, &self.name);
+        self.client
+            .database("admin")
+            .run_command(doc! { "renameCollection": format!("{db}.{from}"), "to": format!("{db}.{to}") })
+            .await
+            .map(|_| ())
+            .map_err(err)
+    }
+}
+
+/// Live tests: `HUMON_TEST_URI=mongodb://... cargo test -- --ignored`, with
+/// `scripts/seed-test-db.js` loaded. Each writing test uses its own scratch
+/// collection or database and drops it, so the tests can run in parallel.
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    async fn client() -> Client {
+        open(std::env::var("HUMON_TEST_URI").expect("HUMON_TEST_URI"))
+            .await
+            .unwrap()
+    }
+
+    async fn users() -> CollectionRef {
+        CollectionRef::new(client().await, "shop", "users")
+    }
+
+    /// A fresh, empty collection in `shop` for one test.
+    async fn scratch(name: &str) -> CollectionRef {
+        let coll = CollectionRef::new(client().await, "shop", name);
+        coll.clone().drop().await.ok();
+        coll
+    }
 
     fn args(filter: &str, sort: &str, projection: &str, skip: u64, limit: i64) -> FindArgs {
         FindArgs {
@@ -457,176 +484,119 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
-    async fn live_server() {
-        let uri = std::env::var("HUMON_TEST_URI").expect("HUMON_TEST_URI");
-        let c = open(uri).await.unwrap();
-        let (db, users) = ("shop".to_string(), "users".to_string());
-
+    #[ignore = "needs a live MongoDB"]
+    async fn live_browse() {
+        let c = client().await;
         let dbs: Vec<String> = databases(c.clone())
             .await
             .unwrap()
             .into_iter()
             .map(|d| d.name)
             .collect();
-        assert!(dbs.contains(&db), "{dbs:?}");
-        let cols = collections(c.clone(), db.clone()).await.unwrap();
+        assert!(dbs.contains(&"shop".to_string()), "{dbs:?}");
+        let cols = collections(c, "shop".into()).await.unwrap();
         assert!(cols.iter().any(|x| x.name == "adults" && x.kind == CollKind::View));
+        assert!(cols.iter().any(|x| x.name == "users" && x.kind == CollKind::Collection));
+    }
 
-        // Ages cycle 18..=67; city is Izmir when i % 3 == 0.
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_count() {
+        // Ages cycle 18..=67 over 137 users; city is Izmir when i % 3 == 0.
+        assert_eq!(users().await.count("".into()).await.unwrap(), Some(137));
         assert_eq!(
-            count(c.clone(), db.clone(), users.clone(), "".into()).await.unwrap(),
-            Some(137)
-        );
-        assert_eq!(
-            count(
-                c.clone(),
-                db.clone(),
-                users.clone(),
-                "{ 'address.city': 'Izmir' }".into()
-            )
-            .await
-            .unwrap(),
+            users().await.count("{ 'address.city': 'Izmir' }".into()).await.unwrap(),
             Some(46)
         );
+        let view = CollectionRef::new(client().await, "shop", "adults");
         assert!(
-            count(c.clone(), db.clone(), "adults".into(), "".into())
-                .await
-                .unwrap()
-                .unwrap()
-                > 0
+            view.count("".into()).await.unwrap().unwrap() > 0,
+            "views fall back to an exact count"
         );
+        assert!(
+            users()
+                .await
+                .count("{ age: ".into())
+                .await
+                .unwrap_err()
+                .starts_with("Filter:")
+        );
+    }
 
-        let page = find(
-            c.clone(),
-            db.clone(),
-            users.clone(),
-            args(
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_find() {
+        let page = users()
+            .await
+            .find(args(
                 "{ age: { $gte: 60 } }",
                 "{ age: -1, name: 1 }",
                 "{ _id: 0, name: 1, age: 1, big: 1 }",
                 0,
                 5,
-            ),
-        )
-        .await
-        .unwrap()
-        .docs;
+            ))
+            .await
+            .unwrap()
+            .docs;
         assert_eq!(page.len(), 5);
         let first = page[0].as_object().unwrap();
+        // Projection keeps the stored field order; types survive as canonical EJSON.
         assert_eq!(first.keys().collect::<Vec<_>>(), ["name", "age", "big"]);
         assert_eq!(first["age"], json!({ "$numberInt": "67" }));
         assert_eq!(first["big"], json!({ "$numberLong": "9007199254740993" }));
+        let len = |a| async move { users().await.find(a).await.unwrap().docs.len() };
+        assert_eq!(len(args("", "{ name: 1 }", "", 135, 20)).await, 2, "skip near the end");
         assert_eq!(
-            find(
-                c.clone(),
-                db.clone(),
-                users.clone(),
-                args("", "{ name: 1 }", "", 135, 20)
-            )
-            .await
-            .unwrap()
-            .docs
-            .len(),
+            len(args("{ createdAt: { $lt: ISODate('2024-01-03') } }", "", "", 0, 50)).await,
             2
         );
-        assert_eq!(
-            find(
-                c.clone(),
-                db.clone(),
-                users.clone(),
-                args("{ createdAt: { $lt: ISODate('2024-01-03') } }", "", "", 0, 50)
-            )
-            .await
-            .unwrap()
-            .docs
-            .len(),
-            2
-        );
-        assert_eq!(
-            find(
-                c.clone(),
-                db.clone(),
-                users.clone(),
-                args("{ name: /^user1\\d$/ }", "", "", 0, 50)
-            )
-            .await
-            .unwrap()
-            .docs
-            .len(),
-            10
-        );
-        let bad = find(c.clone(), db.clone(), users.clone(), args("{ age: ", "", "", 0, 5))
-            .await
-            .unwrap_err();
+        assert_eq!(len(args("{ name: /^user1\\d$/ }", "", "", 0, 50)).await, 10);
+        let bad = users().await.find(args("{ age: ", "", "", 0, 5)).await.unwrap_err();
         assert!(bad.starts_with("Filter:"), "{bad}");
+    }
 
-        let scratch = "humon_write_test".to_string();
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_writes() {
+        let coll = scratch("humon_test_writes").await;
+        assert_eq!(coll.clone().insert("[{ n: 1 }, { n: 2 }]".into()).await.unwrap(), 2);
         assert_eq!(
-            insert(c.clone(), db.clone(), scratch.clone(), "[{ n: 1 }, { n: 2 }]".into())
+            coll.clone()
+                .insert("{ _id: 'k', n: 3, at: ISODate('2024-05-01') }".into())
                 .await
                 .unwrap(),
-            2
-        );
-        assert_eq!(
-            insert(
-                c.clone(),
-                db.clone(),
-                scratch.clone(),
-                "{ _id: 'k', n: 3, at: ISODate('2024-05-01') }".into()
-            )
-            .await
-            .unwrap(),
             1
         );
         let key = json!("k");
-        replace(
-            c.clone(),
-            db.clone(),
-            scratch.clone(),
-            key.clone(),
-            "{ n: NumberLong(4), extra: true }".into(),
-        )
-        .await
-        .unwrap();
-        let stored = get(c.clone(), db.clone(), scratch.clone(), key.clone())
+        coll.clone()
+            .replace(key.clone(), "{ n: NumberLong(4), extra: true }".into())
             .await
-            .unwrap()
             .unwrap();
+        let stored = coll.clone().get(key.clone()).await.unwrap().unwrap();
         assert_eq!(
             stored,
-            json!({ "_id": "k", "n": { "$numberLong": "4" }, "extra": true })
+            json!({ "_id": "k", "n": { "$numberLong": "4" }, "extra": true }),
+            "replace drops fields left out"
         );
-        let changed_id = replace(
-            c.clone(),
-            db.clone(),
-            scratch.clone(),
-            key.clone(),
-            "{ _id: 'other' }".into(),
-        )
-        .await
-        .unwrap_err();
-        assert_eq!(changed_id, t!("errors.id_immutable"));
-        delete(c.clone(), db.clone(), scratch.clone(), key.clone())
+        let changed_id = coll
+            .clone()
+            .replace(key.clone(), "{ _id: 'other' }".into())
             .await
-            .unwrap();
-        assert_eq!(
-            delete(c.clone(), db.clone(), scratch.clone(), key.clone())
-                .await
-                .unwrap_err(),
-            gone()
-        );
-        assert_eq!(
-            replace(c.clone(), db.clone(), scratch.clone(), key, "{}".into())
-                .await
-                .unwrap_err(),
-            gone()
-        );
-        c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
+            .unwrap_err();
+        assert_eq!(changed_id, t!("errors.id_immutable"));
+        coll.clone().delete(key.clone()).await.unwrap();
+        assert_eq!(coll.clone().delete(key.clone()).await.unwrap_err(), gone());
+        assert_eq!(coll.clone().replace(key, "{}".into()).await.unwrap_err(), gone());
+        coll.drop().await.unwrap();
+    }
 
-        // Opening a document in the editor and saving it unchanged must store
-        // exactly the same BSON, types included.
+    /// Opening a document in the editor and saving it unchanged must store
+    /// exactly the same BSON, types included.
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_unchanged_edit_round_trips_every_type() {
         use mongodb::bson::{Binary, DateTime, Decimal128, Regex, Timestamp, oid::ObjectId, spec::BinarySubtype};
+        let coll = scratch("humon_test_round_trip").await;
         let exotic = doc! {
             "_id": ObjectId::new(),
             "i32": 7, "i64": 9_007_199_254_740_993_i64, "whole": 1.0, "frac": 0.1, "neg": -2.5,
@@ -645,77 +615,65 @@ mod tests {
             "min": Bson::MinKey, "max": Bson::MaxKey,
         };
         let id = Bson::from(exotic.get_object_id("_id").unwrap()).into_canonical_extjson();
-        c.database(&db)
-            .collection::<Document>(&scratch)
-            .insert_one(exotic)
-            .await
-            .unwrap();
-        let before = get(c.clone(), db.clone(), scratch.clone(), id.clone())
-            .await
-            .unwrap()
-            .unwrap();
+        coll.handle().insert_one(exotic).await.unwrap();
+        let before = coll.clone().get(id.clone()).await.unwrap().unwrap();
         let editor_text = crate::shell::to_shell(&before, "");
-        replace(c.clone(), db.clone(), scratch.clone(), id.clone(), editor_text.clone())
+        coll.clone().replace(id.clone(), editor_text.clone()).await.unwrap();
+        let after = coll.clone().get(id).await.unwrap().unwrap();
+        assert_eq!(after, before, "editor text was:\n{editor_text}");
+        coll.drop().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_export() {
+        let dir = crate::files::test_dir("export");
+        let json_path = dir.join("users.json");
+        let n = users()
+            .await
+            .export(
+                args("{ age: { $gte: 60 } }", "{ name: 1 }", "", 0, 0),
+                ExportFormat::Json,
+                json_path.clone(),
+            )
             .await
             .unwrap();
-        let after = get(c.clone(), db.clone(), scratch.clone(), id).await.unwrap().unwrap();
-        assert_eq!(after, before, "editor text was:\n{editor_text}");
-        c.database(&db).collection::<Document>(&scratch).drop().await.unwrap();
-
-        // Export streams every match to a file.
-        let dir = std::env::temp_dir();
-        let json_path = dir.join("humon-export-test.json");
-        let n = export(
-            c.clone(),
-            db.clone(),
-            users.clone(),
-            args("{ age: { $gte: 60 } }", "{ name: 1 }", "", 0, 0),
-            ExportFormat::Json,
-            json_path.clone(),
-        )
-        .await
-        .unwrap();
         let parsed: Vec<Value> = serde_json::from_str(&std::fs::read_to_string(&json_path).unwrap()).unwrap();
         assert_eq!(parsed.len() as u64, n);
         assert_eq!(
-            n,
-            count(c.clone(), db.clone(), users.clone(), "{ age: { $gte: 60 } }".into())
-                .await
-                .unwrap()
-                .unwrap()
+            Some(n),
+            users().await.count("{ age: { $gte: 60 } }".into()).await.unwrap()
         );
         assert!(
             parsed[0]["_id"]["$oid"].is_string(),
             "relaxed EJSON keeps ObjectId typed"
         );
-        let csv_path = dir.join("humon-export-test.csv");
-        let n = export(
-            c.clone(),
-            db.clone(),
-            users.clone(),
-            args("", "{ name: 1 }", "{ name: 1, age: 1 }", 0, 3),
-            ExportFormat::Csv,
-            csv_path.clone(),
-        )
-        .await
-        .unwrap();
+        let csv_path = dir.join("users.csv");
+        let n = users()
+            .await
+            .export(
+                args("", "{ name: 1 }", "{ name: 1, age: 1 }", 0, 3),
+                ExportFormat::Csv,
+                csv_path.clone(),
+            )
+            .await
+            .unwrap();
         let csv = std::fs::read_to_string(&csv_path).unwrap();
         assert_eq!(n, 3);
         assert_eq!(csv.lines().next(), Some("_id,name,age"));
         assert_eq!(csv.lines().count(), 4);
-        let _ = (std::fs::remove_file(json_path), std::fs::remove_file(csv_path));
+    }
 
-        // Database and collection management, in a throwaway database.
-        let tmp = "humon_tmp_db".to_string();
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_manage_databases_and_collections() {
+        let c = client().await;
+        let tmp = "humon_test_manage".to_string();
         drop_database(c.clone(), tmp.clone()).await.unwrap(); // leftovers from an aborted run
-        create_collection(c.clone(), tmp.clone(), "a".into()).await.unwrap();
-        assert!(
-            create_collection(c.clone(), tmp.clone(), "a".into()).await.is_err(),
-            "duplicate name"
-        );
-        rename_collection(c.clone(), tmp.clone(), "a".into(), "b".into())
-            .await
-            .unwrap();
+        let a = CollectionRef::new(c.clone(), &tmp, "a");
+        a.clone().create().await.unwrap();
+        assert!(a.clone().create().await.is_err(), "an existing name is an error");
+        a.rename("b".into()).await.unwrap();
         let names: Vec<String> = collections(c.clone(), tmp.clone())
             .await
             .unwrap()
@@ -723,15 +681,10 @@ mod tests {
             .map(|x| x.name)
             .collect();
         assert_eq!(names, ["b"]);
-        drop_collection(c.clone(), tmp.clone(), "b".into()).await.unwrap();
-        create_collection(c.clone(), tmp.clone(), "c".into()).await.unwrap();
+        CollectionRef::new(c.clone(), &tmp, "b").drop().await.unwrap();
+        CollectionRef::new(c.clone(), &tmp, "c").create().await.unwrap();
         drop_database(c.clone(), tmp.clone()).await.unwrap();
-        let dbs: Vec<String> = databases(c.clone())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|d| d.name)
-            .collect();
+        let dbs: Vec<String> = databases(c).await.unwrap().into_iter().map(|d| d.name).collect();
         assert!(!dbs.contains(&tmp));
     }
 }

@@ -11,7 +11,7 @@ use rust_i18n::t;
 
 use crate::app::Humon;
 use crate::history;
-use crate::mongo;
+use crate::mongo::{self, CollectionRef};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum SidebarEdit {
@@ -169,10 +169,13 @@ impl Humon {
             let edit = edit.clone();
             async move {
                 match edit {
-                    SidebarEdit::NewDb { .. } => mongo::create_collection(client, name, second).await,
-                    SidebarEdit::NewColl { db, .. } => mongo::create_collection(client, db, name).await,
-                    SidebarEdit::RenameColl { db, coll, .. } => mongo::rename_collection(client, db, coll, name).await,
-                    SidebarEdit::DropColl { db, coll, .. } => mongo::drop_collection(client, db, coll).await,
+                    // The new database's name is `name`, its first collection `second`.
+                    SidebarEdit::NewDb { .. } => CollectionRef::new(client, &name, &second).create().await,
+                    SidebarEdit::NewColl { db, .. } => CollectionRef::new(client, &db, &name).create().await,
+                    SidebarEdit::RenameColl { db, coll, .. } => {
+                        CollectionRef::new(client, &db, &coll).rename(name).await
+                    }
+                    SidebarEdit::DropColl { db, coll, .. } => CollectionRef::new(client, &db, &coll).drop().await,
                     SidebarEdit::DropDb { db, .. } => mongo::drop_database(client, db).await,
                 }
             }
@@ -198,9 +201,9 @@ impl Humon {
                 for tab in self
                     .tabs
                     .iter_mut()
-                    .filter(|t| t.conn_id == conn && t.db == db && t.coll == coll)
+                    .filter(|t| t.conn_id == conn && t.target.db == db && t.target.name == coll)
                 {
-                    tab.coll = new_name.to_string();
+                    tab.target.name = new_name.to_string();
                 }
                 self.history
                     .rename(&history::key(&conn, &db, &coll), &history::key(&conn, &db, new_name));
@@ -208,13 +211,13 @@ impl Humon {
                 self.reload_collections(&conn, &db, window, cx);
             }
             SidebarEdit::DropColl { conn, db, coll } => {
-                self.close_tabs_where(|t| t.conn_id == conn && t.db == db && t.coll == coll);
+                self.close_tabs_where(|t| t.conn_id == conn && t.target.db == db && t.target.name == coll);
                 self.history.forget(&history::key(&conn, &db, &coll));
                 self.persist_history();
                 self.reload_collections(&conn, &db, window, cx);
             }
             SidebarEdit::DropDb { conn, db } => {
-                self.close_tabs_where(|t| t.conn_id == conn && t.db == db);
+                self.close_tabs_where(|t| t.conn_id == conn && t.target.db == db);
                 self.history.forget(&format!("{conn}/{db}"));
                 self.persist_history();
                 self.refresh_dbs(&conn, window, cx);

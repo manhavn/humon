@@ -103,7 +103,19 @@ impl Humon {
         let mut rows = Vec::new();
         if let Value::Object(map) = doc {
             for (k, v) in map {
-                self.push_rows(&mut rows, tab, &format!("{ix}"), k, v, 0, syntax, cx);
+                let parent = ix.to_string();
+                self.push_rows(
+                    &mut rows,
+                    tab,
+                    Field {
+                        parent: &parent,
+                        key: k,
+                        value: v,
+                        depth: 0,
+                    },
+                    syntax,
+                    cx,
+                );
             }
         }
         div()
@@ -129,23 +141,25 @@ impl Humon {
     }
 
     /// One row per field; nested objects and arrays start collapsed.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn push_rows(
         &self,
         rows: &mut Vec<AnyElement>,
         tab: &Tab,
-        parent: &str,
-        key: &str,
-        value: &Value,
-        depth: usize,
+        field: Field,
         syntax: &Arc<HighlightTheme>,
         cx: &mut Context<Self>,
     ) {
+        let Field {
+            parent,
+            key,
+            value,
+            depth,
+        } = field;
         let theme = cx.theme();
         let (muted, hover) = (theme.muted_foreground, theme.list_hover);
         let path = format!("{parent}/{key}");
         let container = match value {
-            Value::Object(m) if !is_typed(m) => Some(if m.is_empty() {
+            Value::Object(m) if !is_wrapper(m) => Some(if m.is_empty() {
                 "{}".to_string()
             } else {
                 t!("tree.fields", n = m.len()).into()
@@ -206,12 +220,25 @@ impl Humon {
         match value {
             Value::Object(m) => {
                 for (k, v) in m {
-                    self.push_rows(rows, tab, &path, k, v, depth + 1, syntax, cx);
+                    let child = Field {
+                        parent: &path,
+                        key: k,
+                        value: v,
+                        depth: depth + 1,
+                    };
+                    self.push_rows(rows, tab, child, syntax, cx);
                 }
             }
             Value::Array(a) => {
                 for (i, v) in a.iter().enumerate() {
-                    self.push_rows(rows, tab, &path, &i.to_string(), v, depth + 1, syntax, cx);
+                    let key = i.to_string();
+                    let child = Field {
+                        parent: &path,
+                        key: &key,
+                        value: v,
+                        depth: depth + 1,
+                    };
+                    self.push_rows(rows, tab, child, syntax, cx);
                 }
             }
             _ => {}
@@ -219,7 +246,11 @@ impl Humon {
     }
 }
 
-/// Whether an object is an extended JSON wrapper like `{"$oid": …}`, shown as one value.
-pub(crate) fn is_typed(m: &Map<String, Value>) -> bool {
-    m.len() <= 2 && m.keys().next().is_some_and(|k| k.starts_with('$'))
+/// One field of a document, as the tree draws it.
+pub(crate) struct Field<'a> {
+    /// Path of the containing value, used to remember what is expanded.
+    pub parent: &'a str,
+    pub key: &'a str,
+    pub value: &'a Value,
+    pub depth: usize,
 }

@@ -84,11 +84,11 @@ impl Humon {
         tab.card_error = None;
         // Edit the full stored document: the tab may show a projection, and
         // saving a projected copy would drop the hidden fields.
-        let fut = mongo::get(tab.client.clone(), tab.db.clone(), tab.coll.clone(), doc_id.clone());
+        let fut = tab.target.clone().get(doc_id.clone());
         self.run(fut, window, cx, move |this, res, window, cx| {
             let text = match res {
                 Ok(Some(full)) => to_shell(&full, ""),
-                Ok(None) => return this.set_card_error(id, ix, mongo::gone()),
+                Ok(None) => return this.set_card_error(id, ix, crate::mongo::gone()),
                 Err(e) => return this.set_card_error(id, ix, e),
             };
             let editor = new_editor(text, id, EditorSlot::Edit, window, cx);
@@ -111,13 +111,7 @@ impl Humon {
         editor.saving = true;
         editor.error = None;
         let text = editor.state.read(cx).value().to_string();
-        let fut = mongo::replace(
-            tab.client.clone(),
-            tab.db.clone(),
-            tab.coll.clone(),
-            doc_id.clone(),
-            text,
-        );
+        let fut = tab.target.clone().replace(doc_id.clone(), text);
         self.run(fut, window, cx, move |this, res, window, cx| {
             let Some(tab) = this.tab_mut(id) else { return };
             match res {
@@ -153,7 +147,7 @@ impl Humon {
         editor.saving = true;
         editor.error = None;
         let text = editor.state.read(cx).value().to_string();
-        let fut = mongo::insert(tab.client.clone(), tab.db.clone(), tab.coll.clone(), text);
+        let fut = tab.target.clone().insert(text);
         self.run(fut, window, cx, move |this, res, window, cx| {
             let Some(tab) = this.tab_mut(id) else { return };
             match res {

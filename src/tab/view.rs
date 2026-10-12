@@ -116,7 +116,7 @@ impl Humon {
             move |this, _, window, cx| {
                 let Some((conn, db, coll)) = this
                     .tab_mut(id)
-                    .map(|t| (t.conn_id.clone(), t.db.clone(), t.coll.clone()))
+                    .map(|t| (t.conn_id.clone(), t.target.db.clone(), t.target.name.clone()))
                 else {
                     return;
                 };

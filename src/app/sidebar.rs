@@ -372,17 +372,25 @@ impl Humon {
                     );
                 }
                 for coll in matching {
-                    let is_active =
-                        active.is_some_and(|t| t.conn_id == id && t.db == db.info.name && t.coll == coll.name);
-                    let (sid, dbn, cn, kind) = (id.clone(), db.info.name.clone(), coll.name.clone(), coll.kind);
-                    let open = cx.listener(move |this, ev: &ClickEvent, window, cx| {
-                        let m = ev.modifiers();
-                        this.open_collection(&sid, &dbn, &cn, kind, m.platform || m.control, window, cx);
-                        cx.notify();
+                    let is_active = active
+                        .is_some_and(|t| t.conn_id == id && t.target.db == db.info.name && t.target.name == coll.name);
+                    let kind = coll.kind;
+                    let at = std::rc::Rc::new(CollectionAt {
+                        conn_id: id.clone(),
+                        db: db.info.name.clone(),
+                        coll: coll.name.clone(),
+                        kind,
                     });
-                    let (sid, dbn, cn) = (id.clone(), db.info.name.clone(), coll.name.clone());
+                    let open = cx.listener({
+                        let at = at.clone();
+                        move |this, ev: &ClickEvent, window, cx| {
+                            let m = ev.modifiers();
+                            this.open_collection(&at, m.platform || m.control, window, cx);
+                            cx.notify();
+                        }
+                    });
                     let open_new = cx.listener(move |this, _: &MouseDownEvent, window, cx| {
-                        this.open_collection(&sid, &dbn, &cn, kind, true, window, cx);
+                        this.open_collection(&at, true, window, cx);
                         cx.notify();
                     });
                     let coll_group: SharedString = format!("coll-{id}-{di}-{}", coll.name).into();

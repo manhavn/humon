@@ -35,7 +35,7 @@ impl Humon {
                 d.when_some(c.color(), |d, color| {
                     d.child(div().size(px(7.)).rounded_full().bg(color))
                 })
-                .child(format!("{} · {}.{}", c.saved.name, tab.db, tab.coll))
+                .child(format!("{} · {}.{}", c.saved.name, tab.target.db, tab.target.name))
             })
     }
 }

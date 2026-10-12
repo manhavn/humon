@@ -23,9 +23,9 @@ impl Humon {
             },
             limit: if tab.export_all { 0 } else { tab.page_size },
         };
-        let (client, db, coll) = (tab.client.clone(), tab.db.clone(), tab.coll.clone());
+        let target = tab.target.clone();
         let downloads = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Downloads");
-        let picked = cx.prompt_for_new_path(&downloads, Some(&format!("{coll}.{}", format.extension())));
+        let picked = cx.prompt_for_new_path(&downloads, Some(&format!("{}.{}", target.name, format.extension())));
         tab.exporting = true;
         tab.notice = Some(t!("export.running").into());
         cx.spawn_in(window, async move |this, cx| {
@@ -48,7 +48,7 @@ impl Humon {
                 .file_name()
                 .map(|f| f.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            let res = RT.spawn(mongo::export(client, db, coll, args, format, path)).await;
+            let res = RT.spawn(target.export(args, format, path)).await;
             this.update(cx, |this, cx| {
                 if let Some(tab) = this.tab_mut(id) {
                     tab.exporting = false;
@@ -156,7 +156,7 @@ impl Humon {
         );
         let mono = theme.mono_font_family.clone();
         let id = tab.id;
-        let key = history::key(&tab.conn_id, &tab.db, &tab.coll);
+        let key = history::key(&tab.conn_id, &tab.target.db, &tab.target.name);
         let favorites = self.history.favorites(&key);
         let recent = self.history.recent(&key);
         let row = |prefix: String, query: &Query, icon: &'static str, color: Hsla| {

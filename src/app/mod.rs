@@ -14,7 +14,7 @@ use mongodb::Client;
 use crate::console::view::ConsoleTab;
 use crate::history::History;
 use crate::manage::{EditForm, SidebarEdit};
-use crate::mongo::{self, CollKind, CollectionInfo, DatabaseInfo, RT};
+use crate::mongo::{self, CollKind, CollectionInfo, CollectionRef, DatabaseInfo, RT};
 use crate::settings::{self, Settings};
 use crate::store::{SavedConnection, Store};
 use crate::tab::Tab;
@@ -95,6 +95,14 @@ fn parse_color(hex: &str) -> Option<Hsla> {
     u32::from_str_radix(hex.strip_prefix('#')?, 16)
         .ok()
         .map(|v| rgb(v).into())
+}
+
+/// A collection to open, by saved connection.
+pub struct CollectionAt {
+    pub conn_id: String,
+    pub db: String,
+    pub coll: String,
+    pub kind: CollKind,
 }
 
 /// After closing tab `closed`, the tab to activate among `open_ids` (in tab
@@ -281,33 +289,30 @@ impl Humon {
     }
 
     /// Focuses the collection's tab or opens one; `new_tab` always opens another.
-    #[allow(clippy::too_many_arguments)]
-    fn open_collection(
-        &mut self,
-        saved_id: &str,
-        db: &str,
-        coll: &str,
-        kind: CollKind,
-        new_tab: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn open_collection(&mut self, at: &CollectionAt, new_tab: bool, window: &mut Window, cx: &mut Context<Self>) {
         if !new_tab
             && let Some(tab) = self
                 .tabs
                 .iter()
-                .find(|t| t.conn_id == saved_id && t.db == db && t.coll == coll)
+                .find(|t| t.conn_id == at.conn_id && t.target.db == at.db && t.target.name == at.coll)
         {
             self.active_tab = Some(tab.id);
             return;
         }
-        let Some(ix) = self.conn_ix(saved_id) else { return };
+        let Some(ix) = self.conn_ix(&at.conn_id) else { return };
         let Some(client) = self.conns[ix].client.clone() else {
             return;
         };
         let id = self.next_tab_id;
         self.next_tab_id += 1;
-        let tab = Tab::new(id, saved_id, client, db, coll, kind, window, cx);
+        let tab = Tab::new(
+            id,
+            &at.conn_id,
+            CollectionRef::new(client, &at.db, &at.coll),
+            at.kind,
+            window,
+            cx,
+        );
         self.tabs.push(tab);
         self.active_tab = Some(id);
         self.run_query(id, window, cx);

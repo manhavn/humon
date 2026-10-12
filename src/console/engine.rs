@@ -533,7 +533,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "needs a live MongoDB"]
     fn live_navigation() {
         let mut e = live();
         let dbs = e.eval("show dbs");
@@ -555,7 +555,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "needs a live MongoDB"]
     fn live_reads() {
         let mut e = live();
         // Ages cycle 18..=67 over 137 users; city is Izmir when i % 3 == 0.
@@ -605,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "needs a live MongoDB"]
     fn live_cursor_pages_with_it() {
         let mut e = live();
         let first = e.eval("db.users.find({}, { _id: 0, name: 1 }).sort({ name: 1 })");
@@ -635,7 +635,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore = "needs a live MongoDB"]
     fn live_writes() {
         let mut e = live();
         e.eval("db.humon_console_test.drop()");

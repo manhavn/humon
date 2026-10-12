@@ -77,7 +77,13 @@ impl Humon {
                     .and_then(|d| d.collections.iter().flatten().find(|c| c.name == coll))
                     .map_or(CollKind::Collection, |c| c.kind);
                 self.show_settings = false;
-                self.open_collection(&item.conn_id, &item.db, &coll, kind, false, window, cx);
+                let at = CollectionAt {
+                    conn_id: item.conn_id,
+                    db: item.db,
+                    coll,
+                    kind,
+                };
+                self.open_collection(&at, false, window, cx);
             }
         }
     }

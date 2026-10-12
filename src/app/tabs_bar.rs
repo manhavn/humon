@@ -26,7 +26,7 @@ impl Humon {
         let mut labels: Vec<(usize, &str, String, String)> = self
             .tabs
             .iter()
-            .map(|t| (t.id, t.conn_id.as_str(), t.coll.clone(), t.db.clone()))
+            .map(|t| (t.id, t.conn_id.as_str(), t.target.name.clone(), t.target.db.clone()))
             .chain(self.consoles.iter().map(|c| {
                 (
                     c.id,

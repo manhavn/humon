@@ -69,6 +69,12 @@ fn typed(obj: &Map<String, Value>) -> Option<String> {
     })
 }
 
+/// Whether an object is an extended JSON wrapper (`{"$oid": …}` and the
+/// like) that stands for one typed value rather than a document.
+pub fn is_wrapper(obj: &Map<String, Value>) -> bool {
+    typed(obj).is_some()
+}
+
 pub fn to_shell(v: &Value, indent: &str) -> String {
     let inner = format!("{indent}  ");
     match v {
@@ -103,7 +109,7 @@ pub fn to_shell(v: &Value, indent: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::to_shell;
+    use super::{is_wrapper, to_shell};
     use serde_json::json;
 
     #[test]
@@ -173,6 +179,19 @@ mod tests {
         // 15 bytes can't be a UUID; showing it as one would not parse back.
         let value = json!({ "$binary": { "base64": "EhISEhISEhISEhISEhIS", "subType": "04" } });
         assert_eq!(to_shell(&value, ""), r#"BinData(4, "EhISEhISEhISEhISEhIS")"#);
+    }
+
+    #[test]
+    fn wrappers_are_exactly_the_typed_values() {
+        let obj = |v: serde_json::Value| v.as_object().unwrap().clone();
+        assert!(is_wrapper(&obj(json!({ "$oid": "65a1b2c3d4e5f60718293a4b" }))));
+        assert!(is_wrapper(&obj(json!({ "$date": { "$numberLong": "0" } }))));
+        assert!(is_wrapper(&obj(json!({ "$numberLong": "5" }))));
+        // A field that merely starts with `$` is a normal (expandable) object.
+        assert!(!is_wrapper(&obj(json!({ "$foo": 1, "x": 2 }))));
+        assert!(!is_wrapper(&obj(json!({ "$set": { "a": 1 } }))));
+        assert!(!is_wrapper(&obj(json!({}))));
+        assert!(!is_wrapper(&obj(json!({ "a": 1 }))));
     }
 
     #[test]

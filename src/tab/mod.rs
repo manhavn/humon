@@ -13,14 +13,13 @@ use gpui_kit::component::input::{
 use gpui_kit::component::{ActiveTheme, Disableable};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
-use mongodb::Client;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use crate::app::Humon;
 use crate::highlight::{ShellHighlighter, tokenize};
 use crate::history::{self, Query};
-use crate::mongo::{self, CollKind, ExportFormat, FindArgs, RT};
-use crate::shell::to_shell;
+use crate::mongo::{CollKind, CollectionRef, ExportFormat, FindArgs, RT};
+use crate::shell::{is_wrapper, to_shell};
 use crate::smart::Smart;
 use rust_i18n::t;
 
@@ -48,9 +47,8 @@ enum ViewMode {
 pub struct Tab {
     pub id: usize,
     pub conn_id: String,
-    client: Client,
-    pub db: String,
-    pub coll: String,
+    /// The collection this tab shows; renaming it updates `target.name`.
+    pub target: CollectionRef,
     kind: CollKind,
     filter: Entity<InputState>,
     sort: Entity<InputState>,
@@ -60,7 +58,6 @@ pub struct Tab {
     page: u64,
     page_size: i64,
     docs: Vec<Value>,
-    /// None while counting; Some(None) when the count was too slow.
     count: Count,
     loading: bool,
     error: Option<String>,
@@ -91,13 +88,10 @@ pub struct Tab {
 }
 
 impl Tab {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: usize,
         conn_id: &str,
-        client: Client,
-        db: &str,
-        coll: &str,
+        target: CollectionRef,
         kind: CollKind,
         window: &mut Window,
         cx: &mut Context<Humon>,
@@ -123,9 +117,7 @@ impl Tab {
         Self {
             id,
             conn_id: conn_id.into(),
-            client,
-            db: db.into(),
-            coll: coll.into(),
+            target,
             kind,
             filter,
             sort,
@@ -270,7 +262,10 @@ impl Humon {
             projection: tab.projection.read(cx).value().to_string(),
         };
         tab.page = 0;
-        let (key, query) = (history::key(&tab.conn_id, &tab.db, &tab.coll), tab.applied.clone());
+        let (key, query) = (
+            history::key(&tab.conn_id, &tab.target.db, &tab.target.name),
+            tab.applied.clone(),
+        );
         self.history.record(&key, query);
         self.persist_history();
         self.refresh(id, window, cx);
@@ -302,7 +297,7 @@ impl Humon {
             sort: tab.sort.read(cx).value().to_string(),
             projection: tab.projection.read(cx).value().to_string(),
         };
-        let key = history::key(&tab.conn_id, &tab.db, &tab.coll);
+        let key = history::key(&tab.conn_id, &tab.target.db, &tab.target.name);
         if self.history.add_favorite(&key, query) {
             tab.notice = Some(t!("history.saved").into());
             self.persist_history();
@@ -315,12 +310,7 @@ impl Humon {
         tab.count = Count::Counting;
         tab.count_seq += 1;
         let seq = tab.count_seq;
-        let fut = mongo::count(
-            tab.client.clone(),
-            tab.db.clone(),
-            tab.coll.clone(),
-            tab.applied.filter.clone(),
-        );
+        let fut = tab.target.clone().count(tab.applied.filter.clone());
         self.run(fut, window, cx, move |this, res, _, _| {
             if let Some(tab) = this.tab_mut(id)
                 && tab.count_seq == seq
@@ -344,7 +334,7 @@ impl Humon {
             skip: tab.page * tab.page_size as u64,
             limit: tab.page_size,
         };
-        let fut = mongo::find(tab.client.clone(), tab.db.clone(), tab.coll.clone(), args);
+        let fut = tab.target.clone().find(args);
         self.run(fut, window, cx, move |this, res, window, cx| {
             let Some(tab) = this.tab_mut(id) else { return };
             if tab.seq != seq {
@@ -393,7 +383,7 @@ impl Humon {
         let Some(doc_id) = tab.docs.get(ix).and_then(doc_id) else {
             return;
         };
-        let fut = mongo::delete(tab.client.clone(), tab.db.clone(), tab.coll.clone(), doc_id);
+        let fut = tab.target.clone().delete(doc_id);
         self.run(fut, window, cx, move |this, res, window, cx| match res {
             Ok(()) => this.refresh(id, window, cx),
             Err(e) => this.set_card_error(id, ix, e),
