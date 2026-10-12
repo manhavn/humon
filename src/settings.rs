@@ -97,10 +97,21 @@ mod tests {
             "app.", "sidebar.", "form.", "tab.", "card.", "tree.", "status.", "kind.", "errors.", "settings.", "query.",
             "history.", "manage.", "export.",
         ];
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    rust_files(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        rust_files(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
         let mut keys = Vec::new();
-        for entry in std::fs::read_dir(dir).unwrap() {
-            let code = std::fs::read_to_string(entry.unwrap().path()).unwrap();
+        for path in files {
+            let code = std::fs::read_to_string(path).unwrap();
             for literal in code.split('"').skip(1).step_by(2) {
                 let is_key = NAMESPACES.iter().any(|ns| literal.starts_with(ns))
                     && !literal.ends_with('.')
