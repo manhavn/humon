@@ -141,7 +141,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made.
 | `src/mongo.rs` | Talking to MongoDB (runs on tokio) |
 | `src/query.rs` | Mongo shell syntax → BSON |
 | `src/shell.rs` | Extended JSON → shell text |
-| `src/highlight.rs` | Syntax colors for the tree and the editor |
+| `src/highlight/` | Syntax colors: a pure lexer, and its hookup to the code editor |
 | `src/smart.rs` | The typing helpers |
 | `src/store.rs`, `src/history.rs`, `src/settings.rs`, `src/files.rs` | Saved connections, query history, settings, and the JSON files behind them |
 
