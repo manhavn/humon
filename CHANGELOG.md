@@ -6,6 +6,8 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-12
+
 - Update check: on start humon asks GitHub for the latest release and shows
   a small notice under the sidebar when a newer one is out (can be turned
   off in Settings)
