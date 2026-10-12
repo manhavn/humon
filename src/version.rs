@@ -87,7 +87,12 @@ mod tests {
     fn live_fetch_latest_from_github() {
         let release = super::fetch_latest().expect("GitHub answered with a release");
         assert!(super::parse_version(&release.version).is_some(), "{release:?}");
-        assert!(release.url.starts_with("https://github.com/yldrmzffr/humon/releases/tag/v"), "{release:?}");
+        assert!(
+            release
+                .url
+                .starts_with("https://github.com/yldrmzffr/humon/releases/tag/v"),
+            "{release:?}"
+        );
     }
 
     #[test]

@@ -14,6 +14,9 @@ grep -q "^## \[$version\]" CHANGELOG.md || { echo "add a '## [$version] - $(date
 
 # Only the package's own `version = ` line starts a line; dependencies use inline tables.
 sed -i.bak "s/^version = \".*\"/version = \"$version\"/" Cargo.toml && rm Cargo.toml.bak
+# The same checks as CI, so a tag never points at a red commit.
+cargo fmt --check
+cargo clippy --release --all-targets -- -D warnings
 cargo test --release
 # The first release keeps the version already in Cargo.toml: nothing to commit.
 git diff --quiet || git commit -qam "Release v$version"
