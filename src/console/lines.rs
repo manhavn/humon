@@ -18,6 +18,36 @@ pub struct Line {
     pub kind: LineKind,
 }
 
+/// One command and what it printed.
+#[derive(Debug, Clone)]
+pub struct Entry {
+    pub db: String,
+    pub code: String,
+    pub lines: Vec<Line>,
+}
+
+/// The whole session as plain text for the results pane: prompts and
+/// notes are `//` comments, so it stays valid shell code when copied.
+pub fn transcript(entries: &[Entry]) -> String {
+    let mut blocks = Vec::new();
+    for entry in entries {
+        let prompt = format!("{}> ", entry.db);
+        let mut out: Vec<String> = entry
+            .code
+            .lines()
+            .enumerate()
+            .map(|(i, line)| if i == 0 { format!("// {prompt}{line}") } else { format!("// {}{line}", " ".repeat(prompt.len())) })
+            .collect();
+        out.extend(entry.lines.iter().map(|l| match l.kind {
+            LineKind::Value | LineKind::Print => l.text.clone(),
+            LineKind::Info => format!("// {}", l.text),
+            LineKind::Error => format!("// ✖ {}", l.text),
+        }));
+        blocks.push(out.join("\n"));
+    }
+    blocks.join("\n\n")
+}
+
 pub fn lines(outputs: &[Output]) -> Vec<Line> {
     let mut out = Vec::new();
     let mut push = |text: &str, kind| out.extend(text.split('\n').map(|t| Line { text: t.to_string(), kind }));
@@ -34,7 +64,7 @@ pub fn lines(outputs: &[Output]) -> Vec<Line> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Line, LineKind, lines};
+    use super::{Entry, Line, LineKind, lines, transcript};
     use crate::console::engine::Output;
     use serde_json::json;
 
@@ -63,6 +93,19 @@ mod tests {
                 l("boom", LineKind::Error),
             ]
         );
+    }
+
+    #[test]
+    fn transcript_is_copyable_text_with_commented_prompts_and_notes() {
+        let entries = vec![
+            Entry { db: "shop".into(), code: "db.a.find()\n  .limit(1)".into(), lines: vec![l("[]", LineKind::Value), l("Type \"it\" for more", LineKind::Info)] },
+            Entry { db: "shop".into(), code: "print('hi'); oops".into(), lines: vec![l("hi", LineKind::Print), l("ReferenceError: oops is not defined", LineKind::Error)] },
+        ];
+        assert_eq!(
+            transcript(&entries),
+            "// shop> db.a.find()\n//         .limit(1)\n[]\n// Type \"it\" for more\n\n// shop> print('hi'); oops\nhi\n// ✖ ReferenceError: oops is not defined"
+        );
+        assert_eq!(transcript(&[]), "");
     }
 
     #[test]

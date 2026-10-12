@@ -28,6 +28,7 @@ tab.reset: Sıfırla
 tab.add: + Ekle
 tab.view_tree: Ağaç
 tab.view_table: Tablo
+tab.view_json: JSON
 tab.loading: Yükleniyor…
 tab.no_docs: Doküman yok
 tab.counting: sayılıyor…
@@ -104,7 +105,9 @@ console.run: Çalıştır
 console.stop: Durdur
 console.clear: Temizle
 console.running: çalışıyor…
-console.hint: Enter çalıştırır · Shift+Enter yeni satır · ↑↓ geçmiş
+console.hint: "⌘↵ çalıştırır (seçim varsa sadece onu) · ⌥↑↓ önceki komutlar"
+console.history: Geçmiş
+console.no_history: Henüz komut yok
 console.switched: "%{db} veritabanına geçildi"
 console.more: 'Devamı için "it" yaz'
 console.no_cursor: devam edecek cursor yok

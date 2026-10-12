@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::palette::{self, Item, Target};
+use gpui_kit::component::input::{Escape, MoveDown, MoveUp};
 
 /// Most rows the list shows; typing narrows the rest.
 const MAX_ROWS: usize = 12;
@@ -69,16 +70,12 @@ impl Humon {
         }
     }
 
-    fn palette_key(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+    /// Moves the selection; wraps around at either end.
+    fn palette_move(&mut self, down: bool, cx: &mut Context<Self>) {
         let count = self.palette_matches(cx).1.len().min(MAX_ROWS);
-        match ev.keystroke.key.as_str() {
-            "down" if count > 0 => self.palette_selected = (self.palette_selected + 1) % count,
-            "up" if count > 0 => self.palette_selected = (self.palette_selected + count - 1) % count,
-            "escape" => self.palette_open = false,
-            "enter" => self.activate_palette(window, cx),
-            _ => return,
+        if count > 0 {
+            self.palette_selected = if down { (self.palette_selected + 1) % count } else { (self.palette_selected + count - 1) % count };
         }
-        cx.stop_propagation();
         cx.notify();
     }
 
@@ -176,7 +173,21 @@ impl Humon {
                     .shadow_lg()
                     .overflow_hidden()
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .capture_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| this.palette_key(ev, window, cx)))
+                    // The input binds up/down/escape to its own actions, so take
+                    // them in the capture phase, before it sees them.
+                    .capture_action(cx.listener(|this, _: &MoveUp, _, cx| {
+                        cx.stop_propagation();
+                        this.palette_move(false, cx);
+                    }))
+                    .capture_action(cx.listener(|this, _: &MoveDown, _, cx| {
+                        cx.stop_propagation();
+                        this.palette_move(true, cx);
+                    }))
+                    .capture_action(cx.listener(|this, _: &Escape, _, cx| {
+                        cx.stop_propagation();
+                        this.palette_open = false;
+                        cx.notify();
+                    }))
                     .child(div().p_2().border_b_1().border_color(border).child(Input::new(&self.palette_input)))
                     .child(rows),
             )

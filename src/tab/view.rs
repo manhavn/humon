@@ -87,7 +87,7 @@ impl Humon {
                 })),
             );
         }
-        for (mode, key) in [(ViewMode::Tree, "tab.view_tree"), (ViewMode::Table, "tab.view_table")] {
+        for (mode, key) in [(ViewMode::Tree, "tab.view_tree"), (ViewMode::Table, "tab.view_table"), (ViewMode::Json, "tab.view_json")] {
             toolbar = toolbar.child(
                 Button::new(SharedString::from(format!("view-{key}")))
                     .label(t!(key))
@@ -150,6 +150,9 @@ impl Humon {
                 for (i, doc) in tab.docs.iter().enumerate() {
                     docs = docs.child(self.render_card(tab, i, doc, &syntax, cx));
                 }
+            }
+            ViewMode::Json => {
+                docs = docs.child(div().flex_1().min_h(px(200.)).child(Editor::new(&tab.json).readonly(true).h(relative(1.))));
             }
             ViewMode::Table => {
                 if let Some((_, _, editor)) = &tab.editing {

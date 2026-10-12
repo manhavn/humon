@@ -30,6 +30,7 @@ tab.reset: Reset
 tab.add: + Add
 tab.view_tree: Tree
 tab.view_table: Table
+tab.view_json: JSON
 tab.loading: Loading…
 tab.no_docs: No documents
 tab.counting: counting…
@@ -106,7 +107,9 @@ console.run: Run
 console.stop: Stop
 console.clear: Clear
 console.running: running…
-console.hint: Enter runs · Shift+Enter new line · ↑↓ history
+console.hint: "⌘↵ runs (just the selection, if any) · ⌥↑↓ earlier commands"
+console.history: History
+console.no_history: No commands yet
 console.switched: "switched to db %{db}"
 console.more: 'Type "it" for more'
 console.no_cursor: no cursor to continue

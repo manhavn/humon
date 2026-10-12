@@ -1,9 +1,9 @@
-//! The shell tab: an output log and an input editor wired to an engine.
-
-use std::rc::Rc;
+//! The shell tab, laid out like Studio 3T's IntelliShell: a multi-line
+//! editor on top, a read-only results pane below that can be selected,
+//! copied and searched like any editor.
 
 use gpui_kit::component::button::{Button, ButtonVariants};
-use gpui_kit::component::input::{Editor, EditorState, InputEvent, InputHighlighter};
+use gpui_kit::component::input::{Editor, EditorState, InputEvent, Position};
 use gpui_kit::component::{ActiveTheme, Disableable};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -12,48 +12,45 @@ use rust_i18n::t;
 
 use crate::app::Humon;
 use crate::console::engine::EngineHandle;
-use crate::console::lines::{Line, LineKind, lines};
+use crate::console::lines::{Entry, Line, LineKind, lines, transcript};
 use crate::console::recall::Recall;
-use crate::highlight::{ShellHighlighter, tokenize};
+use crate::highlight::shell_editor;
 use crate::smart::Smart;
 
-/// One command and what it printed.
-struct Entry {
-    db: String,
-    code: String,
-    lines: Vec<Line>,
-}
+gpui_kit::actions!(humon_shell, [HistoryPrev, HistoryNext]);
+
+/// The key context for the shell's own shortcuts (⌥↑/⌥↓).
+pub const KEY_CONTEXT: &str = "HumonShell";
+
+/// Commands the history menu lists.
+const HISTORY_ROWS: usize = 20;
 
 pub struct ConsoleTab {
     pub id: usize,
     pub conn_id: String,
-    /// The database `db` points at, shown in the prompt.
+    /// The database `db` points at, shown in the toolbar.
     pub db: String,
     handle: Option<EngineHandle>,
-    start_error: Option<String>,
-    input: Entity<EditorState>,
+    editor: Entity<EditorState>,
+    results: Entity<EditorState>,
     smart: Smart,
     recall: Recall,
     entries: Vec<Entry>,
     running: bool,
-    scroll: ScrollHandle,
+    history_open: bool,
     _subscriptions: Vec<Subscription>,
 }
 
 impl ConsoleTab {
     pub fn new(id: usize, conn_id: &str, client: Client, db: &str, window: &mut Window, cx: &mut Context<Humon>) -> Self {
-        let input = cx.new(|cx| {
-            let mut state = EditorState::new(window, cx)
-                .language("mongosh")
-                .line_number(false)
-                .folding(false)
-                .submit_on_enter(true);
-            state.set_highlighter_factory(Rc::new(|_| Some(Box::new(ShellHighlighter::default()) as Box<dyn InputHighlighter>)), cx);
+        let editor = cx.new(|cx| {
+            let state = shell_editor(window, cx);
             state.focus(window, cx);
             state
         });
-        let sub = cx.subscribe_in(&input, window, move |this: &mut Humon, input, ev: &InputEvent, window, cx| match ev {
-            InputEvent::PressEnter { shift: false, .. } => this.run_console(id, window, cx),
+        let results = cx.new(|cx| shell_editor(window, cx));
+        let sub = cx.subscribe_in(&editor, window, move |this: &mut Humon, input, ev: &InputEvent, window, cx| match ev {
+            InputEvent::PressEnter { secondary: true, .. } => this.run_console(id, window, cx),
             InputEvent::Change => {
                 let input = input.clone();
                 if let Some(console) = this.console_mut(id) {
@@ -67,18 +64,21 @@ impl ConsoleTab {
             Ok(h) => (Some(h), None),
             Err(e) => (None, Some(e)),
         };
+        if let Some(e) = start_error {
+            results.update(cx, |s, cx| s.set_value(format!("// ✖ {e}"), window, cx));
+        }
         Self {
             id,
             conn_id: conn_id.to_string(),
             db: db.to_string(),
             handle,
-            start_error,
-            input,
+            editor,
+            results,
             smart: Smart::default(),
             recall: Recall::default(),
             entries: Vec::new(),
             running: false,
-            scroll: ScrollHandle::new(),
+            history_open: false,
             _subscriptions: vec![sub],
         }
     }
@@ -89,28 +89,44 @@ impl Humon {
         self.consoles.iter_mut().find(|c| c.id == id)
     }
 
+    /// Replaces the editor's text, e.g. from history or a collection's Shell button.
     pub fn set_console_input(&mut self, id: usize, text: String, window: &mut Window, cx: &mut Context<Self>) {
         let Some(console) = self.console_mut(id) else { return };
         console.smart.reset(&text);
-        console.input.update(cx, |s, cx| s.set_value(text, window, cx));
+        console.input_focus(window, cx, text);
     }
 
+    /// Redraws the results pane and scrolls to its end.
+    fn show_results(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(console) = self.console_mut(id) else { return };
+        let text = transcript(&console.entries);
+        let last = text.lines().count().saturating_sub(1) as u32;
+        console.results.update(cx, |s, cx| {
+            s.set_value(text, window, cx);
+            s.set_cursor_position(Position { line: last, character: 0 }, window, cx);
+        });
+    }
+
+    /// Runs the selection, or the whole editor when nothing is selected. The
+    /// code stays in the editor, as in IntelliShell.
     pub fn run_console(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(console) = self.console_mut(id) else { return };
-        let code = console.input.read(cx).value().trim().to_string();
+        let state = console.editor.read(cx);
+        let selected = state.selected_value().trim().to_string();
+        let code = if selected.is_empty() { state.value().trim().to_string() } else { selected };
         if code.is_empty() || console.running {
             return;
         }
         let Some(handle) = &console.handle else { return };
         let rx = handle.eval(code.clone());
         console.recall.push(&code);
-        console.entries.push(Entry { db: console.db.clone(), code, lines: Vec::new() });
+        console.history_open = false;
+        console.entries.push(Entry { db: console.db.clone(), code, lines: vec![Line { text: t!("console.running").into(), kind: LineKind::Info }] });
         console.running = true;
-        console.scroll.scroll_to_bottom();
-        self.set_console_input(id, String::new(), window, cx);
+        self.show_results(id, window, cx);
         cx.spawn_in(window, async move |this, cx| {
             let reply = rx.await;
-            this.update(cx, |this, cx| {
+            this.update_in(cx, |this, window, cx| {
                 if let Some(console) = this.console_mut(id) {
                     console.running = false;
                     if let Ok(reply) = reply {
@@ -119,8 +135,8 @@ impl Humon {
                             entry.lines = lines(&reply.outputs);
                         }
                     }
-                    console.scroll.scroll_to_bottom();
                 }
+                this.show_results(id, window, cx);
                 cx.notify();
             })
             .ok();
@@ -128,20 +144,12 @@ impl Humon {
         .detach();
     }
 
-    /// ↑/↓ walk the command history while the input is a single line.
-    fn console_key(&mut self, id: usize, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        let key = ev.keystroke.key.as_str();
-        if key != "up" && key != "down" {
-            return;
-        }
+    /// ⌥↑/⌥↓: earlier and later commands, keeping what was being typed.
+    fn console_history(&mut self, id: usize, back: bool, window: &mut Window, cx: &mut Context<Self>) {
         let Some(console) = self.console_mut(id) else { return };
-        let current = console.input.read(cx).value().to_string();
-        if current.contains('\n') {
-            return;
-        }
-        let text = if key == "up" { console.recall.prev(&current) } else { console.recall.next() };
+        let current = console.editor.read(cx).value().to_string();
+        let text = if back { console.recall.prev(&current) } else { console.recall.next() };
         if let Some(text) = text {
-            cx.stop_propagation();
             self.set_console_input(id, text, window, cx);
         }
     }
@@ -150,97 +158,100 @@ impl Humon {
         let console = &self.consoles[ix];
         let id = console.id;
         let theme = cx.theme();
-        let (border, muted, danger, panel, fg) = (theme.border, theme.muted_foreground, theme.danger, theme.sidebar, theme.foreground);
+        let (border, muted, panel, hover, bg) = (theme.border, theme.muted_foreground, theme.sidebar, theme.list_hover, theme.background);
         let mono = theme.mono_font_family.clone();
-        let syntax = theme.highlight_theme.clone();
-        let colored = |text: &str| {
-            let highlights: Vec<_> = tokenize(text).into_iter().filter_map(|(r, k)| syntax.style(k).map(|s| (r, s))).collect();
-            StyledText::new(text.to_string()).with_highlights(highlights)
-        };
 
-        let mut log = div()
-            .id(("console-log", id))
-            .track_scroll(&console.scroll)
-            .flex_1()
-            .overflow_y_scroll()
-            .p_3()
+        let toolbar = div()
             .flex()
-            .flex_col()
-            .gap_1()
-            .font_family(mono.clone())
-            .text_xs();
-        if let Some(e) = &console.start_error {
-            log = log.child(div().text_color(danger).child(e.clone()));
-        }
-        for entry in &console.entries {
-            for (i, code_line) in entry.code.lines().enumerate() {
-                let prompt = if i == 0 { format!("{}>", entry.db) } else { "…".into() };
-                log = log.child(
-                    div().flex().gap_2().whitespace_nowrap().child(div().text_color(muted).child(prompt)).child(colored(code_line)),
-                );
-            }
-            for line in &entry.lines {
-                let row = div().whitespace_nowrap().min_h(px(16.));
-                log = log.child(match line.kind {
-                    LineKind::Value => row.child(colored(&line.text)),
-                    LineKind::Print => row.text_color(fg).child(line.text.clone()),
-                    LineKind::Info => row.text_color(muted).child(line.text.clone()),
-                    LineKind::Error => row.text_color(danger).child(line.text.clone()),
-                });
-            }
-        }
-        if console.running {
-            log = log.child(div().text_color(muted).child(t!("console.running").to_string()));
-        }
-
-        let lines_in_input = console.input.read(cx).value().lines().count().clamp(1, 10);
-        let input_row = div()
-            .flex()
-            .flex_col()
-            .gap_1()
-            .p_2()
-            .border_t_1()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .border_b_1()
             .border_color(border)
             .bg(panel)
             .child(
-                div()
-                    .id(("console-input", id))
-                    .flex()
-                    .gap_2()
-                    .items_start()
-                    .capture_key_down(cx.listener(move |this, ev: &KeyDownEvent, window, cx| this.console_key(id, ev, window, cx)))
-                    .child(div().pt_1().font_family(mono).text_xs().text_color(muted).child(format!("{}>", console.db)))
-                    .child(div().flex_1().child(Editor::new(&console.input).h(px(lines_in_input as f32 * 18. + 14.)))),
+                Button::new(("console-run", id))
+                    .primary()
+                    .label(format!("▶ {}", t!("console.run")))
+                    .disabled(console.running || console.handle.is_none())
+                    .on_click(cx.listener(move |this, _, window, cx| this.run_console(id, window, cx))),
             )
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(div().flex_1().text_xs().text_color(muted).child(t!("console.hint").to_string()))
-                    .child(Button::new(("console-clear", id)).label(t!("console.clear")).on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(console) = this.console_mut(id) {
-                            console.entries.clear();
-                        }
-                        cx.notify();
-                    })))
-                    .when(console.running, |d| {
-                        d.child(Button::new(("console-stop", id)).danger().label(t!("console.stop")).on_click(cx.listener(move |this, _, _, cx| {
-                            if let Some(handle) = this.console_mut(id).and_then(|c| c.handle.as_ref()) {
-                                handle.stop();
-                            }
-                            cx.notify();
-                        })))
-                    })
-                    .child(
-                        Button::new(("console-run", id))
-                            .primary()
-                            .label(t!("console.run"))
-                            .disabled(console.running || console.handle.is_none())
-                            .on_click(cx.listener(move |this, _, window, cx| this.run_console(id, window, cx))),
-                    ),
-            );
+            .when(console.running, |d| {
+                d.child(Button::new(("console-stop", id)).danger().label(format!("■ {}", t!("console.stop"))).on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(handle) = this.console_mut(id).and_then(|c| c.handle.as_ref()) {
+                        handle.stop();
+                    }
+                    cx.notify();
+                })))
+            })
+            .child(Button::new(("console-history", id)).label(t!("console.history")).when(console.history_open, |b| b.primary()).on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(console) = this.console_mut(id) {
+                    console.history_open = !console.history_open;
+                }
+                cx.notify();
+            })))
+            .child(Button::new(("console-clear", id)).label(t!("console.clear")).on_click(cx.listener(move |this, _, window, cx| {
+                if let Some(console) = this.console_mut(id) {
+                    console.entries.clear();
+                }
+                this.show_results(id, window, cx);
+                cx.notify();
+            })))
+            .child(div().flex_1().text_xs().text_color(muted).child(t!("console.hint").to_string()))
+            .child(div().font_family(mono.clone()).text_xs().text_color(muted).child(format!("db: {}", console.db)));
 
-        div().flex_1().min_h_0().flex().flex_col().child(log).child(input_row)
+        let history = console.history_open.then(|| {
+            let mut list = div().id(("console-history-list", id)).flex().flex_col().max_h(px(220.)).overflow_y_scroll().border_b_1().border_color(border).bg(panel).font_family(mono.clone()).text_xs();
+            let commands: Vec<String> = console.recall.newest_first().take(HISTORY_ROWS).map(str::to_string).collect();
+            if commands.is_empty() {
+                list = list.child(div().px_3().py_2().text_color(muted).child(t!("console.no_history").to_string()));
+            }
+            for (row, command) in commands.into_iter().enumerate() {
+                let first_line = command.lines().next().unwrap_or_default().to_string();
+                list = list.child(
+                    div()
+                        .id(("console-history-row", row))
+                        .px_3()
+                        .py_1()
+                        .truncate()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(hover))
+                        .child(first_line)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            if let Some(console) = this.console_mut(id) {
+                                console.history_open = false;
+                            }
+                            this.set_console_input(id, command.clone(), window, cx);
+                            cx.notify();
+                        })),
+                );
+            }
+            list
+        });
+
+        let editor_lines = console.editor.read(cx).value().lines().count().max(1);
+        div()
+            .id(("console", id))
+            .key_context(KEY_CONTEXT)
+            .on_action(cx.listener(move |this, _: &HistoryPrev, window, cx| this.console_history(id, true, window, cx)))
+            .on_action(cx.listener(move |this, _: &HistoryNext, window, cx| this.console_history(id, false, window, cx)))
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
+            .child(toolbar)
+            .children(history)
+            .child(div().flex_none().border_b_1().border_color(border).child(Editor::new(&console.editor).h(px((editor_lines as f32 * 18. + 24.).clamp(120., 320.)))))
+            .child(div().flex_1().min_h_0().bg(bg).child(Editor::new(&console.results).readonly(true).h(relative(1.))))
+    }
+}
+
+impl ConsoleTab {
+    fn input_focus(&self, window: &mut Window, cx: &mut Context<Humon>, text: String) {
+        self.editor.update(cx, |s, cx| {
+            s.set_value(text, window, cx);
+            s.focus(window, cx);
+        });
     }
 }

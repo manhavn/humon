@@ -53,7 +53,8 @@ these (macOS Keychain) is the first item on the to-do list below.
 - Open collections in tabs (⌘-click or middle-click opens another tab)
 - Filter, sort and project with mongo shell syntax:
   `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
-- Colored document tree, or a table view; edit, clone, copy, delete and insert documents
+- Tree, table and JSON views (the JSON view can be selected, copied and searched);
+  edit, clone, copy, delete and insert documents
 - Query history and favorites for every collection
 - Create, rename and drop databases and collections (drops ask you to type the name)
 - Export results to JSON or CSV, streamed to disk so big exports stay light

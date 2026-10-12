@@ -39,6 +39,8 @@ const PAGE_SIZES: [i64; 3] = [20, 50, 100];
 enum ViewMode {
     Tree,
     Table,
+    /// The page as text in a read-only editor: selectable, copyable, searchable.
+    Json,
 }
 
 pub struct Tab {
@@ -75,6 +77,7 @@ pub struct Tab {
     notice: Option<String>,
     history_open: bool,
     view: ViewMode,
+    json: Entity<EditorState>,
     export_open: bool,
     export_format: ExportFormat,
     /// Export every match rather than just the shown page.
@@ -139,6 +142,7 @@ impl Tab {
             notice: None,
             history_open: false,
             view: ViewMode::Tree,
+            json: cx.new(|cx| crate::highlight::shell_editor(window, cx)),
             export_open: false,
             export_format: ExportFormat::Json,
             export_all: true,
@@ -174,6 +178,11 @@ pub fn page_window(page: u64, page_size: i64, shown: usize, count: Option<Option
             _ => shown as u64 == size,
         },
     }
+}
+
+/// The JSON view's text: the page as one shell-syntax array.
+pub fn json_view_text(docs: &[Value]) -> String {
+    to_shell(&Value::Array(docs.to_vec()), "")
 }
 
 fn doc_id(doc: &Value) -> Option<Value> {
@@ -290,6 +299,8 @@ impl Humon {
                     this.load_page(id, window, cx);
                 }
                 Ok(page) => {
+                    let text = json_view_text(&page.docs);
+                    tab.json.update(cx, |s, cx| s.set_value(text, window, cx));
                     tab.docs = page.docs;
                     tab.took = Some(page.took);
                     tab.expanded.clear();
@@ -341,7 +352,15 @@ impl Humon {
 #[cfg(test)]
 mod tests {
     // Not `super::*`: that brings in gpui's `test` macro, which shadows `#[test]`.
-    use super::{PageWindow, page_window};
+    use super::{PageWindow, json_view_text, page_window};
+
+    #[test]
+    fn json_view_shows_the_page_as_one_shell_array() {
+        use serde_json::json;
+        assert_eq!(json_view_text(&[]), "[]");
+        let docs = vec![json!({ "_id": { "$oid": "65a1b2c3d4e5f60718293a4b" } }), json!({ "n": { "$numberInt": "1" } })];
+        assert_eq!(json_view_text(&docs), "[\n  {\n    _id: ObjectId(\"65a1b2c3d4e5f60718293a4b\")\n  },\n  {\n    n: 1\n  }\n]");
+    }
 
     #[test]
     fn page_window_bounds_and_next() {

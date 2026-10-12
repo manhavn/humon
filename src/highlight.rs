@@ -8,6 +8,14 @@ use gpui_kit::component::input::{FoldRange, HighlightStyleResolver, InputEdit, I
 use gpui_kit::{Context, HighlightStyle, SharedString, Window};
 use gpui_kit::component::input::EditorState;
 
+/// A code editor with shell syntax colors, for editing or (read-only) for
+/// showing text that should be selectable and searchable.
+pub fn shell_editor(window: &mut Window, cx: &mut Context<EditorState>) -> EditorState {
+    let mut state = EditorState::new(window, cx).language("mongosh").line_number(false).folding(false);
+    state.set_highlighter_factory(std::rc::Rc::new(|_| Some(Box::new(ShellHighlighter::default()) as Box<dyn InputHighlighter>)), cx);
+    state
+}
+
 pub type Token = (Range<usize>, &'static str);
 
 const HELPERS: &[&str] = &[

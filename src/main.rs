@@ -25,7 +25,11 @@ fn main() {
     rust_i18n::set_locale(&settings::initial_language());
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
-        cx.bind_keys([KeyBinding::new("cmd-k", app::QuickOpen, None)]);
+        cx.bind_keys([
+            KeyBinding::new("cmd-k", app::QuickOpen, None),
+            KeyBinding::new("alt-up", console::view::HistoryPrev, Some(console::view::KEY_CONTEXT)),
+            KeyBinding::new("alt-down", console::view::HistoryNext, Some(console::view::KEY_CONTEXT)),
+        ]);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
         gpui_kit::open_window(
             WindowOptions {

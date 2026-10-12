@@ -20,6 +20,11 @@ impl Recall {
         self.entries.push(command.to_string());
     }
 
+    /// Every remembered command, most recent first.
+    pub fn newest_first(&self) -> impl Iterator<Item = &str> {
+        self.entries.iter().rev().map(String::as_str)
+    }
+
     /// The previous command, or None at the oldest. `current` is kept as
     /// the draft when the walk starts.
     pub fn prev(&mut self, current: &str) -> Option<String> {
@@ -76,6 +81,14 @@ mod tests {
         assert_eq!(r.prev(""), Some("y".to_string()));
         assert_eq!(r.prev(""), Some("x".to_string()));
         assert_eq!(r.prev(""), None);
+    }
+
+    #[test]
+    fn lists_newest_first() {
+        let mut r = Recall::default();
+        r.push("a");
+        r.push("b");
+        assert_eq!(r.newest_first().collect::<Vec<_>>(), ["b", "a"]);
     }
 
     #[test]

@@ -143,11 +143,16 @@ impl Humon {
         });
         let (form, form_subs) = EditForm::new(window, cx);
         let palette_input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("palette.placeholder")));
-        let palette_sub = cx.subscribe_in(&palette_input, window, |this, _, ev: &InputEvent, _, cx| {
-            if let InputEvent::Change = ev {
+        let palette_sub = cx.subscribe_in(&palette_input, window, |this, _, ev: &InputEvent, window, cx| match ev {
+            InputEvent::Change => {
                 this.palette_selected = 0;
                 cx.notify();
             }
+            InputEvent::PressEnter { .. } => {
+                this.activate_palette(window, cx);
+                cx.notify();
+            }
+            _ => {}
         });
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
