@@ -19,14 +19,11 @@ impl Humon {
 
         let mut list = div()
             .id("sidebar")
-            .w(px(290.))
-            .h_full()
+            .flex_1()
+            .min_h_0()
             .flex()
             .flex_col()
             .overflow_y_scroll()
-            .bg(sidebar_bg)
-            .border_r_1()
-            .border_color(border)
             .child(
                 div()
                     .flex()
@@ -485,7 +482,47 @@ impl Humon {
                     .child(t!("sidebar.no_match").to_string()),
             );
         }
-        list
+        // The scrolling tree, with the version (and any update) pinned below it.
+        div()
+            .w(px(290.))
+            .h_full()
+            .flex()
+            .flex_col()
+            .bg(sidebar_bg)
+            .border_r_1()
+            .border_color(border)
+            .child(list)
+            .child(self.render_version_footer(cx))
+    }
+
+    fn render_version_footer(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, muted, accent, hover) = (theme.border, theme.muted_foreground, theme.primary, theme.list_hover);
+        div()
+            .flex()
+            .flex_none()
+            .items_center()
+            .justify_between()
+            .px_3()
+            .py_1()
+            .border_t_1()
+            .border_color(border)
+            .text_xs()
+            .text_color(muted)
+            .child(format!("humon {}", crate::version::VERSION))
+            .when_some(self.update.clone(), |d, release| {
+                d.child(
+                    div()
+                        .id("update")
+                        .px_1()
+                        .rounded_sm()
+                        .text_color(accent)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(hover))
+                        .child(t!("update.available", version = release.version).to_string())
+                        .on_click(move |_, _, cx| cx.open_url(&release.url)),
+                )
+            })
     }
 }
 

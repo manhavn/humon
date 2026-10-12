@@ -66,6 +66,10 @@ pub struct Humon {
     store: Store,
     pub form: EditForm,
     show_settings: bool,
+    /// Kept in memory and saved whole, so changing one setting keeps the others.
+    pub settings: Settings,
+    /// A newer release on GitHub, shown at the bottom of the sidebar.
+    pub update: Option<crate::version::Release>,
     pub palette_open: bool,
     palette_input: Entity<InputState>,
     palette_selected: usize,
@@ -184,6 +188,10 @@ impl Humon {
                 _ => {}
             },
         );
+        let settings = Settings::load_from(&Settings::default_path()).unwrap_or_default();
+        if settings.check_updates() {
+            Self::check_for_update(cx);
+        }
         let focus = cx.focus_handle();
         window.focus(&focus, cx);
         let store = Store::default();
@@ -228,6 +236,8 @@ impl Humon {
             store,
             form,
             show_settings: false,
+            settings,
+            update: None,
             palette_open: false,
             palette_input,
             palette_selected: 0,
@@ -267,15 +277,33 @@ impl Humon {
         }
     }
 
-    fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
-        rust_i18n::set_locale(code);
-        let saved = Settings {
-            language: Some(code.to_string()),
-        }
-        .save_to(&Settings::default_path());
-        if let Err(e) = saved {
+    pub fn save_settings(&mut self) {
+        if let Err(e) = self.settings.save_to(&Settings::default_path()) {
             self.load_error = Some(e);
         }
+    }
+
+    /// Asks GitHub once, in the background, whether a newer release exists.
+    fn check_for_update(cx: &mut Context<Self>) {
+        let task = RT.spawn_blocking(crate::version::fetch_latest);
+        cx.spawn(async move |this, cx| {
+            if let Ok(Some(release)) = task.await
+                && crate::version::is_newer(crate::version::VERSION, &release.version)
+            {
+                this.update(cx, |this, cx| {
+                    this.update = Some(release);
+                    cx.notify();
+                })
+                .ok();
+            }
+        })
+        .detach();
+    }
+
+    fn set_language(&mut self, code: &str, window: &mut Window, cx: &mut Context<Self>) {
+        rust_i18n::set_locale(code);
+        self.settings.language = Some(code.to_string());
+        self.save_settings();
         // Placeholders are held by the inputs, so they need re-setting; everything
         // else is read through t! on the next render.
         for (input, key) in [

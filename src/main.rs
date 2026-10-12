@@ -34,7 +34,8 @@ fn main() {
         }
         return;
     }
-    rust_i18n::set_locale(&settings::initial_language());
+    let saved = settings::Settings::load_from(&settings::Settings::default_path()).unwrap_or_default();
+    rust_i18n::set_locale(&settings::initial_language(&saved));
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
         cx.bind_keys([

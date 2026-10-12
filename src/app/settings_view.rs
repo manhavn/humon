@@ -1,6 +1,7 @@
 //! The settings page.
 
 use super::*;
+use gpui_kit::component::checkbox::Checkbox;
 
 impl Humon {
     pub(crate) fn render_settings(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -76,6 +77,21 @@ impl Humon {
                         .text_xs()
                         .text_color(muted)
                         .child(t!("settings.contribute").to_string()),
+                )
+                .child(
+                    div()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(t!("settings.updates").to_string()),
+                )
+                .child(
+                    Checkbox::new("check-updates")
+                        .label(t!("settings.check_updates").to_string())
+                        .checked(self.settings.check_updates())
+                        .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                            this.settings.check_updates = Some(*checked);
+                            this.save_settings();
+                            cx.notify();
+                        })),
                 )
                 .child(
                     div()

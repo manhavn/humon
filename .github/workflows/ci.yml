@@ -28,6 +28,7 @@ jobs:
           brew install mongosh
           mongosh --quiet mongodb://127.0.0.1:27018 scripts/seed-test-db.js
       - name: Test (including the live tests)
-        run: cargo test --release -- --include-ignored
+        # GitHub's API limits shared runners, so the update-check test is left to local runs.
+        run: cargo test --release -- --include-ignored --skip live_fetch_latest
         env:
           HUMON_TEST_URI: mongodb://127.0.0.1:27018

@@ -6,14 +6,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::files;
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Settings {
     /// Locale code such as "en" or "tr"; None follows the system language.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// Whether to ask GitHub for a newer release on start; None means yes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_updates: Option<bool>,
 }
 
 impl Settings {
+    pub fn check_updates(&self) -> bool {
+        self.check_updates.unwrap_or(true)
+    }
+
     pub fn default_path() -> PathBuf {
         files::config_dir().join("settings.json")
     }
@@ -58,8 +65,7 @@ pub fn pick_language(saved: Option<&str>, system: &str, available: &[String]) ->
     }
 }
 
-pub fn initial_language() -> String {
-    let saved = Settings::load_from(&Settings::default_path()).unwrap_or_default();
+pub fn initial_language(saved: &Settings) -> String {
     pick_language(
         saved.language.as_deref(),
         &sys_locale::get_locale().unwrap_or_default(),
@@ -72,15 +78,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn update_checks_are_on_unless_turned_off() {
+        assert!(Settings::default().check_updates());
+        let off: Settings = serde_json::from_str(r#"{"check_updates": false}"#).unwrap();
+        assert!(!off.check_updates());
+        let old: Settings = serde_json::from_str(r#"{"language": "tr"}"#).unwrap();
+        assert!(
+            old.check_updates(),
+            "files from before the setting existed keep checking"
+        );
+    }
+
+    #[test]
     fn settings_round_trip_and_default() {
         let path = crate::files::test_dir("settings").join("settings.json");
         assert_eq!(Settings::load_from(&path).unwrap().language, None);
         Settings {
             language: Some("tr".into()),
+            check_updates: Some(false),
         }
         .save_to(&path)
         .unwrap();
-        assert_eq!(Settings::load_from(&path).unwrap().language.as_deref(), Some("tr"));
+        let loaded = Settings::load_from(&path).unwrap();
+        assert_eq!(loaded.language.as_deref(), Some("tr"));
+        assert!(!loaded.check_updates(), "both settings survive a save");
         std::fs::write(&path, "[").unwrap();
         assert!(Settings::load_from(&path).is_err());
     }

@@ -123,6 +123,9 @@ tab.shell: ">_ Shell"
 settings.title: Settings
 settings.language: Language
 settings.contribute: Missing your language? Copy locales/en.yml to locales/<code>.yml, translate it and send a pull request.
+settings.updates: Updates
+settings.check_updates: Check GitHub for a new version on start
+update.available: "%{version} available ↗"
 settings.version: "humon %{version}"
 settings.close: Close
 

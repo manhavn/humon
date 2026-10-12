@@ -63,6 +63,8 @@ these (macOS Keychain) is the first item on the to-do list below.
   an embedded QuickJS engine, so no Node.js or mongosh needed
 - Status bar with document count and query time
 - English and Turkish, and adding a language is one file (see below)
+- A small notice when a new version is out (one request to GitHub on start; turn it
+  off in Settings)
 
 ## Install
 
