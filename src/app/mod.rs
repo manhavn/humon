@@ -344,6 +344,7 @@ impl Humon {
         self.tabs.push(tab);
         self.active_tab = Some(id);
         self.run_query(id, window, cx);
+        self.load_schema(id, window, cx);
     }
 
     /// Every open tab's id, collections and shells together, in tab order.

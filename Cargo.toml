@@ -22,6 +22,9 @@ rust-i18n = "4.2.4"
 sys-locale = "0.3"
 rquickjs = "0.14"
 futures-channel = "0.3"
+# Completion types for gpui-component's editor; already built as its dependency.
+lsp-types = "0.97"
+anyhow = "1"
 
 [profile.release]
 debug = false

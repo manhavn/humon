@@ -40,6 +40,20 @@ impl Humon {
                     })),
             );
         }
+        let chosen = self.settings.schema_sample();
+        let mut samples = div().flex().gap_1();
+        for &size in crate::schema::SAMPLE_SIZES {
+            samples = samples.child(
+                Button::new(SharedString::from(format!("sample-{size}")))
+                    .label(crate::tab::status::thousands(size as u64))
+                    .when(size == chosen, |b| b.primary())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.settings.schema_sample = Some(size);
+                        this.save_settings();
+                        cx.notify();
+                    })),
+            );
+        }
         div().flex_1().flex().justify_center().p_8().child(
             div()
                 .w(px(460.))
@@ -92,6 +106,19 @@ impl Humon {
                             this.save_settings();
                             cx.notify();
                         })),
+                )
+                .child(
+                    div()
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(t!("settings.schema").to_string()),
+                )
+                .child(div().child(t!("settings.schema_sample").to_string()))
+                .child(samples)
+                .child(
+                    div()
+                        .text_xs()
+                        .text_color(muted)
+                        .child(t!("settings.schema_hint").to_string()),
                 )
                 .child(
                     div()

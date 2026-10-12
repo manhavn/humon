@@ -7,9 +7,7 @@ use std::sync::Arc;
 
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::highlighter::HighlightTheme;
-use gpui_kit::component::input::{
-    Editor, EditorState, HighlightStyleResolver, Input, InputEvent, InputHighlighter, InputState,
-};
+use gpui_kit::component::input::{Editor, EditorState, HighlightStyleResolver, InputEvent, InputHighlighter};
 use gpui_kit::component::{ActiveTheme, Disableable};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -25,14 +23,15 @@ use rust_i18n::t;
 
 mod editor;
 mod panels;
-mod status;
+mod query_editor;
+pub(crate) mod status;
 mod table;
 mod tree;
 mod view;
 
 // Children reach each other through `use super::*`.
 #[allow(unused_imports)]
-use {editor::*, panels::*, status::*, table::*, tree::*, view::*};
+use {editor::*, panels::*, query_editor::*, status::*, table::*, tree::*, view::*};
 
 const PAGE_SIZES: [i64; 3] = [20, 50, 100];
 
@@ -50,9 +49,11 @@ pub struct Tab {
     /// The collection this tab shows; renaming it updates `target.name`.
     pub target: CollectionRef,
     kind: CollKind,
-    filter: Entity<InputState>,
-    sort: Entity<InputState>,
-    projection: Entity<InputState>,
+    filter: Entity<EditorState>,
+    sort: Entity<EditorState>,
+    projection: Entity<EditorState>,
+    /// Sampled field names and types, for completion; None until sampled.
+    schema: SchemaCell,
     /// What the shown results were fetched with; paging reuses it.
     applied: Query,
     page: u64,
@@ -96,9 +97,14 @@ impl Tab {
         window: &mut Window,
         cx: &mut Context<Humon>,
     ) -> Self {
-        let filter = cx.new(|cx| InputState::new(window, cx).placeholder(t!("tab.filter_placeholder")));
-        let sort = cx.new(|cx| InputState::new(window, cx).placeholder("{ _id: -1 }"));
-        let projection = cx.new(|cx| InputState::new(window, cx).placeholder(t!("tab.projection_placeholder")));
+        use crate::complete::Mode;
+        let schema = SchemaCell::default();
+        let filter = cx
+            .new(|cx| query_editor(Mode::Filter, schema.clone(), window, cx).placeholder(t!("tab.filter_placeholder")));
+        let sort = cx.new(|cx| query_editor(Mode::Sort, schema.clone(), window, cx).placeholder("{ _id: -1 }"));
+        let projection = cx.new(|cx| {
+            query_editor(Mode::Project, schema.clone(), window, cx).placeholder(t!("tab.projection_placeholder"))
+        });
         let subscriptions = [&filter, &sort, &projection]
             .into_iter()
             .enumerate()
@@ -122,6 +128,7 @@ impl Tab {
             filter,
             sort,
             projection,
+            schema,
             applied: Default::default(),
             page: 0,
             page_size: 20,
@@ -302,6 +309,19 @@ impl Humon {
             tab.notice = Some(t!("history.saved").into());
             self.persist_history();
         }
+    }
+
+    /// Samples the collection in the background so the query boxes can suggest
+    /// its fields. Failing (no permission, say) just leaves completion off.
+    pub fn load_schema(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let sample = self.settings.schema_sample();
+        let Some(tab) = self.tab_mut(id) else { return };
+        let fut = tab.target.clone().schema(sample);
+        self.run(fut, window, cx, move |this, res, _, _| {
+            if let (Some(tab), Ok(schema)) = (this.tab_mut(id), res) {
+                *tab.schema.borrow_mut() = Some(Rc::new(schema));
+            }
+        });
     }
 
     /// Reloads the current page and the count with the applied query.

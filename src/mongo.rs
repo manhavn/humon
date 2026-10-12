@@ -287,6 +287,22 @@ impl CollectionRef {
         }
     }
 
+    /// The shape of the collection from a random sample of `size` documents.
+    /// Each document is folded in and dropped, so a big sample costs time, not memory.
+    pub async fn schema(self, size: u32) -> Result<crate::schema::Schema, String> {
+        let mut cursor = self
+            .handle()
+            .aggregate([doc! { "$sample": { "size": size } }])
+            .max_time(Duration::from_secs(30))
+            .await
+            .map_err(err)?;
+        let mut builder = crate::schema::Builder::default();
+        while let Some(doc) = cursor.try_next().await.map_err(err)? {
+            builder.add(&doc);
+        }
+        Ok(builder.finish())
+    }
+
     /// The full stored document, ignoring any projection the tab has applied.
     pub async fn get(self, id: Value) -> Result<Option<Value>, String> {
         let doc = self
@@ -497,6 +513,23 @@ mod tests {
         let cols = collections(c, "shop".into()).await.unwrap();
         assert!(cols.iter().any(|x| x.name == "adults" && x.kind == CollKind::View));
         assert!(cols.iter().any(|x| x.name == "users" && x.kind == CollKind::Collection));
+    }
+
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_schema() {
+        let schema = users().await.schema(1000).await.unwrap();
+        assert_eq!(schema.sampled, 137, "asking for more than exists samples them all");
+        let city = schema.field("address.city").unwrap();
+        assert_eq!((city.count, city.types.as_slice()), (137, &[("string", 137)][..]));
+        assert_eq!(schema.field("big").unwrap().types, [("long", 137)]);
+        assert_eq!(schema.field("tags").unwrap().items, [("string", 274)]);
+        assert_eq!(users().await.schema(10).await.unwrap().sampled, 10);
+        let view = CollectionRef::new(client().await, "shop", "adults");
+        assert!(
+            view.schema(50).await.unwrap().field("age").is_some(),
+            "views can be sampled"
+        );
     }
 
     #[tokio::test]

@@ -123,6 +123,9 @@ settings.language: Dil
 settings.contribute: Dilin yok mu? locales/en.yml dosyasını locales/<kod>.yml olarak kopyala, çevir ve pull request gönder.
 settings.updates: Güncellemeler
 settings.check_updates: Açılışta GitHub'da yeni sürüm var mı bak
+settings.schema: Alan önerileri
+settings.schema_sample: Alanları öğrenmek için koleksiyon başına örneklenen belge sayısı
+settings.schema_hint: Daha çok belge nadir alanları da bulur ama daha uzun sürer ve sunucuya daha çok yük bindirir. Daha az belge hızlıdır ama sadece bazı belgelerde olan alanları kaçırabilir. Belgeler tek tek okunup tutulmadığı için bellek kullanımı değişmez.
 update.available: "%{version} hazır ↗"
 settings.version: "humon %{version}"
 settings.close: Kapat
@@ -159,3 +162,23 @@ query.unknown: "bilinmeyen ifade: %{name}"
 query.integer_expected_value: "tam sayı bekleniyordu: %{value}"
 query.integer_expected: tam sayı bekleniyordu
 query.invalid_date: "geçersiz tarih: %{value}"
+complete.and: hepsi eşleşmeli
+complete.or: biri eşleşmeli
+complete.nor: hiçbiri eşleşmemeli
+complete.expr: aggregation ifadesi
+complete.eq: eşit
+complete.ne: eşit değil
+complete.gt: büyük
+complete.gte: büyük veya eşit
+complete.lt: küçük
+complete.lte: küçük veya eşit
+complete.in: bunlardan biri
+complete.nin: bunların hiçbiri
+complete.exists: alan var
+complete.type: tipi
+complete.regex: desene uyar
+complete.elem_match: bir eleman eşleşir
+complete.all: hepsini içerir
+complete.size: dizi uzunluğu
+complete.mod: kalan
+complete.not: tersi

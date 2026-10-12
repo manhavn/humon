@@ -125,6 +125,9 @@ settings.language: Language
 settings.contribute: Missing your language? Copy locales/en.yml to locales/<code>.yml, translate it and send a pull request.
 settings.updates: Updates
 settings.check_updates: Check GitHub for a new version on start
+settings.schema: Field suggestions
+settings.schema_sample: Documents sampled per collection to learn its fields
+settings.schema_hint: More documents find rare fields but take longer and put more load on the server. Fewer are faster but may miss fields only some documents have. Documents are read one by one and not kept, so memory use stays the same.
 update.available: "%{version} available ↗"
 settings.version: "humon %{version}"
 settings.close: Close
@@ -161,3 +164,23 @@ query.unknown: "unknown expression: %{name}"
 query.integer_expected_value: "integer expected: %{value}"
 query.integer_expected: integer expected
 query.invalid_date: "invalid date: %{value}"
+complete.and: all must match
+complete.or: any may match
+complete.nor: none may match
+complete.expr: aggregation expression
+complete.eq: equal
+complete.ne: not equal
+complete.gt: greater than
+complete.gte: greater or equal
+complete.lt: less than
+complete.lte: less or equal
+complete.in: one of
+complete.nin: none of
+complete.exists: has the field
+complete.type: has the type
+complete.regex: matches a pattern
+complete.elem_match: an element matches
+complete.all: contains all
+complete.size: array length
+complete.mod: remainder
+complete.not: negates

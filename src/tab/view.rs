@@ -47,17 +47,17 @@ impl Humon {
                 .border_b_1()
                 .border_color(border)
                 .child(
-                    labeled("Filter", Input::new(&tab.filter), muted)
+                    labeled("Filter", query_box(&tab.filter, cx), muted)
                         .flex_grow(1.)
                         .flex_basis(relative(0.5)),
                 )
                 .child(
-                    labeled("Sort", Input::new(&tab.sort), muted)
+                    labeled("Sort", query_box(&tab.sort, cx), muted)
                         .flex_grow(1.)
                         .flex_basis(relative(0.2)),
                 )
                 .child(
-                    labeled("Project", Input::new(&tab.projection), muted)
+                    labeled("Project", query_box(&tab.projection, cx), muted)
                         .flex_grow(1.)
                         .flex_basis(relative(0.2)),
                 )
@@ -284,7 +284,7 @@ impl Humon {
     }
 }
 
-pub(crate) fn labeled(label: &'static str, input: Input, muted: Hsla) -> Div {
+pub(crate) fn labeled(label: &'static str, input: impl IntoElement, muted: Hsla) -> Div {
     div()
         .flex()
         .flex_col()

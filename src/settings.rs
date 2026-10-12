@@ -1,4 +1,4 @@
-//! App settings (currently the UI language), stored next to the saved connections.
+//! App settings (language, update checks, schema sample size), stored next to the saved connections.
 
 use std::path::{Path, PathBuf};
 
@@ -14,11 +14,24 @@ pub struct Settings {
     /// Whether to ask GitHub for a newer release on start; None means yes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub check_updates: Option<bool>,
+    /// Documents to sample for the schema behind query completion; None means the default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_sample: Option<u32>,
 }
+
+/// Above this a sample stops being a sample; it only makes the server work.
+pub const MAX_SCHEMA_SAMPLE: u32 = 100_000;
 
 impl Settings {
     pub fn check_updates(&self) -> bool {
         self.check_updates.unwrap_or(true)
+    }
+
+    pub fn schema_sample(&self) -> u32 {
+        match self.schema_sample {
+            Some(0) | None => crate::schema::DEFAULT_SAMPLE,
+            Some(n) => n.min(MAX_SCHEMA_SAMPLE),
+        }
     }
 
     pub fn default_path() -> PathBuf {
@@ -90,18 +103,40 @@ mod tests {
     }
 
     #[test]
+    fn schema_sample_defaults_and_stays_in_range() {
+        use crate::schema::DEFAULT_SAMPLE;
+        assert_eq!(Settings::default().schema_sample(), DEFAULT_SAMPLE);
+        let pick = |n| {
+            Settings {
+                schema_sample: Some(n),
+                ..Default::default()
+            }
+            .schema_sample()
+        };
+        assert_eq!(pick(5000), 5000);
+        assert_eq!(pick(0), DEFAULT_SAMPLE, "zero would sample nothing");
+        assert_eq!(
+            pick(10_000_000),
+            MAX_SCHEMA_SAMPLE,
+            "a hand-edited huge value is capped"
+        );
+    }
+
+    #[test]
     fn settings_round_trip_and_default() {
         let path = crate::files::test_dir("settings").join("settings.json");
         assert_eq!(Settings::load_from(&path).unwrap().language, None);
         Settings {
             language: Some("tr".into()),
             check_updates: Some(false),
+            schema_sample: Some(500),
         }
         .save_to(&path)
         .unwrap();
         let loaded = Settings::load_from(&path).unwrap();
         assert_eq!(loaded.language.as_deref(), Some("tr"));
-        assert!(!loaded.check_updates(), "both settings survive a save");
+        assert!(!loaded.check_updates(), "every setting survives a save");
+        assert_eq!(loaded.schema_sample(), 500);
         std::fs::write(&path, "[").unwrap();
         assert!(Settings::load_from(&path).is_err());
     }
@@ -147,6 +182,7 @@ mod tests {
             "console.",
             "palette.",
             "update.",
+            "complete.",
         ];
         fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
             for entry in std::fs::read_dir(dir).unwrap() {
