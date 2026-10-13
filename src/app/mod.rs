@@ -206,7 +206,9 @@ impl Humon {
             Ok(list) => (list, None),
             Err(e) => (vec![], Some(e)),
         };
-        let load_error = load_error.or(history_error);
+        // Passwords from before the Keychain move there now; failures are reported, never lost.
+        let migrate_error = store.migrate_secrets().err();
+        let load_error = load_error.or(history_error).or(migrate_error);
         let adding = saved.is_empty();
         let welcome = settings.is_first_launch(!saved.is_empty());
         Self {

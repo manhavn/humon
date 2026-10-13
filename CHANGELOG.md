@@ -6,6 +6,10 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+- Passwords are stored in the macOS Keychain instead of `secrets.json` (#1).
+  Existing passwords move there on start; the file is deleted once all have
+  moved, and any that can't move stay usable and are retried next time
+
 ## [0.1.4] - 2026-10-13
 
 - Connection strings with `compressors=` (as Atlas hands out) connect

@@ -3298,6 +3298,7 @@ dependencies = [
  "mongodb",
  "rquickjs",
  "rust-i18n",
+ "security-framework",
  "serde",
  "serde_json",
  "sys-locale",

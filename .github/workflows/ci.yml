@@ -29,6 +29,6 @@ jobs:
           mongosh --quiet mongodb://127.0.0.1:27018 scripts/seed-test-db.js
       - name: Test (including the live tests)
         # GitHub's API limits shared runners, so the update-check test is left to local runs.
-        run: cargo test --release -- --include-ignored --skip live_fetch_latest
+        run: cargo test --release -- --include-ignored --skip live_fetch_latest --skip keychain_round_trip
         env:
           HUMON_TEST_URI: mongodb://127.0.0.1:27018

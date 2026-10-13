@@ -74,6 +74,8 @@ errors.gone: doküman bulunamadı; başka biri silmiş olabilir
 errors.id_immutable: _id değiştirilemez
 errors.collection_exists: "%{name} adında bir collection zaten var"
 errors.invalid_id: "geçersiz _id: %{error}"
+errors.keychain: "Keychain: %{error}"
+errors.migrate_secrets: "%{count} kayıtlı şifre Keychain'e taşınamadı, şimdilik secrets.json'da duruyor. Keychain: %{error}"
 
 export.button: Dışa aktar
 export.page: "Bu sayfa (%{n})"

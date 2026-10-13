@@ -120,12 +120,14 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 
 ## Your data and privacy
 
-- **Saved connections are stored on your computer in plain text.** They live in
-  `~/Library/Application Support/dev.muzaffer.humon/` as `connections.json`, with
-  passwords split into `secrets.json`. Both are readable only by your user, but
-  **not encrypted**: anything that can read your files can read them. Until they are
-  (macOS Keychain is the first to-do), prefer local databases, test clusters or
-  read-only users.
+- **Passwords are kept in the macOS Keychain**, under `dev.muzaffer.humon`. The rest
+  of each connection (name, color, and the connection string without its password)
+  is in `~/Library/Application Support/dev.muzaffer.humon/connections.json`,
+  readable only by your user. Older versions kept passwords in `secrets.json`; humon
+  moves them to the Keychain on start and deletes the file once all have moved.
+- Because humon isn't signed yet, macOS may ask to let it use the Keychain after an
+  update; choose "Always Allow". The Keychain protects passwords at rest, not on a
+  machine someone else already controls.
 - The same folder holds `history.json` (recent and favorite queries) and
   `settings.json`.
 - humon makes one network request of its own: on start it asks GitHub for the latest
@@ -184,7 +186,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released, an
 
 ## To do
 
-- [ ] **Encrypt saved connections** (store passwords in the macOS Keychain)
 - [ ] Tab menu: duplicate, close others (and ⌘D)
 - [ ] More shortcuts: ⌘T, ⌘W, ⌘1–9, ⌘R
 - [ ] Remember open tabs and queries between launches

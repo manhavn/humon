@@ -26,6 +26,8 @@ futures-channel = "0.3"
 # Completion types for gpui-component's editor; already built as its dependency.
 lsp-types = "0.97"
 anyhow = "1"
+# Passwords in the macOS Keychain; already built as gpui's dependency.
+security-framework = "3"
 
 [profile.release]
 debug = false

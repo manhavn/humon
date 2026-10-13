@@ -76,6 +76,8 @@ errors.gone: document not found; someone may have deleted it
 errors.id_immutable: _id can't be changed
 errors.collection_exists: "collection %{name} already exists"
 errors.invalid_id: "invalid _id: %{error}"
+errors.keychain: "Keychain: %{error}"
+errors.migrate_secrets: "%{count} saved password(s) couldn't be moved to the Keychain and stay in secrets.json for now. Keychain: %{error}"
 
 export.button: Export
 export.page: "This page (%{n})"
