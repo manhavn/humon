@@ -43,7 +43,8 @@ fn main() {
     }
     let saved = settings::Settings::load_from(&settings::Settings::default_path()).unwrap_or_default();
     rust_i18n::set_locale(&settings::initial_language(&saved));
-    gpui_kit::application().run(|cx| {
+    // The component icons (gear, plus, chevrons...) are drawn from these SVGs.
+    gpui_kit::application().with_assets(gpui_kit::assets::Assets).run(|cx| {
         gpui_kit::init(cx);
         cx.bind_keys([
             KeyBinding::new("cmd-k", app::QuickOpen, None),
