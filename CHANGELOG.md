@@ -6,6 +6,8 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-10-13
+
 - Install with Homebrew: `brew install --cask yldrmzffr/tap/humon` (#2); each
   release updates the cask
 
