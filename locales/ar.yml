@@ -32,6 +32,7 @@ tab.add: + إضافة
 tab.view_tree: شجرة
 tab.view_table: جدول
 tab.view_json: JSON
+tab.view_schema: البنية
 tab.loading: جارٍ التحميل…
 tab.no_docs: لا توجد مستندات
 tab.counting: جارٍ العد…
@@ -210,3 +211,7 @@ check.type_mismatch: "يحتوي %{field} على %{types} في المستندا�
 check.argument_type: "يأخذ %{op} القيم من نوع %{types}."
 check.argument_count: "يأخذ %{op} عدد %{count} من القيم."
 check.one_operator_per_stage: "تحتوي المرحلة على عامل واحد فقط."
+schema.loading: "جارٍ قراءة حقول المجموعة…"
+schema.sampled: "تم أخذ عيّنة من %{n} مستند"
+schema.complete: "تم فحص جميع المستندات"
+schema.partial: "من عيّنة: قد تكون بعض الحقول النادرة مفقودة"

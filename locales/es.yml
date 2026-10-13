@@ -32,6 +32,7 @@ tab.add: + Añadir
 tab.view_tree: Árbol
 tab.view_table: Tabla
 tab.view_json: JSON
+tab.view_schema: Esquema
 tab.loading: Cargando…
 tab.no_docs: No hay documentos
 tab.counting: contando…
@@ -210,3 +211,7 @@ check.type_mismatch: "%{field} contiene %{types} en los documentos muestreados, 
 check.argument_type: "%{op} recibe %{types}."
 check.argument_count: "%{op} recibe %{count} valores."
 check.one_operator_per_stage: "Una etapa contiene exactamente un operador."
+schema.loading: "Leyendo los campos de la colección…"
+schema.sampled: "%{n} documentos muestreados"
+schema.complete: "todos los documentos comprobados"
+schema.partial: "de una muestra: pueden faltar campos poco comunes"

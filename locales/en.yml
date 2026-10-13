@@ -32,6 +32,7 @@ tab.add: + Add
 tab.view_tree: Tree
 tab.view_table: Table
 tab.view_json: JSON
+tab.view_schema: Schema
 tab.loading: Loading…
 tab.no_docs: No documents
 tab.counting: counting…
@@ -210,3 +211,7 @@ check.type_mismatch: "%{field} holds %{types} in the sampled documents, not %{va
 check.argument_type: "%{op} takes %{types}."
 check.argument_count: "%{op} takes %{count} values."
 check.one_operator_per_stage: "A stage holds exactly one operator."
+schema.loading: "Reading the collection’s fields…"
+schema.sampled: "%{n} documents sampled"
+schema.complete: "every document checked"
+schema.partial: "from a sample: rare fields may be missing"

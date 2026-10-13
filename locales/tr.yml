@@ -30,6 +30,7 @@ tab.add: + Ekle
 tab.view_tree: Ağaç
 tab.view_table: Tablo
 tab.view_json: JSON
+tab.view_schema: Şema
 tab.loading: Yükleniyor…
 tab.no_docs: Doküman yok
 tab.counting: sayılıyor…
@@ -208,3 +209,7 @@ check.type_mismatch: "%{field} örneklenen belgelerde %{types}, %{value} değil.
 check.argument_type: "%{op} şunu alır: %{types}."
 check.argument_count: "%{op} %{count} değer alır."
 check.one_operator_per_stage: "Bir aşamada tam olarak bir operatör olur."
+schema.loading: "Koleksiyonun alanları okunuyor…"
+schema.sampled: "%{n} belge örneklendi"
+schema.complete: "tüm belgeler kontrol edildi"
+schema.partial: "örneklemden: nadir alanlar eksik olabilir"

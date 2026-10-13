@@ -32,6 +32,7 @@ tab.add: + 添加
 tab.view_tree: 树
 tab.view_table: 表格
 tab.view_json: JSON
+tab.view_schema: 结构
 tab.loading: 正在载入…
 tab.no_docs: 没有文档
 tab.counting: 正在计数…
@@ -210,3 +211,7 @@ check.type_mismatch: "在采样的文档中，%{field} 的类型为 %{types}，�
 check.argument_type: "%{op} 接受 %{types}。"
 check.argument_count: "%{op} 接受 %{count} 个值。"
 check.one_operator_per_stage: "每个阶段只能包含一个运算符。"
+schema.loading: "正在读取集合的字段…"
+schema.sampled: "已采样 %{n} 个文档"
+schema.complete: "已检查所有文档"
+schema.partial: "来自采样：可能缺少少见的字段"

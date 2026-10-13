@@ -26,6 +26,7 @@ use rust_i18n::t;
 mod editor;
 mod panels;
 mod query_editor;
+mod schema_view;
 pub(crate) mod status;
 mod table;
 mod tree;
@@ -43,6 +44,8 @@ enum ViewMode {
     Table,
     /// The page as text in a read-only editor: selectable, copyable, searchable.
     Json,
+    /// The collection's fields, from the sampled schema.
+    Schema,
 }
 
 pub struct Tab {

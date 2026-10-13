@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use mongodb::bson::{Bson, Document};
 
 mod discover;
+mod overview;
 mod stages;
 
 /// How many documents to sample when the user hasn't chosen.

@@ -32,6 +32,7 @@ tab.add: + जोड़ें
 tab.view_tree: ट्री
 tab.view_table: टेबल
 tab.view_json: JSON
+tab.view_schema: स्कीमा
 tab.loading: लोड हो रहा है…
 tab.no_docs: कोई डॉक्यूमेंट नहीं
 tab.counting: गिनती हो रही है…
@@ -210,3 +211,7 @@ check.type_mismatch: "सैंपल किए गए डॉक्यूमे�
 check.argument_type: "%{op} %{types} लेता है।"
 check.argument_count: "%{op} %{count} मान लेता है।"
 check.one_operator_per_stage: "एक स्टेज में ठीक एक ऑपरेटर होता है।"
+schema.loading: "कलेक्शन के फ़ील्ड पढ़े जा रहे हैं…"
+schema.sampled: "%{n} डॉक्यूमेंट सैंपल किए गए"
+schema.complete: "सभी डॉक्यूमेंट जाँचे गए"
+schema.partial: "सैंपल से: कम दिखने वाले फ़ील्ड छूट सकते हैं"

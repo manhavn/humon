@@ -32,6 +32,7 @@ tab.add: + Ajouter
 tab.view_tree: Arbre
 tab.view_table: Tableau
 tab.view_json: JSON
+tab.view_schema: Schéma
 tab.loading: Chargement…
 tab.no_docs: Aucun document
 tab.counting: comptage…
@@ -210,3 +211,7 @@ check.type_mismatch: "%{field} contient %{types} dans les documents échantillon
 check.argument_type: "%{op} attend %{types}."
 check.argument_count: "%{op} attend %{count} valeurs."
 check.one_operator_per_stage: "Une étape contient exactement un opérateur."
+schema.loading: "Lecture des champs de la collection…"
+schema.sampled: "%{n} documents échantillonnés"
+schema.complete: "tous les documents vérifiés"
+schema.partial: "d’après un échantillon : des champs rares peuvent manquer"
