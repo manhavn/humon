@@ -1,6 +1,8 @@
 //! The sidebar: saved connections, the database/collection tree and search.
 
 use super::*;
+use crate::ui;
+use gpui_kit::component::Sizable;
 
 impl Humon {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -29,9 +31,9 @@ impl Humon {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .px_3()
-                    .py_2()
-                    .text_sm()
+                    .h(px(ui::BAR))
+                    .px(px(ui::INSET))
+                    .text_size(px(ui::SMALL))
                     .text_color(muted)
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(t!("sidebar.connections").to_string())
@@ -73,7 +75,12 @@ impl Humon {
             )
             .when(self.adding, |d| d.child(self.render_form(cx)))
             .when(!self.conns.is_empty(), |d| {
-                d.child(div().px_3().pb_2().child(Input::new(&self.search).cleanable(true)))
+                d.child(
+                    div()
+                        .px(px(ui::INSET))
+                        .pb(px(ui::SPACE))
+                        .child(Input::new(&self.search).small().cleanable(true)),
+                )
             })
             .when_some(self.load_error.clone(), |d, e| {
                 d.child(div().px_3().text_xs().text_color(danger).child(e))
@@ -96,10 +103,12 @@ impl Humon {
             let row = div()
                 .id(SharedString::from(format!("conn-{id}")))
                 .group(group.clone())
+                .relative()
                 .flex()
                 .items_center()
-                .gap_2()
-                .pr_3()
+                .gap(px(6.))
+                .h(px(ui::ROW))
+                .pr(px(ui::INSET))
                 .cursor_pointer()
                 .hover(|s| s.bg(hover))
                 .on_click(cx.listener({
@@ -113,31 +122,46 @@ impl Humon {
                 .child(
                     div()
                         .w(px(3.))
-                        .h(px(26.))
+                        .h_full()
                         .bg(conn.color().unwrap_or(gpui_kit::transparent_black())),
                 )
-                .child(div().text_color(muted).child(if conn.open || (searching && connected) {
-                    "▾"
-                } else {
-                    "▸"
-                }))
+                .child(
+                    div()
+                        .w(px(10.))
+                        .ml(px(ui::INSET - 9.))
+                        .text_size(px(ui::SMALL))
+                        .text_color(muted)
+                        .child(if conn.open || (searching && connected) {
+                            "▾"
+                        } else {
+                            "▸"
+                        }),
+                )
                 .child(div().size(px(7.)).rounded_full().bg(status))
                 .child(
                     div()
                         .flex_1()
                         .min_w_0()
-                        .overflow_hidden()
+                        .truncate()
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(conn.saved.name.clone()),
                 )
                 .child(
+                    // Over the end of the row on hover, so it takes no room from the name.
                     div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right_0()
+                        .pr(px(ui::INSET / 2.))
+                        .pl(px(ui::SPACE))
                         .flex()
+                        .items_center()
                         .gap_1()
-                        .text_sm()
+                        .bg(hover)
                         .text_color(muted)
                         .when(!confirm && !picking, |d| {
-                            d.opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))
+                            d.invisible().group_hover(group.clone(), |s| s.visible())
                         })
                         .child(
                             icon_button(
@@ -277,11 +301,19 @@ impl Humon {
                     },
                 );
                 let db_actions = div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .right_0()
+                    .pr(px(ui::INSET / 2.))
+                    .pl(px(ui::SPACE))
                     .flex()
+                    .items_center()
                     .gap_1()
+                    .bg(hover)
                     .text_color(muted)
-                    .opacity(0.)
-                    .group_hover(db_group.clone(), |s| s.opacity(1.))
+                    .invisible()
+                    .group_hover(db_group.clone(), |s| s.visible())
                     .child(icon_button(
                         format!("shelldb-{id}-{di}"),
                         ">_",
@@ -325,11 +357,13 @@ impl Humon {
                     div()
                         .id(SharedString::from(format!("db-{id}-{di}")))
                         .group(db_group)
+                        .relative()
                         .flex()
-                        .gap_2()
-                        .pl_8()
-                        .pr_3()
-                        .py_1()
+                        .items_center()
+                        .gap(px(6.))
+                        .h(px(ui::ROW))
+                        .pl(px(ui::INSET + 16.))
+                        .pr(px(ui::INSET))
                         .cursor_pointer()
                         .hover(|s| s.bg(hover))
                         .on_click(cx.listener({
@@ -339,11 +373,18 @@ impl Humon {
                                 cx.notify();
                             }
                         }))
-                        .child(div().text_color(muted).child(if open { "▾" } else { "▸" }))
-                        .child(div().flex_1().min_w_0().overflow_hidden().child(db.info.name.clone()))
                         .child(
                             div()
-                                .text_xs()
+                                .w(px(10.))
+                                .text_size(px(ui::SMALL))
+                                .text_color(muted)
+                                .child(if open { "▾" } else { "▸" }),
+                        )
+                        .child(div().flex_1().min_w_0().truncate().child(db.info.name.clone()))
+                        .child(
+                            div()
+                                .flex_none()
+                                .text_size(px(ui::SMALL))
                                 .text_color(muted)
                                 .child(format_size(db.info.size_on_disk)),
                         )
@@ -358,16 +399,22 @@ impl Humon {
                 if db.loading {
                     list = list.child(
                         div()
-                            .pl_16()
-                            .text_xs()
+                            .pl(px(ui::INSET + 32.))
+                            .h(px(ui::ROW))
+                            .flex()
+                            .items_center()
+                            .text_size(px(ui::SMALL))
                             .text_color(muted)
                             .child(t!("sidebar.loading").to_string()),
                     );
                 } else if !searching && db.collections.as_ref().is_some_and(|c| c.is_empty()) {
                     list = list.child(
                         div()
-                            .pl_16()
-                            .text_xs()
+                            .pl(px(ui::INSET + 32.))
+                            .h(px(ui::ROW))
+                            .flex()
+                            .items_center()
+                            .text_size(px(ui::SMALL))
                             .text_color(muted)
                             .child(t!("sidebar.no_collections").to_string()),
                     );
@@ -408,11 +455,19 @@ impl Humon {
                         },
                     );
                     let coll_actions = div()
+                        .absolute()
+                        .top_0()
+                        .bottom_0()
+                        .right_0()
+                        .pr(px(ui::INSET / 2.))
+                        .pl(px(ui::SPACE))
                         .flex()
+                        .items_center()
                         .gap_1()
+                        .bg(hover)
                         .text_color(muted)
-                        .opacity(0.)
-                        .group_hover(coll_group.clone(), |s| s.opacity(1.))
+                        .invisible()
+                        .group_hover(coll_group.clone(), |s| s.visible())
                         .child(icon_button(
                             format!("rename-{id}-{di}-{}", coll.name),
                             "✎",
@@ -444,20 +499,22 @@ impl Humon {
                         div()
                             .id(SharedString::from(format!("coll-{id}-{di}-{}", coll.name)))
                             .group(coll_group)
+                            .relative()
                             .flex()
-                            .gap_2()
-                            .pl_16()
-                            .pr_3()
-                            .py_1()
+                            .items_center()
+                            .gap(px(6.))
+                            .h(px(ui::ROW))
+                            .pl(px(ui::INSET + 16. + 16.))
+                            .pr(px(ui::INSET))
                             .cursor_pointer()
                             .when(is_active, |d| d.bg(active_bg))
                             .hover(|s| s.bg(hover))
                             .on_click(open)
                             .on_mouse_down(MouseButton::Middle, open_new)
-                            .child(div().flex_1().min_w_0().overflow_hidden().child(coll.name.clone()))
+                            .child(div().flex_1().min_w_0().truncate().child(coll.name.clone()))
                             .when(kind != CollKind::Collection, |d| {
                                 d.child(
-                                    div().text_xs().text_color(muted).child(
+                                    div().flex_none().text_size(px(ui::SMALL)).text_color(muted).child(
                                         if kind == CollKind::View {
                                             t!("kind.view")
                                         } else {

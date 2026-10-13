@@ -485,7 +485,7 @@ impl Render for Humon {
             .flex()
             .bg(bg)
             .text_color(fg)
-            .text_sm()
+            .text_size(px(crate::ui::TEXT))
             .track_focus(&self.focus)
             .on_action(cx.listener(|this, _: &QuickOpen, window, cx| {
                 this.open_palette(window, cx);

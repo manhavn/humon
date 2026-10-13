@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use gpui_kit::component::Selectable;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::highlighter::HighlightTheme;
 use gpui_kit::component::input::{Editor, EditorState, HighlightStyleResolver, InputEvent, InputHighlighter};
@@ -21,6 +22,7 @@ use crate::history::{self, Query};
 use crate::mongo::{CollKind, CollectionRef, ExportFormat, FindArgs, RT};
 use crate::shell::{is_wrapper, to_shell};
 use crate::smart::Smart;
+use crate::ui;
 use rust_i18n::t;
 
 mod editor;

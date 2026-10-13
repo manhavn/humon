@@ -1,6 +1,7 @@
 //! The new-connection form and the color palette.
 
 use super::*;
+use gpui_kit::component::Sizable;
 
 impl Humon {
     /// A row of color swatches plus "none"; `on_pick` receives the chosen color.
@@ -80,6 +81,7 @@ impl Humon {
                     .when(!self.conns.is_empty(), |d| {
                         d.child(
                             Button::new("form-cancel")
+                                .small()
                                 .label(t!("form.cancel"))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.adding = false;
@@ -89,6 +91,7 @@ impl Humon {
                     })
                     .child(
                         Button::new("form-save")
+                            .small()
                             .primary()
                             .label(t!("form.save"))
                             .on_click(cx.listener(|this, _, window, cx| {

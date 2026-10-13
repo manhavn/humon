@@ -1,6 +1,7 @@
 //! The query history and export panels, and the export itself.
 
 use super::*;
+use gpui_kit::component::Sizable;
 
 impl Humon {
     /// Asks where to save, then streams the export there on tokio.
@@ -79,20 +80,11 @@ impl Humon {
         let theme = cx.theme();
         let (border, muted, panel) = (theme.border, theme.muted_foreground, theme.sidebar);
         let id = tab.id;
-        let mut row = div()
-            .flex()
-            .flex_wrap()
-            .items_center()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(border)
-            .bg(panel)
-            .text_xs();
+        let mut row = ui::panel(border, panel).flex_row().flex_wrap().items_center();
         for (format, label) in [(ExportFormat::Json, "JSON"), (ExportFormat::Csv, "CSV")] {
             row = row.child(
                 Button::new(SharedString::from(format!("format-{label}")))
+                    .small()
                     .label(label)
                     .when(tab.export_format == format, |b| b.primary())
                     .on_click(cx.listener(move |this, _, _, cx| {
@@ -114,6 +106,7 @@ impl Humon {
         ] {
             row = row.child(
                 Button::new(SharedString::from(format!("scope-{all}")))
+                    .small()
                     .label(label)
                     .when(tab.export_all == all, |b| b.primary())
                     .on_click(cx.listener(move |this, _, _, cx| {
@@ -130,6 +123,7 @@ impl Humon {
             })
             .child(
                 Button::new("export-save")
+                    .small()
                     .primary()
                     .label(if tab.exporting {
                         t!("export.running")
@@ -189,12 +183,13 @@ impl Humon {
             .id(("history", id))
             .flex()
             .flex_col()
+            .flex_none()
             .max_h(px(260.))
+            .py(px(ui::SPACE / 2.))
             .overflow_y_scroll()
             .border_b_1()
             .border_color(border)
-            .bg(panel)
-            .text_xs();
+            .bg(panel);
         if favorites.is_empty() && recent.is_empty() {
             return list.child(
                 div()
@@ -288,6 +283,7 @@ impl Humon {
         for lang in crate::codegen::Lang::ALL {
             langs = langs.child(
                 Button::new(SharedString::from(format!("code-{}", lang.label())))
+                    .small()
                     .label(lang.label())
                     .when(tab.code_lang == lang, |b| b.primary())
                     .on_click(cx.listener(move |this, _, window, cx| {
@@ -301,19 +297,11 @@ impl Humon {
         }
         let code = tab.code_view.read(cx).value().to_string();
         let lines = code.lines().count().max(1);
-        div()
-            .flex()
-            .flex_col()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(border)
-            .bg(panel)
-            .text_xs()
+        ui::panel(border, panel)
             .child(
                 langs.child(div().flex_1()).child(
                     Button::new("code-copy")
+                        .small()
                         .label(t!("card.copy"))
                         .disabled(tab.code_error.is_some())
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -453,6 +441,7 @@ impl Humon {
                             .when(index.name != "_id_", |d| {
                                 d.child(
                                     Button::new(SharedString::from(format!("drop-index-{}", index.name)))
+                                        .small()
                                         .label(if confirm {
                                             t!("card.confirm_delete")
                                         } else {
@@ -488,6 +477,7 @@ impl Humon {
             )
             .child(
                 Button::new("index-create")
+                    .small()
                     .primary()
                     .label(t!("indexes.create"))
                     .on_click(cx.listener(move |this, _, window, cx| {
@@ -495,16 +485,7 @@ impl Humon {
                         cx.notify();
                     })),
             );
-        div()
-            .flex()
-            .flex_col()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(border)
-            .bg(panel)
-            .text_xs()
+        ui::panel(border, panel)
             .child(list)
             .child(create)
             .when_some(tab.index_error.clone(), |d, e| {
@@ -551,19 +532,13 @@ impl Humon {
                 )
                 .child(div().text_color(muted).child(s.stages.join(" → "))),
         };
-        div()
-            .flex()
+        ui::panel(border, panel)
+            .flex_row()
             .items_start()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(border)
-            .bg(panel)
-            .text_xs()
             .child(div().flex_1().child(body))
             .child(
                 Button::new("explain-close")
+                    .small()
                     .label(t!("settings.close"))
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(tab) = this.tab_mut(id) {

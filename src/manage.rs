@@ -2,6 +2,7 @@
 //! sidebar. Each action opens a small inline form under its row; drops
 //! require typing the name, as Compass does.
 
+use gpui_kit::component::Sizable;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{ActiveTheme, Disableable};
@@ -291,6 +292,7 @@ impl Humon {
                     .justify_end()
                     .child(
                         Button::new("edit-cancel")
+                            .small()
                             .label(t!("manage.cancel"))
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.cancel_edit();
@@ -299,6 +301,7 @@ impl Humon {
                     )
                     .child(
                         Button::new("edit-submit")
+                            .small()
                             .label(button)
                             .map(|b| if confirm.is_some() { b.danger() } else { b.primary() })
                             .disabled(!ready || form.busy)

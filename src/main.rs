@@ -20,6 +20,7 @@ mod shell;
 mod smart;
 mod store;
 mod tab;
+mod ui;
 mod version;
 
 use gpui_kit::component::Theme;

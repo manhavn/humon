@@ -3,6 +3,7 @@
 //! copy and run-again buttons, and its result in a read-only editor that can
 //! be selected, copied and searched.
 
+use gpui_kit::component::Sizable;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::{Editor, EditorState, InputEvent};
 use gpui_kit::component::{ActiveTheme, Disableable, resizable_panel, v_resizable};
@@ -23,6 +24,7 @@ use crate::console::lines::{Entry, Line, LineKind, body, failed, lines, result_t
 use crate::console::recall::Recall;
 use crate::highlight::{shell_editor, show_problems};
 use crate::smart::Smart;
+use crate::ui;
 
 gpui_kit::actions!(humon_shell, [HistoryPrev, HistoryNext]);
 
@@ -242,17 +244,11 @@ impl Humon {
         );
         let mono = theme.mono_font_family.clone();
 
-        let toolbar = div()
-            .flex()
-            .items_center()
-            .gap_2()
-            .px_3()
-            .py_2()
-            .border_b_1()
-            .border_color(border)
+        let toolbar = ui::bar(border)
             .bg(panel)
             .child(
                 Button::new(("console-run", id))
+                    .small()
                     .primary()
                     .label(format!("▶ {}", t!("console.run")))
                     .disabled(console.running || console.handle.is_none())
@@ -261,6 +257,7 @@ impl Humon {
             .when(console.running, |d| {
                 d.child(
                     Button::new(("console-stop", id))
+                        .small()
                         .danger()
                         .label(format!("■ {}", t!("console.stop")))
                         .on_click(cx.listener(move |this, _, _, cx| {
@@ -272,29 +269,27 @@ impl Humon {
                 )
             })
             .child(
-                Button::new(("console-history", id))
-                    .label(t!("console.history"))
-                    .when(console.history_open, |b| b.primary())
-                    .on_click(cx.listener(move |this, _, _, cx| {
+                ui::tool(("console-history", id), t!("console.history"), console.history_open).on_click(cx.listener(
+                    move |this, _, _, cx| {
                         if let Some(console) = this.console_mut(id) {
                             console.history_open = !console.history_open;
                         }
                         cx.notify();
-                    })),
+                    },
+                )),
             )
             .child(
-                Button::new(("console-clear", id))
-                    .label(t!("console.clear"))
-                    .on_click(cx.listener(move |this, _, _, cx| {
+                ui::tool(("console-clear", id), t!("console.clear"), false).on_click(cx.listener(
+                    move |this, _, _, cx| {
                         if let Some(console) = this.console_mut(id) {
                             console.blocks.clear();
                         }
                         cx.notify();
-                    })),
+                    },
+                )),
             )
             .child(
-                Button::new(("console-copy-all", id))
-                    .label(t!("console.copy_all"))
+                ui::tool(("console-copy-all", id), t!("console.copy_all"), false)
                     .disabled(console.blocks.is_empty())
                     .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(console) = this.console_mut(id) {
@@ -303,13 +298,7 @@ impl Humon {
                         }
                     })),
             )
-            .child(
-                div()
-                    .flex_1()
-                    .text_xs()
-                    .text_color(muted)
-                    .child(t!("console.hint").to_string()),
-            )
+            .child(ui::note(t!("console.hint"), muted).flex_1().truncate())
             .child(
                 div()
                     .font_family(mono.clone())

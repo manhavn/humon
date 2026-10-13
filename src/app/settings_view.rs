@@ -1,6 +1,7 @@
 //! The settings page, which is also the first-launch welcome.
 
 use super::*;
+use gpui_kit::component::Sizable;
 use gpui_kit::component::checkbox::Checkbox;
 
 /// A titled card holding one group of settings.
@@ -68,6 +69,7 @@ impl Humon {
         for &size in crate::schema::SAMPLE_SIZES {
             samples = samples.child(
                 Button::new(SharedString::from(format!("sample-{size}")))
+                    .small()
                     .label(crate::tab::status::thousands(size as u64))
                     .when(size == chosen, |b| b.primary())
                     .on_click(cx.listener(move |this, _, _, cx| {
@@ -90,6 +92,7 @@ impl Humon {
             )
             .child(
                 Button::new("settings-close")
+                    .small()
                     .label(t!("settings.close"))
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.close_settings();
@@ -182,6 +185,7 @@ impl Humon {
             .when(self.welcome, |d| {
                 d.child(
                     Button::new("welcome-continue")
+                        .small()
                         .primary()
                         .label(t!("settings.continue"))
                         .on_click(cx.listener(|this, _, _, cx| {

@@ -1,6 +1,7 @@
 //! The editor for editing and inserting documents, and its save actions.
 
 use super::*;
+use gpui_kit::component::Sizable;
 
 pub struct DocEditor {
     pub state: Entity<EditorState>,
@@ -198,6 +199,7 @@ impl Humon {
                     )
                     .child(
                         Button::new(("cancel-edit", id))
+                            .small()
                             .label(t!("tab.cancel"))
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 if let Some(tab) = this.tab_mut(id) {
@@ -208,6 +210,7 @@ impl Humon {
                     )
                     .child(
                         Button::new(("save-edit", id))
+                            .small()
                             .primary()
                             .label(if editor.saving {
                                 t!("tab.saving").into()
