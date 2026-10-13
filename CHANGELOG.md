@@ -6,6 +6,8 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-10-13
+
 - Open tabs come back on the next launch, with their queries, views and
   shell scripts; their connections connect on their own
 - Schema view: the collection's fields, nested, with how often each
