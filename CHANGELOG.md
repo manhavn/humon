@@ -6,6 +6,21 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-13
+
+- Shell results are one block per run: the query and its run time in a
+  header, with Copy result, Copy query, Run again and Delete on hover.
+  Blocks fold like an accordion (a new run folds the earlier ones), failed
+  runs have a red edge, and Copy all copies the whole session
+- The shell editor can be made taller or shorter by dragging the divider
+  under it
+- Tree view: rows with long values no longer shift left (the value is cut
+  with an ellipsis), and each row has a copy button
+- Card buttons sit in the first row instead of covering the top rows
+- The filter, sort and projection boxes no longer scroll their text away,
+  and line breaks typed or pasted into them become spaces
+- Settings thanks the people who help humon
+
 ## [0.1.5] - 2026-10-13
 
 - Install with Homebrew: `brew install --cask yldrmzffr/tap/humon` (#2); each
