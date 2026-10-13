@@ -137,6 +137,18 @@ impl Humon {
                     cx.notify();
                 })),
         );
+        toolbar = toolbar.child(
+            Button::new("code-toggle")
+                .label(t!("tab.code"))
+                .when(tab.code_open, |b| b.primary())
+                .on_click(cx.listener(move |this, _, window, cx| {
+                    if let Some(tab) = this.tab_mut(id) {
+                        tab.code_open = !tab.code_open;
+                    }
+                    this.refresh_code(id, window, cx);
+                    cx.notify();
+                })),
+        );
         if tab.writable() {
             toolbar = toolbar.child(
                 Button::new("add")
@@ -175,6 +187,7 @@ impl Humon {
                         if let Some(tab) = this.tab_mut(id) {
                             tab.page_size = size;
                         }
+                        this.refresh_code(id, window, cx);
                         this.go_to_page(id, 0, window, cx);
                     })),
             );
@@ -276,6 +289,7 @@ impl Humon {
             .when(tab.history_open, |d| d.child(self.render_history(tab, cx)))
             .child(toolbar)
             .when(tab.export_open, |d| d.child(self.render_export(tab, cx)))
+            .when(tab.code_open, |d| d.child(self.render_code(tab, cx)))
             .when_some(tab.error.clone(), |d, e| {
                 d.child(div().px_3().py_2().text_color(danger).child(e))
             })

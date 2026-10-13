@@ -1,6 +1,7 @@
 //! humon on gpui: a lightweight MongoDB client.
 
 mod app;
+mod codegen;
 mod complete;
 mod console;
 mod files;

@@ -26,6 +26,7 @@ form.uri_required: कनेक्शन स्ट्रिंग खाली �
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: खोजें
+tab.code: कोड
 tab.reset: रीसेट
 tab.add: + जोड़ें
 tab.view_tree: ट्री

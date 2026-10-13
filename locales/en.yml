@@ -26,6 +26,7 @@ form.uri_required: The connection string can't be empty
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: Find
+tab.code: Code
 tab.reset: Reset
 tab.add: + Add
 tab.view_tree: Tree

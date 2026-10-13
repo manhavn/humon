@@ -26,6 +26,7 @@ form.uri_required: لا يمكن أن تكون سلسلة الاتصال فار�
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: بحث
+tab.code: الكود
 tab.reset: إعادة تعيين
 tab.add: + إضافة
 tab.view_tree: شجرة

@@ -24,6 +24,7 @@ form.uri_required: Bağlantı adresi boş olamaz
 tab.filter_placeholder: "{ alan: 'değer' }"
 tab.projection_placeholder: "{ alan: 1 }"
 tab.find: Bul
+tab.code: Kod
 tab.reset: Sıfırla
 tab.add: + Ekle
 tab.view_tree: Ağaç

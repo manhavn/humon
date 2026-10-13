@@ -26,6 +26,7 @@ form.uri_required: La chaîne de connexion ne peut pas être vide
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: Rechercher
+tab.code: Code
 tab.reset: Réinitialiser
 tab.add: + Ajouter
 tab.view_tree: Arbre

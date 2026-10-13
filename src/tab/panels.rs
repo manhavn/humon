@@ -249,4 +249,89 @@ impl Humon {
         }
         list
     }
+
+    /// Rewrites the code panel from what the query bar holds now.
+    pub(crate) fn refresh_code(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        if !tab.code_open {
+            return;
+        }
+        let parse = |label: &str, input: &Entity<EditorState>| {
+            crate::query::parse_document(&input.read(cx).value()).map_err(|e| format!("{label}: {e}"))
+        };
+        let find = (|| {
+            Ok::<_, String>(crate::codegen::Find {
+                db: tab.target.db.clone(),
+                coll: tab.target.name.clone(),
+                filter: parse("Filter", &tab.filter)?,
+                sort: parse("Sort", &tab.sort)?,
+                projection: parse("Project", &tab.projection)?,
+                limit: Some(tab.page_size),
+            })
+        })();
+        match find {
+            Ok(find) => {
+                tab.code_error = None;
+                let code = crate::codegen::to_code(tab.code_lang, &find);
+                tab.code_view.update(cx, |s, cx| s.set_value(code, window, cx));
+            }
+            Err(e) => tab.code_error = Some(e),
+        }
+    }
+
+    /// The query in another language, to copy into an application.
+    pub(crate) fn render_code(&self, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, panel, danger) = (theme.border, theme.sidebar, theme.danger);
+        let id = tab.id;
+        let mut langs = div().flex().flex_wrap().items_center().gap_2();
+        for lang in crate::codegen::Lang::ALL {
+            langs = langs.child(
+                Button::new(SharedString::from(format!("code-{}", lang.label())))
+                    .label(lang.label())
+                    .when(tab.code_lang == lang, |b| b.primary())
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.code_lang = lang;
+                        }
+                        this.refresh_code(id, window, cx);
+                        cx.notify();
+                    })),
+            );
+        }
+        let code = tab.code_view.read(cx).value().to_string();
+        let lines = code.lines().count().max(1);
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(border)
+            .bg(panel)
+            .text_xs()
+            .child(
+                langs.child(div().flex_1()).child(
+                    Button::new("code-copy")
+                        .label(t!("card.copy"))
+                        .disabled(tab.code_error.is_some())
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            cx.write_to_clipboard(ClipboardItem::new_string(code.clone()));
+                            if let Some(tab) = this.tab_mut(id) {
+                                tab.notice = Some(t!("tree.copied").into());
+                            }
+                            cx.notify();
+                        })),
+                ),
+            )
+            .map(|d| match &tab.code_error {
+                Some(e) => d.child(div().text_color(danger).child(e.clone())),
+                None => d.child(
+                    Editor::new(&tab.code_view)
+                        .readonly(true)
+                        .h(px((lines as f32 * 18. + 16.).clamp(52., 320.))),
+                ),
+            })
+    }
 }

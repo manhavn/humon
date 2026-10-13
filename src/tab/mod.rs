@@ -85,6 +85,11 @@ pub struct Tab {
     /// Export every match rather than just the shown page.
     export_all: bool,
     exporting: bool,
+    /// The query as driver code, in a panel under the query bar.
+    code_open: bool,
+    code_lang: crate::codegen::Lang,
+    code_view: Entity<EditorState>,
+    code_error: Option<String>,
     /// Typing helpers for filter, sort and projection.
     smart: [Smart; 3],
     _subscriptions: Vec<Subscription>,
@@ -153,6 +158,10 @@ impl Tab {
             export_format: ExportFormat::Json,
             export_all: true,
             exporting: false,
+            code_open: false,
+            code_lang: crate::codegen::Lang::Node,
+            code_view: cx.new(|cx| crate::highlight::shell_editor(window, cx)),
+            code_error: None,
             smart: Default::default(),
             _subscriptions: subscriptions,
         }
@@ -263,6 +272,7 @@ impl Humon {
         }
         tab.smart[which].on_change(&input, true, window, cx);
         self.check_query_box(id, which, cx);
+        self.refresh_code(id, window, cx);
     }
 
     /// Underlines problems in a query box against the sampled schema.
