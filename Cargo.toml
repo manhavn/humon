@@ -1,6 +1,6 @@
 [package]
 name = "humon"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2024"
 rust-version = "1.88"
 description = "A small, fast MongoDB client for the desktop, built with gpui"
