@@ -127,6 +127,86 @@ pub fn preprocess(code: &str) -> String {
     }
 }
 
+/// Top-level `const` and `let` as `var`, as mongosh does: values stay
+/// between runs, and running the same script again isn't a redeclaration.
+/// Declarations inside functions, blocks, loops and literals are untouched.
+pub fn top_level_var(code: &str) -> String {
+    let bytes = code.as_bytes();
+    let mut out = String::with_capacity(code.len());
+    let mut depth = 0usize;
+    let mut i = 0;
+    // The last significant character, to tell a regex `/` from division.
+    let mut last = b';';
+    while i < bytes.len() {
+        let c = bytes[i];
+        let rest = &code[i..];
+        // Skip what can hold braces or keywords without being code.
+        let skip = if rest.starts_with("//") {
+            rest.find('\n').unwrap_or(rest.len())
+        } else if rest.starts_with("/*") {
+            rest.find("*/").map_or(rest.len(), |e| e + 2)
+        } else if matches!(c, b'"' | b'\'' | b'`') || (c == b'/' && b"(,=:[!&|?{};".contains(&last)) {
+            let mut j = 1;
+            let mut nested = 0usize;
+            while j < rest.len() {
+                let d = rest.as_bytes()[j];
+                if d == b'\\' {
+                    j += 2;
+                    continue;
+                }
+                if c == b'`' && rest[j..].starts_with("${") {
+                    nested += 1;
+                } else if c == b'`' && nested > 0 && d == b'}' {
+                    nested -= 1;
+                } else if d == c && nested == 0 {
+                    j += 1;
+                    break;
+                }
+                j += 1;
+            }
+            j.min(rest.len())
+        } else {
+            0
+        };
+        if skip > 0 {
+            out.push_str(&rest[..skip]);
+            last = b'x';
+            i += skip;
+            continue;
+        }
+        let word_start = i == 0
+            || !(bytes[i - 1].is_ascii_alphanumeric()
+                || bytes[i - 1] == b'_'
+                || bytes[i - 1] == b'$'
+                || bytes[i - 1] == b'.');
+        if depth == 0 && word_start {
+            for kw in ["const", "let"] {
+                if rest.starts_with(kw) && rest[kw.len()..].starts_with(|ch: char| ch.is_whitespace()) {
+                    out.push_str("var");
+                    i += kw.len();
+                    last = b'x';
+                    break;
+                }
+            }
+            if i < bytes.len() && bytes[i] != c {
+                continue;
+            }
+        }
+        match c {
+            b'{' | b'(' | b'[' => depth += 1,
+            b'}' | b')' | b']' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        if !c.is_ascii_whitespace() {
+            last = c;
+        }
+        let ch = rest.chars().next().unwrap_or_default();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
 /// `print`'s arguments (a JSON array of extended JSON) joined by spaces:
 /// strings as they are, other values in shell syntax.
 fn print_text(args: &str) -> String {
@@ -265,7 +345,7 @@ impl Engine {
     /// Runs `code` and returns everything it printed, then its value.
     pub fn eval(&mut self, code: &str) -> Vec<Output> {
         self.stop.store(false, Ordering::Relaxed);
-        let code = preprocess(code);
+        let code = top_level_var(&preprocess(code));
         let result = self.context.with(|ctx| {
             let run = || -> rquickjs::Result<String> {
                 let value: Value = ctx.eval(code.as_str())?;
@@ -453,6 +533,48 @@ mod tests {
         ] {
             assert_eq!(preprocess(code), code);
         }
+    }
+
+    #[test]
+    fn a_script_can_run_again() {
+        // Each run gets its own scope: re-running `const x` is no redeclaration.
+        let mut e = engine();
+        for _ in 0..2 {
+            assert_eq!(
+                value(&mut e, "const users = [1, 2]\nusers.length"),
+                json!({ "$numberInt": "2" })
+            );
+        }
+        // `var` stays global on purpose, for values kept between runs.
+        e.eval("var kept = 'x'");
+        assert_eq!(value(&mut e, "kept"), json!("x"));
+        assert_eq!(
+            value(&mut e, "1 + 1 // a trailing comment"),
+            json!({ "$numberInt": "2" })
+        );
+    }
+
+    #[test]
+    fn top_level_const_and_let_become_var() {
+        assert_eq!(
+            top_level_var("const a = 1\nlet b = 2; const c = 3"),
+            "var a = 1\nvar b = 2; var c = 3"
+        );
+        // Inside functions, blocks, loops and literals they stay as they are.
+        for code in [
+            "users.forEach(u => { const n = u.name })",
+            "for (let i = 0; i < 3; i++) {}",
+            "if (x) { let y = 1 }",
+            "print('const a = 1')",
+            "print(`let ${a}`)",
+            "// const a = 1",
+            "/* let b */",
+            "const_value + letter",
+            "x.const",
+        ] {
+            assert_eq!(top_level_var(code), code, "{code}");
+        }
+        assert_eq!(top_level_var("{ a: 1 }\nconst b = /x{/"), "{ a: 1 }\nvar b = /x{/");
     }
 
     #[test]
