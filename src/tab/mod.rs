@@ -256,6 +256,11 @@ impl Humon {
     fn query_input_changed(&mut self, id: usize, which: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(tab) = self.tab_mut(id) else { return };
         let input = [&tab.filter, &tab.sort, &tab.projection][which].clone();
+        // A pasted or Shift+Enter line break: fold it; the change comes back here.
+        if let Some(flat) = one_line(&input.read(cx).value()) {
+            input.update(cx, |s, cx| s.set_value(flat, window, cx));
+            return;
+        }
         tab.smart[which].on_change(&input, true, window, cx);
         self.check_query_box(id, which, cx);
     }

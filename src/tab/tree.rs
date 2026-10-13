@@ -50,16 +50,11 @@ impl Humon {
                 .hover(|s| s.bg(hover))
                 .child(label)
         };
-        let mut actions = div()
-            .absolute()
-            .top_1()
-            .right_2()
-            .flex()
-            .gap_1()
-            .text_color(muted)
-            .when(!confirm, |d| {
-                d.opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))
-            });
+        // In the first row's flow, not floating over the rows, so nothing hides
+        // under them (row copy buttons included).
+        let mut actions = div().flex_none().flex().gap_1().text_color(muted).when(!confirm, |d| {
+            d.opacity(0.).group_hover(group.clone(), |s| s.opacity(1.))
+        });
         if writable {
             actions = actions
                 .child(
@@ -118,18 +113,24 @@ impl Humon {
                 );
             }
         }
+        let mut rows = rows.into_iter();
+        let header = div()
+            .flex()
+            .items_start()
+            .gap_2()
+            .child(div().flex_1().min_w_0().children(rows.next()))
+            .child(actions);
         div()
             .id(SharedString::from(format!("card-{id}-{ix}")))
             .group(group)
-            .relative()
             .p_2()
             .border_1()
             .border_color(border)
             .rounded_md()
             .font_family(mono)
             .text_xs()
+            .child(header)
             .children(rows)
-            .child(actions)
             .when_some(
                 tab.card_error
                     .as_ref()
