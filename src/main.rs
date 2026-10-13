@@ -4,6 +4,7 @@ mod app;
 mod codegen;
 mod complete;
 mod console;
+mod explain;
 mod files;
 mod highlight;
 mod history;

@@ -26,6 +26,8 @@ form.uri_required: La cadena de conexión no puede estar vacía
 tab.filter_placeholder: "{ campo: 'valor' }"
 tab.projection_placeholder: "{ campo: 1 }"
 tab.find: Buscar
+tab.indexes: Índices
+tab.explain: Explain
 tab.code: Código
 tab.reset: Restablecer
 tab.add: + Añadir
@@ -215,3 +217,13 @@ schema.loading: "Leyendo los campos de la colección…"
 schema.sampled: "%{n} documentos muestreados"
 schema.complete: "todos los documentos comprobados"
 schema.partial: "de una muestra: pueden faltar campos poco comunes"
+indexes.loading: Cargando índices…
+indexes.new: Nuevo índice
+indexes.unique: Único
+indexes.create: Crear
+indexes.drop: Eliminar
+indexes.created: "Índice %{name} creado"
+explain.running: Ejecutando explain…
+explain.collscan: "Recorrido de la colección: no se usó ningún índice, se leyeron todos los documentos."
+explain.index: "Índice usado: %{names}"
+explain.stats: "%{returned} devueltos · %{docs} documentos leídos · %{keys} claves de índice leídas · %{ms} ms"

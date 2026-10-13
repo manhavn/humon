@@ -24,6 +24,8 @@ form.uri_required: Bağlantı adresi boş olamaz
 tab.filter_placeholder: "{ alan: 'değer' }"
 tab.projection_placeholder: "{ alan: 1 }"
 tab.find: Bul
+tab.indexes: Index'ler
+tab.explain: Explain
 tab.code: Kod
 tab.reset: Sıfırla
 tab.add: + Ekle
@@ -213,3 +215,13 @@ schema.loading: "Koleksiyonun alanları okunuyor…"
 schema.sampled: "%{n} belge örneklendi"
 schema.complete: "tüm belgeler kontrol edildi"
 schema.partial: "örneklemden: nadir alanlar eksik olabilir"
+indexes.loading: Index'ler yükleniyor…
+indexes.new: Yeni index
+indexes.unique: Benzersiz
+indexes.create: Oluştur
+indexes.drop: Sil
+indexes.created: "%{name} index'i oluşturuldu"
+explain.running: Explain çalışıyor…
+explain.collscan: "Koleksiyon taraması: index kullanılmadı, tüm belgeler okundu."
+explain.index: "Kullanılan index: %{names}"
+explain.stats: "%{returned} döndü · %{docs} belge okundu · %{keys} index anahtarı okundu · %{ms} ms"

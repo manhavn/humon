@@ -239,6 +239,8 @@ mod tests {
             "complete.",
             "check.",
             "schema.",
+            "indexes.",
+            "explain.",
         ];
         fn rust_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
             for entry in std::fs::read_dir(dir).unwrap() {

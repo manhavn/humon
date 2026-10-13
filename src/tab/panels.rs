@@ -334,4 +334,243 @@ impl Humon {
                 ),
             })
     }
+
+    pub(crate) fn load_indexes(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        tab.indexes = None;
+        let fut = tab.target.clone().indexes();
+        self.run(fut, window, cx, move |this, res, _, _| {
+            if let Some(tab) = this.tab_mut(id) {
+                tab.indexes = Some(res);
+            }
+        });
+    }
+
+    fn create_index(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        let keys = tab.index_keys.read(cx).value().to_string();
+        tab.index_error = None;
+        let fut = tab.target.clone().create_index(keys, tab.index_unique);
+        self.run(fut, window, cx, move |this, res, window, cx| {
+            let Some(tab) = this.tab_mut(id) else { return };
+            match res {
+                Ok(name) => {
+                    tab.notice = Some(t!("indexes.created", name = name).into());
+                    tab.index_keys.update(cx, |s, cx| s.set_value("", window, cx));
+                    this.load_indexes(id, window, cx);
+                }
+                Err(e) => tab.index_error = Some(e),
+            }
+        });
+    }
+
+    fn drop_index(&mut self, id: usize, name: String, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        if tab.confirm_drop_index.as_deref() != Some(name.as_str()) {
+            tab.confirm_drop_index = Some(name);
+            return;
+        }
+        tab.confirm_drop_index = None;
+        let fut = tab.target.clone().drop_index(name);
+        self.run(fut, window, cx, move |this, res, window, cx| match res {
+            Ok(()) => this.load_indexes(id, window, cx),
+            Err(e) => {
+                if let Some(tab) = this.tab_mut(id) {
+                    tab.index_error = Some(e);
+                }
+            }
+        });
+    }
+
+    /// Explains what the query bar holds now.
+    pub(crate) fn run_explain(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        let args = FindArgs {
+            filter: tab.filter.read(cx).value().to_string(),
+            sort: tab.sort.read(cx).value().to_string(),
+            projection: tab.projection.read(cx).value().to_string(),
+            skip: 0,
+            limit: tab.page_size,
+        };
+        tab.explaining = true;
+        let fut = tab.target.clone().explain(args);
+        self.run(fut, window, cx, move |this, res, _, _| {
+            if let Some(tab) = this.tab_mut(id) {
+                tab.explaining = false;
+                tab.explain = Some(res);
+            }
+        });
+    }
+
+    pub(crate) fn render_indexes(&self, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, muted, panel, danger) = (theme.border, theme.muted_foreground, theme.sidebar, theme.danger);
+        let mono = theme.mono_font_family.clone();
+        let id = tab.id;
+        let mut list = div().flex().flex_col().gap_1();
+        match &tab.indexes {
+            None => list = list.child(div().text_color(muted).child(t!("indexes.loading").to_string())),
+            Some(Err(e)) => list = list.child(div().text_color(danger).child(e.clone())),
+            Some(Ok(indexes)) => {
+                for index in indexes {
+                    let mut badges = Vec::new();
+                    if index.unique {
+                        badges.push(t!("indexes.unique").to_string());
+                    }
+                    if index.sparse {
+                        badges.push("sparse".to_string());
+                    }
+                    if index.partial {
+                        badges.push("partial".to_string());
+                    }
+                    if let Some(s) = index.ttl {
+                        badges.push(format!("TTL {s}s"));
+                    }
+                    let name = index.name.clone();
+                    let confirm = tab.confirm_drop_index.as_deref() == Some(index.name.as_str());
+                    list = list.child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap_3()
+                            .child(
+                                div()
+                                    .w(px(180.))
+                                    .flex_none()
+                                    .truncate()
+                                    .font_family(mono.clone())
+                                    .child(index.name.clone()),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .truncate()
+                                    .font_family(mono.clone())
+                                    .child(index.keys.clone()),
+                            )
+                            .child(div().text_color(muted).child(badges.join(" · ")))
+                            .when(index.name != "_id_", |d| {
+                                d.child(
+                                    Button::new(SharedString::from(format!("drop-index-{}", index.name)))
+                                        .label(if confirm {
+                                            t!("card.confirm_delete")
+                                        } else {
+                                            t!("indexes.drop")
+                                        })
+                                        .when(confirm, |b| b.danger())
+                                        .on_click(cx.listener(move |this, _, window, cx| {
+                                            this.drop_index(id, name.clone(), window, cx);
+                                            cx.notify();
+                                        })),
+                                )
+                            }),
+                    );
+                }
+            }
+        }
+        let create = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .child(div().flex_none().child(t!("indexes.new").to_string()))
+            .child(div().flex_1().min_w_0().child(query_box(&tab.index_keys)))
+            .child(
+                gpui_kit::component::checkbox::Checkbox::new("index-unique")
+                    .label(t!("indexes.unique").to_string())
+                    .checked(tab.index_unique)
+                    .on_click(cx.listener(move |this, checked: &bool, _, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.index_unique = *checked;
+                        }
+                        cx.notify();
+                    })),
+            )
+            .child(
+                Button::new("index-create")
+                    .primary()
+                    .label(t!("indexes.create"))
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.create_index(id, window, cx);
+                        cx.notify();
+                    })),
+            );
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(border)
+            .bg(panel)
+            .text_xs()
+            .child(list)
+            .child(create)
+            .when_some(tab.index_error.clone(), |d, e| {
+                d.child(div().text_color(danger).child(e))
+            })
+    }
+
+    pub(crate) fn render_explain(&self, tab: &Tab, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let (border, muted, panel, danger, warning, success) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.sidebar,
+            theme.danger,
+            theme.warning,
+            theme.success,
+        );
+        let id = tab.id;
+        let body = match (&tab.explain, tab.explaining) {
+            (_, true) | (None, _) => div().text_color(muted).child(t!("explain.running").to_string()),
+            (Some(Err(e)), _) => div().text_color(danger).child(e.clone()),
+            (Some(Ok(s)), _) => div()
+                .flex()
+                .flex_col()
+                .gap_1()
+                .child(if s.collection_scan {
+                    div().text_color(warning).child(t!("explain.collscan").to_string())
+                } else {
+                    div()
+                        .text_color(success)
+                        .child(t!("explain.index", names = s.indexes.join(", ")).to_string())
+                })
+                .child(
+                    div().child(
+                        t!(
+                            "explain.stats",
+                            returned = thousands(s.returned as u64),
+                            docs = thousands(s.docs_examined as u64),
+                            keys = thousands(s.keys_examined as u64),
+                            ms = s.millis
+                        )
+                        .to_string(),
+                    ),
+                )
+                .child(div().text_color(muted).child(s.stages.join(" → "))),
+        };
+        div()
+            .flex()
+            .items_start()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(border)
+            .bg(panel)
+            .text_xs()
+            .child(div().flex_1().child(body))
+            .child(
+                Button::new("explain-close")
+                    .label(t!("settings.close"))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(tab) = this.tab_mut(id) {
+                            tab.explain = None;
+                        }
+                        cx.notify();
+                    })),
+            )
+    }
 }

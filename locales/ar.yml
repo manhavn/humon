@@ -26,6 +26,8 @@ form.uri_required: لا يمكن أن تكون سلسلة الاتصال فار�
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: بحث
+tab.indexes: الفهارس
+tab.explain: Explain
 tab.code: الكود
 tab.reset: إعادة تعيين
 tab.add: + إضافة
@@ -215,3 +217,13 @@ schema.loading: "جارٍ قراءة حقول المجموعة…"
 schema.sampled: "تم أخذ عيّنة من %{n} مستند"
 schema.complete: "تم فحص جميع المستندات"
 schema.partial: "من عيّنة: قد تكون بعض الحقول النادرة مفقودة"
+indexes.loading: جارٍ تحميل الفهارس…
+indexes.new: فهرس جديد
+indexes.unique: فريد
+indexes.create: إنشاء
+indexes.drop: حذف
+indexes.created: "تم إنشاء الفهرس %{name}"
+explain.running: جارٍ تشغيل explain…
+explain.collscan: "مسح كامل للمجموعة: لم يُستخدم أي فهرس، وتمت قراءة كل المستندات."
+explain.index: "الفهرس المستخدم: %{names}"
+explain.stats: "أُعيد %{returned} · قُرئ %{docs} مستند · قُرئ %{keys} مفتاح فهرس · %{ms} ms"

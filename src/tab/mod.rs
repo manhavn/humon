@@ -93,6 +93,17 @@ pub struct Tab {
     code_lang: crate::codegen::Lang,
     code_view: Entity<EditorState>,
     code_error: Option<String>,
+    indexes_open: bool,
+    /// None while loading.
+    indexes: Option<Result<Vec<crate::mongo::IndexInfo>, String>>,
+    index_keys: Entity<EditorState>,
+    index_unique: bool,
+    index_error: Option<String>,
+    /// Index whose Drop was clicked once.
+    confirm_drop_index: Option<String>,
+    /// The last explain of the query bar, shown under it.
+    explain: Option<Result<crate::explain::Summary, String>>,
+    explaining: bool,
     /// Typing helpers for filter, sort and projection.
     smart: [Smart; 3],
     _subscriptions: Vec<Subscription>,
@@ -114,6 +125,8 @@ impl Tab {
         let projection = cx.new(|cx| {
             query_editor(Mode::Project, schema.clone(), window, cx).placeholder(t!("tab.projection_placeholder"))
         });
+        // Index keys read like a sort: fields valued 1 or -1, with completion.
+        let index_keys = cx.new(|cx| query_editor(Mode::Sort, schema.clone(), window, cx).placeholder("{ field: 1 }"));
         let subscriptions = [&filter, &sort, &projection]
             .into_iter()
             .enumerate()
@@ -165,6 +178,14 @@ impl Tab {
             code_lang: crate::codegen::Lang::Node,
             code_view: cx.new(|cx| crate::highlight::shell_editor(window, cx)),
             code_error: None,
+            indexes_open: false,
+            indexes: None,
+            index_keys,
+            index_unique: false,
+            index_error: None,
+            confirm_drop_index: None,
+            explain: None,
+            explaining: false,
             smart: Default::default(),
             _subscriptions: subscriptions,
         }

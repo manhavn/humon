@@ -69,6 +69,12 @@ impl Humon {
                             this.run_query(id, window, cx);
                         })),
                 )
+                .child(Button::new("explain").label(t!("tab.explain")).on_click(cx.listener(
+                    move |this, _, window, cx| {
+                        this.run_explain(id, window, cx);
+                        cx.notify();
+                    },
+                )))
                 .child(
                     Button::new("reset")
                         .label(t!("tab.reset"))
@@ -137,6 +143,23 @@ impl Humon {
                     cx.notify();
                 })),
         );
+        if tab.writable() {
+            toolbar = toolbar.child(
+                Button::new("indexes-toggle")
+                    .label(t!("tab.indexes"))
+                    .when(tab.indexes_open, |b| b.primary())
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        let open = this.tab_mut(id).map(|t| {
+                            t.indexes_open = !t.indexes_open;
+                            t.indexes_open
+                        });
+                        if open == Some(true) {
+                            this.load_indexes(id, window, cx);
+                        }
+                        cx.notify();
+                    })),
+            );
+        }
         toolbar = toolbar.child(
             Button::new("code-toggle")
                 .label(t!("tab.code"))
@@ -294,6 +317,10 @@ impl Humon {
             .child(toolbar)
             .when(tab.export_open, |d| d.child(self.render_export(tab, cx)))
             .when(tab.code_open, |d| d.child(self.render_code(tab, cx)))
+            .when(tab.indexes_open, |d| d.child(self.render_indexes(tab, cx)))
+            .when(tab.explain.is_some() || tab.explaining, |d| {
+                d.child(self.render_explain(tab, cx))
+            })
             .when_some(tab.error.clone(), |d, e| {
                 d.child(div().px_3().py_2().text_color(danger).child(e))
             })

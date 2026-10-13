@@ -58,6 +58,43 @@ fn parse_id(id: &Value) -> Result<Bson, String> {
     Bson::try_from(id.clone()).map_err(|e| t!("errors.invalid_id", error = e).to_string())
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct IndexInfo {
+    pub name: String,
+    /// The key pattern in shell syntax: `{ age: 1, name: -1 }`.
+    pub keys: String,
+    pub unique: bool,
+    pub sparse: bool,
+    /// Seconds after which documents expire, for TTL indexes.
+    pub ttl: Option<u64>,
+    pub partial: bool,
+}
+
+/// A key pattern on one line, as it would be typed.
+fn keys_text(keys: &Document) -> String {
+    let fields: Vec<String> = keys
+        .iter()
+        .map(|(k, v)| {
+            let plain = k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+                && !k.starts_with(|c: char| c.is_ascii_digit());
+            let key = if plain {
+                k.clone()
+            } else {
+                serde_json::to_string(k).unwrap_or_default()
+            };
+            let value = match v {
+                Bson::Int32(n) => n.to_string(),
+                Bson::Int64(n) => n.to_string(),
+                Bson::Double(n) => n.to_string(),
+                Bson::String(s) => serde_json::to_string(s).unwrap_or_default(),
+                other => other.to_string(),
+            };
+            format!("{key}: {value}")
+        })
+        .collect();
+    format!("{{ {} }}", fields.join(", "))
+}
+
 pub async fn open(uri: String) -> Result<Client, String> {
     let mut opts = ClientOptions::parse(uri).await.map_err(err)?;
     opts.app_name = Some("humon".into());
@@ -345,6 +382,73 @@ impl CollectionRef {
             }
         }
         Ok(builder.finish())
+    }
+
+    /// The collection's indexes, `_id_` first as the server lists them.
+    pub async fn indexes(self) -> Result<Vec<IndexInfo>, String> {
+        let models: Vec<mongodb::IndexModel> = self
+            .handle()
+            .list_indexes()
+            .await
+            .map_err(err)?
+            .try_collect()
+            .await
+            .map_err(err)?;
+        Ok(models
+            .into_iter()
+            .map(|m| {
+                let opts = m.options.unwrap_or_default();
+                IndexInfo {
+                    name: opts.name.unwrap_or_default(),
+                    keys: keys_text(&m.keys),
+                    unique: opts.unique.unwrap_or(false),
+                    sparse: opts.sparse.unwrap_or(false),
+                    ttl: opts.expire_after.map(|d| d.as_secs()),
+                    partial: opts.partial_filter_expression.is_some(),
+                }
+            })
+            .collect())
+    }
+
+    /// Creates an index from keys in shell syntax (`{ age: 1 }`); returns its name.
+    pub async fn create_index(self, keys: String, unique: bool) -> Result<String, String> {
+        let keys = parse_arg("Keys", &keys)?;
+        let options = mongodb::options::IndexOptions::builder()
+            .unique(unique.then_some(true))
+            .build();
+        let model = mongodb::IndexModel::builder().keys(keys).options(options).build();
+        let created = self.handle().create_index(model).await.map_err(err)?;
+        Ok(created.index_name)
+    }
+
+    pub async fn drop_index(self, name: String) -> Result<(), String> {
+        self.handle().drop_index(name).await.map_err(err)
+    }
+
+    /// How the server runs this find: `explain` with execution stats, summed up.
+    pub async fn explain(self, args: FindArgs) -> Result<crate::explain::Summary, String> {
+        let mut find = doc! { "find": &self.name, "filter": parse_arg("Filter", &args.filter)? };
+        let sort = parse_arg("Sort", &args.sort)?;
+        let projection = parse_arg("Project", &args.projection)?;
+        if !sort.is_empty() {
+            find.insert("sort", sort);
+        }
+        if !projection.is_empty() {
+            find.insert("projection", projection);
+        }
+        if args.skip > 0 {
+            find.insert("skip", args.skip as i64);
+        }
+        if args.limit > 0 {
+            find.insert("limit", args.limit);
+        }
+        let explain = self
+            .client
+            .database(&self.db)
+            .run_command(doc! { "explain": find, "verbosity": "executionStats", "maxTimeMS": 60_000 })
+            .await
+            .map_err(err)?;
+        Ok(crate::explain::summarize(&explain))
     }
 
     /// The full stored document, ignoring any projection the tab has applied.
@@ -662,6 +766,43 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(left, 0, "the server agrees nothing is left out");
+        coll.drop().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_indexes_and_explain() {
+        let coll = scratch("indexes").await;
+        let docs: Vec<Document> = (0..50).map(|i| doc! { "age": i, "name": format!("u{i}") }).collect();
+        coll.handle().insert_many(docs).await.unwrap();
+        let names = |list: &[IndexInfo]| list.iter().map(|i| i.name.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&coll.clone().indexes().await.unwrap()), ["_id_"]);
+
+        let before = coll.clone().explain(args("{ age: 7 }", "", "", 0, 20)).await.unwrap();
+        assert!(before.collection_scan, "{before:?}");
+        assert_eq!((before.returned, before.docs_examined), (1, 50));
+
+        let name = coll.clone().create_index("{ age: 1 }".into(), true).await.unwrap();
+        assert_eq!(name, "age_1");
+        let list = coll.clone().indexes().await.unwrap();
+        let age = list.iter().find(|i| i.name == "age_1").unwrap();
+        assert_eq!(age.keys, "{ age: 1 }");
+        assert!(age.unique);
+
+        let after = coll.clone().explain(args("{ age: 7 }", "", "", 0, 20)).await.unwrap();
+        assert_eq!(after.indexes, ["age_1"]);
+        assert!(!after.collection_scan);
+        assert_eq!(after.docs_examined, 1);
+
+        assert!(
+            coll.clone()
+                .create_index("{ age: ".into(), false)
+                .await
+                .unwrap_err()
+                .starts_with("Keys:")
+        );
+        coll.clone().drop_index("age_1".into()).await.unwrap();
+        assert_eq!(names(&coll.clone().indexes().await.unwrap()), ["_id_"]);
         coll.drop().await.unwrap();
     }
 

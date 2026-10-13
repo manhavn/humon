@@ -26,6 +26,8 @@ form.uri_required: The connection string can't be empty
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: Find
+tab.indexes: Indexes
+tab.explain: Explain
 tab.code: Code
 tab.reset: Reset
 tab.add: + Add
@@ -215,3 +217,13 @@ schema.loading: "Reading the collection’s fields…"
 schema.sampled: "%{n} documents sampled"
 schema.complete: "every document checked"
 schema.partial: "from a sample: rare fields may be missing"
+indexes.loading: Loading indexes…
+indexes.new: New index
+indexes.unique: Unique
+indexes.create: Create
+indexes.drop: Drop
+indexes.created: "Index %{name} created"
+explain.running: Explaining…
+explain.collscan: "Collection scan: no index was used, every document was read."
+explain.index: "Index used: %{names}"
+explain.stats: "%{returned} returned · %{docs} documents read · %{keys} index keys read · %{ms} ms"

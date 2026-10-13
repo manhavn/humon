@@ -26,6 +26,8 @@ form.uri_required: कनेक्शन स्ट्रिंग खाली �
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: खोजें
+tab.indexes: इंडेक्स
+tab.explain: Explain
 tab.code: कोड
 tab.reset: रीसेट
 tab.add: + जोड़ें
@@ -215,3 +217,13 @@ schema.loading: "कलेक्शन के फ़ील्ड पढ़े �
 schema.sampled: "%{n} डॉक्यूमेंट सैंपल किए गए"
 schema.complete: "सभी डॉक्यूमेंट जाँचे गए"
 schema.partial: "सैंपल से: कम दिखने वाले फ़ील्ड छूट सकते हैं"
+indexes.loading: इंडेक्स लोड हो रहे हैं…
+indexes.new: नया इंडेक्स
+indexes.unique: यूनिक
+indexes.create: बनाएँ
+indexes.drop: हटाएँ
+indexes.created: "इंडेक्स %{name} बनाया गया"
+explain.running: Explain चल रहा है…
+explain.collscan: "कलेक्शन स्कैन: कोई इंडेक्स इस्तेमाल नहीं हुआ, सभी डॉक्यूमेंट पढ़े गए।"
+explain.index: "इस्तेमाल हुआ इंडेक्स: %{names}"
+explain.stats: "%{returned} लौटाए · %{docs} डॉक्यूमेंट पढ़े · %{keys} इंडेक्स कुंजियाँ पढ़ीं · %{ms} ms"

@@ -26,6 +26,8 @@ form.uri_required: 连接字符串不能为空
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: 查找
+tab.indexes: 索引
+tab.explain: Explain
 tab.code: 代码
 tab.reset: 重置
 tab.add: + 添加
@@ -215,3 +217,13 @@ schema.loading: "正在读取集合的字段…"
 schema.sampled: "已采样 %{n} 个文档"
 schema.complete: "已检查所有文档"
 schema.partial: "来自采样：可能缺少少见的字段"
+indexes.loading: 正在载入索引…
+indexes.new: 新索引
+indexes.unique: 唯一
+indexes.create: 创建
+indexes.drop: 删除
+indexes.created: "已创建索引 %{name}"
+explain.running: 正在运行 explain…
+explain.collscan: 集合扫描：未使用索引，读取了所有文档。
+explain.index: "使用的索引：%{names}"
+explain.stats: "返回 %{returned} · 读取文档 %{docs} · 读取索引键 %{keys} · %{ms} 毫秒"

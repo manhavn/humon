@@ -26,6 +26,8 @@ form.uri_required: La chaîne de connexion ne peut pas être vide
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: Rechercher
+tab.indexes: Index
+tab.explain: Explain
 tab.code: Code
 tab.reset: Réinitialiser
 tab.add: + Ajouter
@@ -215,3 +217,13 @@ schema.loading: "Lecture des champs de la collection…"
 schema.sampled: "%{n} documents échantillonnés"
 schema.complete: "tous les documents vérifiés"
 schema.partial: "d’après un échantillon : des champs rares peuvent manquer"
+indexes.loading: Chargement des index…
+indexes.new: Nouvel index
+indexes.unique: Unique
+indexes.create: Créer
+indexes.drop: Supprimer
+indexes.created: "Index %{name} créé"
+explain.running: Explain en cours…
+explain.collscan: "Parcours de la collection : aucun index utilisé, tous les documents ont été lus."
+explain.index: "Index utilisé : %{names}"
+explain.stats: "%{returned} renvoyés · %{docs} documents lus · %{keys} clés d’index lues · %{ms} ms"
