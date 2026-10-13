@@ -186,3 +186,12 @@ complete.all: hepsini içerir
 complete.size: dizi uzunluğu
 complete.mod: kalan
 complete.not: tersi
+check.unknown_field: "%{field} örneklenen belgelerde yok."
+check.did_you_mean: "%{name} mı demek istedin?"
+check.unknown_operator: "Bilinmeyen operatör: %{op}."
+check.unknown_argument: "%{op} için %{arg} diye bir argüman yok."
+check.missing_argument: "%{op} için %{arg} gerekli."
+check.type_mismatch: "%{field} örneklenen belgelerde %{types}, %{value} değil."
+check.argument_type: "%{op} şunu alır: %{types}."
+check.argument_count: "%{op} %{count} değer alır."
+check.one_operator_per_stage: "Bir aşamada tam olarak bir operatör olur."

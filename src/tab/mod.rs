@@ -14,7 +14,9 @@ use gpui_kit::*;
 use serde_json::Value;
 
 use crate::app::Humon;
-use crate::highlight::{ShellHighlighter, tokenize};
+use crate::complete::Mode;
+use crate::complete::check::check;
+use crate::highlight::{ShellHighlighter, show_problems, tokenize};
 use crate::history::{self, Query};
 use crate::mongo::{CollKind, CollectionRef, ExportFormat, FindArgs, RT};
 use crate::shell::{is_wrapper, to_shell};
@@ -97,7 +99,6 @@ impl Tab {
         window: &mut Window,
         cx: &mut Context<Humon>,
     ) -> Self {
-        use crate::complete::Mode;
         let schema = SchemaCell::default();
         let filter = cx
             .new(|cx| query_editor(Mode::Filter, schema.clone(), window, cx).placeholder(t!("tab.filter_placeholder")));
@@ -256,6 +257,18 @@ impl Humon {
         let Some(tab) = self.tab_mut(id) else { return };
         let input = [&tab.filter, &tab.sort, &tab.projection][which].clone();
         tab.smart[which].on_change(&input, true, window, cx);
+        self.check_query_box(id, which, cx);
+    }
+
+    /// Underlines problems in a query box against the sampled schema.
+    fn check_query_box(&mut self, id: usize, which: usize, cx: &mut Context<Self>) {
+        let Some(tab) = self.tab_mut(id) else { return };
+        let input = [&tab.filter, &tab.sort, &tab.projection][which].clone();
+        let mode = [Mode::Filter, Mode::Sort, Mode::Project][which];
+        let schema = tab.schema.borrow().clone().unwrap_or_default();
+        let text = input.read(cx).value().to_string();
+        let problems = check(&text, mode, &schema);
+        input.update(cx, |s, cx| show_problems(s, problems, cx));
     }
 
     /// Applies what is typed in the query bar and goes back to the first page.
@@ -317,9 +330,12 @@ impl Humon {
         let sample = self.settings.schema_sample();
         let Some(tab) = self.tab_mut(id) else { return };
         let fut = tab.target.clone().schema(sample);
-        self.run(fut, window, cx, move |this, res, _, _| {
+        self.run(fut, window, cx, move |this, res, _, cx| {
             if let (Some(tab), Ok(schema)) = (this.tab_mut(id), res) {
                 *tab.schema.borrow_mut() = Some(Rc::new(schema));
+                for which in 0..3 {
+                    this.check_query_box(id, which, cx);
+                }
             }
         });
     }

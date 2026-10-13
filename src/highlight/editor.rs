@@ -4,8 +4,13 @@
 use std::ops::Range;
 
 use gpui_kit::component::input::EditorState;
-use gpui_kit::component::input::{FoldRange, HighlightStyleResolver, InputEdit, InputHighlighter, Rope};
+use gpui_kit::component::input::{FoldRange, HighlightStyleResolver, InputEdit, InputHighlighter, Rope, RopeExt};
 use gpui_kit::{Context, HighlightStyle, SharedString, Window};
+use lsp_types::{CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit, TextEdit};
+use rust_i18n::t;
+
+use crate::complete::check::{Problem, Severity};
+use crate::complete::{Completions, Kind, Suggestion};
 
 use super::{Token, tokenize};
 
@@ -21,6 +26,83 @@ pub fn shell_editor(window: &mut Window, cx: &mut Context<EditorState>) -> Edito
         cx,
     );
     state
+}
+
+/// Typing these may open (or refine) the completion menu.
+pub fn is_completion_trigger(new_text: &str) -> bool {
+    new_text
+        .chars()
+        .any(|c| c.is_alphanumeric() || matches!(c, '$' | '_' | '.' | '"' | '\'' | '{' | ',' | ' '))
+}
+
+/// Suggestions as the editor's completion menu takes them.
+pub fn completion_response(text: &Rope, found: Completions) -> CompletionResponse {
+    let range = lsp_types::Range {
+        start: text.offset_to_position(found.replace.start),
+        end: text.offset_to_position(found.replace.end),
+    };
+    let items = found
+        .items
+        .into_iter()
+        .map(|s| CompletionItem {
+            kind: Some(match s.kind {
+                Kind::Field => CompletionItemKind::FIELD,
+                Kind::Operator => CompletionItemKind::OPERATOR,
+                Kind::Value => CompletionItemKind::VALUE,
+            }),
+            detail: menu_detail(&s),
+            // The full summary and the docs link, beside the menu for the selected item.
+            documentation: s
+                .link
+                .map(|link| lsp_types::Documentation::String(format!("{}\n\n{link}", s.detail))),
+            text_edit: Some(CompletionTextEdit::Edit(TextEdit {
+                range,
+                new_text: s.insert,
+            })),
+            label: s.label,
+            ..Default::default()
+        })
+        .collect();
+    CompletionResponse::Array(items)
+}
+
+/// Underlines `problems` (byte ranges in the editor's text) with their messages.
+pub fn show_problems(state: &mut EditorState, problems: Vec<Problem>, cx: &mut Context<EditorState>) {
+    let text = state.text().clone();
+    let Some(set) = state.diagnostics_mut() else { return };
+    set.reset(&text);
+    for p in problems {
+        let end = p.range.end.max(p.range.start + 1).min(text.len());
+        let start = p.range.start.min(end);
+        set.push(lsp_types::Diagnostic {
+            range: lsp_types::Range {
+                start: text.offset_to_position(start),
+                end: text.offset_to_position(end),
+            },
+            severity: Some(match p.severity {
+                Severity::Error => lsp_types::DiagnosticSeverity::ERROR,
+                Severity::Warning => lsp_types::DiagnosticSeverity::WARNING,
+            }),
+            message: p.message.text(),
+            ..Default::default()
+        });
+    }
+    cx.notify();
+}
+
+/// The grey text beside a suggestion: a translated short meaning when there
+/// is one, else the detail cut to fit the menu.
+fn menu_detail(s: &Suggestion) -> Option<String> {
+    const MAX: usize = 60;
+    let text = match s.detail_key {
+        Some(key) => t!(key).to_string(),
+        None => s.detail.clone(),
+    };
+    match text.chars().count() {
+        0 => None,
+        n if n > MAX => Some(text.chars().take(MAX - 1).collect::<String>() + "…"),
+        _ => Some(text),
+    }
 }
 
 /// Editor highlighter: re-lexes the whole buffer on each edit, which is cheap

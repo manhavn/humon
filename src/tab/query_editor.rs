@@ -4,15 +4,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gpui_kit::component::input::{CompletionProvider, Editor, EditorState, InputHighlighter, Rope, RopeExt};
+use gpui_kit::component::input::{CompletionProvider, Editor, EditorState, InputHighlighter, Rope};
 use gpui_kit::*;
-use lsp_types::{
-    CompletionContext, CompletionItem, CompletionItemKind, CompletionResponse, CompletionTextEdit, TextEdit,
-};
-use rust_i18n::t;
+use lsp_types::{CompletionContext, CompletionResponse};
 
-use crate::complete::{Kind, Mode, complete};
-use crate::highlight::ShellHighlighter;
+use crate::complete::{Mode, complete};
+use crate::highlight::{ShellHighlighter, completion_response, is_completion_trigger};
 use crate::schema::Schema;
 
 /// The tab's schema, filled in once sampling finishes; the editors read it on
@@ -59,38 +56,10 @@ impl CompletionProvider for QueryCompleter {
             return Task::ready(Ok(CompletionResponse::Array(vec![])));
         };
         let found = complete(&text.to_string(), offset, self.mode, &schema);
-        let range = lsp_types::Range {
-            start: text.offset_to_position(found.replace.start),
-            end: text.offset_to_position(found.replace.end),
-        };
-        let items = found
-            .items
-            .into_iter()
-            .map(|s| CompletionItem {
-                kind: Some(match s.kind {
-                    Kind::Field => CompletionItemKind::FIELD,
-                    Kind::Operator => CompletionItemKind::OPERATOR,
-                    Kind::Value => CompletionItemKind::VALUE,
-                }),
-                detail: match s.kind {
-                    Kind::Operator => Some(t!(&s.detail).to_string()),
-                    _ if s.detail.is_empty() => None,
-                    _ => Some(s.detail),
-                },
-                text_edit: Some(CompletionTextEdit::Edit(TextEdit {
-                    range,
-                    new_text: s.insert,
-                })),
-                label: s.label,
-                ..Default::default()
-            })
-            .collect();
-        Task::ready(Ok(CompletionResponse::Array(items)))
+        Task::ready(Ok(completion_response(text, found)))
     }
 
     fn is_completion_trigger(&self, _: usize, new_text: &str, _: &mut App) -> bool {
-        new_text
-            .chars()
-            .any(|c| c.is_alphanumeric() || matches!(c, '$' | '_' | '.' | '"' | '\'' | '{' | ',' | ' '))
+        is_completion_trigger(new_text)
     }
 }

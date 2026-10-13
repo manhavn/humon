@@ -11,10 +11,16 @@ use mongodb::Client;
 use rust_i18n::t;
 
 use crate::app::Humon;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use crate::complete::check::check;
+use crate::complete::shell::arguments;
+use crate::console::complete::ShellCompleter;
 use crate::console::engine::EngineHandle;
 use crate::console::lines::{Entry, Line, LineKind, lines, transcript};
 use crate::console::recall::Recall;
-use crate::highlight::shell_editor;
+use crate::highlight::{shell_editor, show_problems};
 use crate::smart::Smart;
 
 gpui_kit::actions!(humon_shell, [HistoryPrev, HistoryNext]);
@@ -30,6 +36,9 @@ pub struct ConsoleTab {
     pub conn_id: String,
     /// The database `db` points at, shown in the toolbar.
     pub db: String,
+    /// The same, for completion to read.
+    completion_db: Rc<RefCell<String>>,
+    completer: Rc<ShellCompleter>,
     handle: Option<EngineHandle>,
     editor: Entity<EditorState>,
     results: Entity<EditorState>,
@@ -47,11 +56,15 @@ impl ConsoleTab {
         conn_id: &str,
         client: Client,
         db: &str,
+        sample: u32,
         window: &mut Window,
         cx: &mut Context<Humon>,
     ) -> Self {
+        let completion_db = Rc::new(RefCell::new(db.to_string()));
+        let completer = Rc::new(ShellCompleter::new(client.clone(), completion_db.clone(), sample));
         let editor = cx.new(|cx| {
-            let state = shell_editor(window, cx);
+            let mut state = shell_editor(window, cx);
+            state.lsp_mut().completion_provider = Some(completer.clone());
             state.focus(window, cx);
             state
         });
@@ -66,6 +79,7 @@ impl ConsoleTab {
                     if let Some(console) = this.console_mut(id) {
                         // The editor pairs brackets itself; only completion and wrapping run here.
                         console.smart.on_change(&input, false, window, cx);
+                        console.check(cx);
                     }
                 }
                 _ => {}
@@ -82,6 +96,8 @@ impl ConsoleTab {
             id,
             conn_id: conn_id.to_string(),
             db: db.to_string(),
+            completion_db,
+            completer,
             handle,
             editor,
             results,
@@ -159,6 +175,7 @@ impl Humon {
                 if let Some(console) = this.console_mut(id) {
                     console.running = false;
                     if let Ok(reply) = reply {
+                        console.completion_db.replace(reply.db.clone());
                         console.db = reply.db;
                         if let Some(entry) = console.entries.last_mut() {
                             entry.lines = lines(&reply.outputs);
@@ -348,6 +365,24 @@ impl Humon {
 }
 
 impl ConsoleTab {
+    /// Underlines problems in every MQL argument of the script, against the
+    /// schemas completion has fetched (operators are checked without one).
+    fn check(&self, cx: &mut Context<Humon>) {
+        let text = self.editor.read(cx).value().to_string();
+        let mut problems = Vec::new();
+        for arg in arguments(&text) {
+            let schema = self
+                .completer
+                .cached_schema(arg.db.as_deref(), &arg.coll)
+                .unwrap_or_default();
+            for mut p in check(&text[arg.range.clone()], arg.mode, &schema) {
+                p.range = p.range.start + arg.range.start..p.range.end + arg.range.start;
+                problems.push(p);
+            }
+        }
+        self.editor.update(cx, |s, cx| show_problems(s, problems, cx));
+    }
+
     fn input_focus(&self, window: &mut Window, cx: &mut Context<Humon>, text: String) {
         self.editor.update(cx, |s, cx| {
             s.set_value(text, window, cx);

@@ -6,6 +6,17 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+- Completion in the shell: collections after `db.`, collection and cursor
+  methods, and the collection's fields and every operator inside `find`,
+  `aggregate`, `updateOne` and other calls
+- Aggregation pipelines: stage names, expressions, accumulators and stage
+  arguments, with later stages seeing the fields earlier ones produce
+- Every operator now comes from MongoDB's MQL specifications, with its
+  summary and a docs link beside the menu
+- Warnings as you type, in the query boxes and the shell: unknown fields
+  (with a guess), unknown operators, values of the wrong type, and operator
+  arguments of the wrong shape
+
 ## [0.1.2] - 2026-10-13
 
 - Field suggestions in the filter, sort and projection boxes: field names

@@ -1,5 +1,7 @@
 //! Quick open (⌘K): find any collection or a database's shell by typing.
 
+use crate::complete::shell::DB_METHODS;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Target {
     Collection(String),
@@ -68,22 +70,6 @@ fn score(item: &Item, query: &str) -> Option<u32> {
     }
 }
 
-/// Database methods in the shell's prelude; `db.<name>` would call these.
-const DB_METHODS: &[&str] = &[
-    "adminCommand",
-    "createCollection",
-    "dropDatabase",
-    "getCollection",
-    "getCollectionInfos",
-    "getCollectionNames",
-    "getName",
-    "getSiblingDB",
-    "runCommand",
-    "serverStatus",
-    "stats",
-    "version",
-];
-
 /// The command a shell opened from a collection starts with.
 pub fn shell_starter(coll: &str) -> String {
     let mut chars = coll.chars();
@@ -121,7 +107,7 @@ pub fn rank(items: &[Item], query: &str) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{DB_METHODS, Item, Target, rank, shell_starter};
+    use super::{Item, Target, rank, shell_starter};
 
     fn coll(db: &str, coll: &str) -> Item {
         Item {
@@ -198,24 +184,6 @@ mod tests {
         // Names that are Database methods would call the method instead.
         assert_eq!(shell_starter("stats"), r#"db.getCollection("stats").find()"#);
         assert_eq!(shell_starter("getName"), r#"db.getCollection("getName").find()"#);
-    }
-
-    #[test]
-    fn db_methods_list_matches_the_prelude() {
-        let js = include_str!("console/prelude.js");
-        let start = js.find("Object.assign(Database.prototype, {").unwrap();
-        let end = js[start..].find("\n  });").unwrap() + start;
-        let mut methods: Vec<&str> = js[start..end]
-            .lines()
-            .filter_map(|l| {
-                l.strip_prefix("    ")
-                    .and_then(|l| l.split_once('('))
-                    .map(|(name, _)| name)
-            })
-            .filter(|name| name.chars().all(|c| c.is_ascii_alphanumeric()))
-            .collect();
-        methods.sort_unstable();
-        assert_eq!(methods, DB_METHODS);
     }
 
     #[test]

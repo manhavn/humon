@@ -188,3 +188,12 @@ complete.all: contains all
 complete.size: array length
 complete.mod: remainder
 complete.not: negates
+check.unknown_field: "%{field} isn't in the sampled documents."
+check.did_you_mean: "Did you mean %{name}?"
+check.unknown_operator: "Unknown operator %{op}."
+check.unknown_argument: "%{op} has no argument %{arg}."
+check.missing_argument: "%{op} needs %{arg}."
+check.type_mismatch: "%{field} holds %{types} in the sampled documents, not %{value}."
+check.argument_type: "%{op} takes %{types}."
+check.argument_count: "%{op} takes %{count} values."
+check.one_operator_per_stage: "A stage holds exactly one operator."

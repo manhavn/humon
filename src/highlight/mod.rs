@@ -6,7 +6,7 @@ use std::ops::Range;
 
 mod editor;
 
-pub use editor::{ShellHighlighter, shell_editor};
+pub use editor::{ShellHighlighter, completion_response, is_completion_trigger, shell_editor, show_problems};
 
 pub type Token = (Range<usize>, &'static str);
 

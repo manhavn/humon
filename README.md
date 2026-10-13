@@ -62,9 +62,11 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 **Query**
 - Filter, sort and project in mongo shell syntax:
   `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
-- Field suggestions as you type: field names with their types, operators that fit
-  each field, and values like `1`/`-1` for sort, learned from a sample of the
-  collection (sample size in Settings)
+- Suggestions as you type: field names with their types (learned from a sample of
+  the collection, size in Settings), operators that fit each field, and values like
+  `1`/`-1` for sort
+- Warnings as you type: fields that aren't in the sampled documents (with a "did you
+  mean"), unknown operators, values of the wrong type, malformed operator arguments
 - Tree, table and JSON views; the JSON view can be selected, copied and searched
 - Query history and favorites for every collection
 - Status bar with the document count and how long the query took
@@ -79,6 +81,10 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 **Shell**
 - A built-in shell like Studio 3T's IntelliShell: write in the editor, run it, read
   (and select, copy, search) the results below
+- Completion: collections after `db.`, methods after `db.users.`, and inside
+  `find({ … })`, `aggregate([ … ])` or `updateOne(…)` the fields of that collection,
+  every query operator, stage, expression and accumulator; in a pipeline, later
+  stages see the fields earlier ones produce (after `$group`, `$project`, `$unwind`…)
 - mongosh-style JavaScript on an embedded QuickJS engine:
 
   ```js
@@ -205,6 +211,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released, an
 | `src/query.rs` | Mongo shell syntax → BSON |
 | `src/shell.rs` | Extended JSON → shell text |
 | `src/highlight/` | Syntax colors: a pure lexer, and its hookup to the code editor |
+| `src/complete/` | Completion and warnings for MQL: in the query boxes, in pipelines, and in the shell |
+| `src/schema/` | Sampled collection schemas, and how pipeline stages reshape them |
+| `src/mql/` | Every operator, stage, expression and accumulator, from MongoDB's specifications |
 | `src/smart.rs` | The typing helpers |
 | `src/palette.rs` | Quick open's matching and ranking |
 | `src/manage.rs` | Creating, renaming and dropping databases and collections |
@@ -213,4 +222,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released, an
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The operator definitions in `src/mql/spec.rs` are generated from
+MongoDB's [MQL specifications](https://github.com/mongodb/mql-specifications)
+([Apache-2.0](third_party/mql-specifications/LICENSE)) by `scripts/gen-mql.rb`.

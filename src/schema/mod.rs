@@ -9,6 +9,8 @@ use std::collections::HashMap;
 
 use mongodb::bson::{Bson, Document};
 
+mod stages;
+
 /// How many documents to sample when the user hasn't chosen.
 pub const DEFAULT_SAMPLE: u32 = 1000;
 /// The choices offered in Settings.

@@ -8,6 +8,7 @@ mod highlight;
 mod history;
 mod manage;
 mod mongo;
+mod mql;
 mod palette;
 mod query;
 mod schema;

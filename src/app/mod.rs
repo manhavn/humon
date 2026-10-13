@@ -388,7 +388,8 @@ impl Humon {
             .and_then(|c| c.client.clone())?;
         let id = self.next_tab_id;
         self.next_tab_id += 1;
-        let console = ConsoleTab::new(id, saved_id, client, db, window, cx);
+        let sample = self.settings.schema_sample();
+        let console = ConsoleTab::new(id, saved_id, client, db, sample, window, cx);
         self.consoles.push(console);
         self.active_tab = Some(id);
         self.close_settings();
