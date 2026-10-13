@@ -5,7 +5,7 @@
 
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::{Editor, EditorState, InputEvent};
-use gpui_kit::component::{ActiveTheme, Disableable};
+use gpui_kit::component::{ActiveTheme, Disableable, resizable_panel, v_resizable};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 use mongodb::Client;
@@ -367,7 +367,19 @@ impl Humon {
             list
         });
 
-        let editor_lines = console.editor.read(cx).value().lines().count().max(1);
+        let danger = cx.theme().danger;
+        // The editor and the results share the height; the divider between
+        // them is dragged to make the editor taller or shorter.
+        let blocks = div()
+            .id(("console-blocks", id))
+            .size_full()
+            .overflow_y_scroll()
+            .track_scroll(&console.scroll)
+            .bg(bg)
+            .when_some(console.start_error.clone(), |d, e| {
+                d.child(div().px_3().py_2().text_color(danger).child(format!("✖ {e}")))
+            })
+            .children(console.blocks.iter().map(|b| self.render_block(id, b, cx)));
         div()
             .id(("console", id))
             .key_context(KEY_CONTEXT)
@@ -382,30 +394,16 @@ impl Humon {
             .child(toolbar)
             .children(history)
             .child(
-                div()
-                    .flex_none()
-                    .border_b_1()
-                    .border_color(border)
-                    .child(Editor::new(&console.editor).h(px((editor_lines as f32 * 18. + 24.).clamp(120., 320.)))),
-            )
-            .child(
-                div()
-                    .id(("console-blocks", id))
-                    .flex_1()
-                    .min_h_0()
-                    .overflow_y_scroll()
-                    .track_scroll(&console.scroll)
-                    .bg(bg)
-                    .when_some(console.start_error.clone(), |d, e| {
-                        d.child(
-                            div()
-                                .px_3()
-                                .py_2()
-                                .text_color(cx.theme().danger)
-                                .child(format!("✖ {e}")),
+                div().flex_1().min_h_0().child(
+                    v_resizable(("console-split", id))
+                        .child(
+                            resizable_panel()
+                                .size(px(200.))
+                                .size_range(px(80.)..px(800.))
+                                .child(Editor::new(&console.editor).size_full()),
                         )
-                    })
-                    .children(console.blocks.iter().map(|b| self.render_block(id, b, cx))),
+                        .child(resizable_panel().child(blocks)),
+                ),
             )
     }
 
