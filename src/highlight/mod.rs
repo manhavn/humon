@@ -40,12 +40,55 @@ fn followed_by_colon(text: &str, end: usize) -> bool {
     text[end..].trim_start().starts_with(':')
 }
 
-/// Whether a `/` at `pos` starts a regex rather than being stray punctuation.
+/// Whether a `/` at `pos` starts a regex rather than dividing: after an
+/// operator or opening bracket, or after `return` and similar keywords.
 fn regex_allowed(text: &str, pos: usize) -> bool {
-    matches!(
-        text[..pos].trim_end().chars().last(),
-        None | Some(':' | ',' | '[' | '(' | '{')
-    )
+    let before = text[..pos].trim_end();
+    match before.chars().last() {
+        None | Some(':' | ',' | '[' | '(' | '{' | ';' | '=' | '!' | '&' | '|' | '?') => true,
+        Some(c) if c.is_alphanumeric() || c == '_' || c == '$' => {
+            let word = before
+                .rsplit(|c: char| !(c.is_alphanumeric() || c == '_' || c == '$'))
+                .next();
+            matches!(word, Some("return" | "typeof" | "case" | "in" | "of"))
+        }
+        _ => false,
+    }
+}
+
+/// The end of a template literal starting at `start` (its backtick):
+/// `${...}` parts may hold braces and strings of their own.
+fn template_end(text: &str, start: usize) -> usize {
+    let bytes = text.as_bytes();
+    let mut i = start + 1;
+    let mut depth = 0usize;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 2,
+            b'$' if depth == 0 && bytes.get(i + 1) == Some(&b'{') => {
+                depth = 1;
+                i += 2;
+            }
+            b'{' if depth > 0 => {
+                depth += 1;
+                i += 1;
+            }
+            b'}' if depth > 0 => {
+                depth -= 1;
+                i += 1;
+            }
+            q @ (b'"' | b'\'') if depth > 0 => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != q && bytes[i] != b'\n' {
+                    i += if bytes[i] == b'\\' { 2 } else { 1 };
+                }
+                i += 1;
+            }
+            b'`' if depth == 0 => return i + 1,
+            _ => i += 1,
+        }
+    }
+    text.len()
 }
 
 const KEYWORDS: &[&str] = &[
@@ -147,6 +190,14 @@ pub fn tokenize(text: &str) -> Vec<Token> {
                     "string"
                 };
                 out.push((start..i, kind));
+            }
+            '`' => {
+                i = template_end(text, i).min(text.len());
+                out.push((start..i, "string"));
+            }
+            '/' if text[i..].starts_with("/*") => {
+                i = text[i + 2..].find("*/").map_or(text.len(), |n| i + 2 + n + 2);
+                out.push((start..i, "comment"));
             }
             '/' if text[i..].starts_with("//") => {
                 i = text[i..].find('\n').map_or(text.len(), |n| i + n);

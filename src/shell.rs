@@ -2,11 +2,11 @@
 
 use serde_json::{Map, Value};
 
-fn quote(s: &str) -> String {
+pub fn quote(s: &str) -> String {
     serde_json::to_string(s).unwrap_or_default()
 }
 
-fn is_ident(k: &str) -> bool {
+pub fn is_ident(k: &str) -> bool {
     let mut chars = k.chars();
     matches!(chars.next(), Some(c) if c.is_alphabetic() || c == '_' || c == '$')
         && chars.all(|c| c.is_alphanumeric() || c == '_' || c == '$')

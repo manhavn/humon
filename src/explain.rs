@@ -18,6 +18,33 @@ pub struct Summary {
     pub millis: i64,
 }
 
+/// What a plan did, in one line.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Verdict {
+    /// Read the whole collection (on at least one shard).
+    CollectionScan,
+    /// Read through these indexes.
+    Index(Vec<String>),
+    /// Neither, such as `IDHACK` for an `_id` lookup: the plan's first stage.
+    Plan(String),
+    /// The explain held no plan to read.
+    Unknown,
+}
+
+impl Summary {
+    pub fn verdict(&self) -> Verdict {
+        if self.collection_scan {
+            Verdict::CollectionScan
+        } else if !self.indexes.is_empty() {
+            Verdict::Index(self.indexes.clone())
+        } else if let Some(stage) = self.stages.first() {
+            Verdict::Plan(stage.clone())
+        } else {
+            Verdict::Unknown
+        }
+    }
+}
+
 fn number(doc: &Document, key: &str) -> i64 {
     match doc.get(key) {
         Some(Bson::Int32(n)) => *n as i64,
@@ -43,6 +70,15 @@ fn walk(stage: &Document, path: &mut Vec<String>, first: bool, out: &mut Summary
     }
     if let Ok(input) = stage.get_document("inputStage") {
         walk(input, path, first, out);
+    }
+    // A sharded plan: each shard has a plan of its own.
+    if let Ok(shards) = stage.get_array("shards") {
+        for (i, shard) in shards.iter().enumerate() {
+            if let Some(plan) = shard.as_document().and_then(|d| d.get_document("winningPlan").ok()) {
+                let plan = plan.get_document("queryPlan").unwrap_or(plan);
+                walk(plan, path, first && i == 0, out);
+            }
+        }
     }
     if let Ok(inputs) = stage.get_array("inputStages") {
         for (i, input) in inputs.iter().enumerate() {
@@ -138,5 +174,29 @@ mod tests {
         };
         let s = summarize(&explain);
         assert_eq!((s.returned, s.millis, s.docs_examined, s.keys_examined), (5, 1, 9, 0));
+    }
+
+    #[test]
+    fn sharded_plans_are_read_shard_by_shard() {
+        let explain = doc! {
+            "queryPlanner": { "winningPlan": { "stage": "SHARD_MERGE", "shards": [
+                { "shardName": "a", "winningPlan": { "stage": "COLLSCAN" } },
+                { "shardName": "b", "winningPlan": { "stage": "FETCH", "inputStage": { "stage": "IXSCAN", "indexName": "x_1" } } },
+            ] } },
+        };
+        let s = summarize(&explain);
+        assert!(s.collection_scan, "one shard reads everything");
+        assert_eq!(s.indexes, ["x_1"]);
+        assert_eq!(s.stages, ["SHARD_MERGE", "COLLSCAN"]);
+    }
+
+    #[test]
+    fn the_verdict_names_what_happened() {
+        let plan = |stage: &str| doc! { "queryPlanner": { "winningPlan": { "stage": stage } } };
+        assert_eq!(summarize(&plan("COLLSCAN")).verdict(), Verdict::CollectionScan);
+        assert_eq!(summarize(&plan("IDHACK")).verdict(), Verdict::Plan("IDHACK".into()));
+        assert_eq!(summarize(&doc! {}).verdict(), Verdict::Unknown);
+        let indexed = doc! { "queryPlanner": { "winningPlan": { "stage": "FETCH", "inputStage": { "stage": "IXSCAN", "indexName": "a_1" } } } };
+        assert_eq!(summarize(&indexed).verdict(), Verdict::Index(vec!["a_1".into()]));
     }
 }

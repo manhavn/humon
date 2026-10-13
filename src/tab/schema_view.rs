@@ -19,11 +19,19 @@ impl Humon {
             .unwrap_or(theme.foreground);
         let id = tab.id;
         let Some(schema) = tab.schema.borrow().clone() else {
-            return div()
-                .p_3()
-                .text_color(muted)
-                .child(t!("schema.loading").to_string())
-                .into_any_element();
+            let text = match &tab.schema_error {
+                Some(e) => t!("schema.failed", error = e).to_string(),
+                None => t!("schema.loading").to_string(),
+            };
+            return ui::note(
+                text,
+                if tab.schema_error.is_some() {
+                    theme.danger
+                } else {
+                    muted
+                },
+            )
+            .into_any_element();
         };
         let summary = div()
             .flex()

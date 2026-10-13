@@ -1,6 +1,7 @@
 //! The query history and export panels, and the export itself.
 
 use super::*;
+use crate::explain::Verdict;
 use gpui_kit::component::Sizable;
 
 impl Humon {
@@ -511,12 +512,13 @@ impl Humon {
                 .flex()
                 .flex_col()
                 .gap_1()
-                .child(if s.collection_scan {
-                    div().text_color(warning).child(t!("explain.collscan").to_string())
-                } else {
-                    div()
+                .child(match s.verdict() {
+                    Verdict::CollectionScan => div().text_color(warning).child(t!("explain.collscan").to_string()),
+                    Verdict::Index(names) => div()
                         .text_color(success)
-                        .child(t!("explain.index", names = s.indexes.join(", ")).to_string())
+                        .child(t!("explain.index", names = names.join(", ")).to_string()),
+                    Verdict::Plan(stage) => div().child(t!("explain.plan", stage = stage).to_string()),
+                    Verdict::Unknown => div().text_color(muted).child(t!("explain.unknown").to_string()),
                 })
                 .child(
                     div().child(

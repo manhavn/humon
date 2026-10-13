@@ -230,6 +230,17 @@ impl Humon {
         };
         let session_broken = session_error.is_some();
         let load_error = load_error.or(session_error);
+        // If the last launch closed while reopening tabs, one of them may be why:
+        // start without them this time instead of failing the same way again.
+        let (session, skipped) = if crate::session::restore_crashed() {
+            (
+                crate::session::Session::default(),
+                Some(t!("app.session_skipped").to_string()),
+            )
+        } else {
+            (session, None)
+        };
+        let load_error = load_error.or(skipped);
         let quit_sub = cx.on_app_quit(|this: &mut Self, cx| {
             this.persist_session(cx);
             async {}

@@ -232,3 +232,7 @@ explain.running: جارٍ تشغيل explain…
 explain.collscan: "مسح كامل للمجموعة: لم يُستخدم أي فهرس، وتمت قراءة كل المستندات."
 explain.index: "الفهرس المستخدم: %{names}"
 explain.stats: "أُعيد %{returned} · قُرئ %{docs} مستند · قُرئ %{keys} مفتاح فهرس · %{ms} ms"
+schema.failed: "تعذّرت قراءة حقول المجموعة: %{error}"
+app.session_skipped: "لم يُعَد فتح علامات تبويب الجلسة الأخيرة: أُغلق humon أثناء فتحها."
+explain.plan: "الخطة: %{stage}، دون قراءة فهرس أو المجموعة كاملةً."
+explain.unknown: لم يُرجع الخادم خطة يمكن قراءتها.

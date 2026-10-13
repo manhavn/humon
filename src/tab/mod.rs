@@ -39,6 +39,16 @@ mod view;
 use {editor::*, panels::*, query_editor::*, status::*, table::*, tree::*, view::*};
 
 const PAGE_SIZES: [i64; 3] = [20, 50, 100];
+pub const DEFAULT_PAGE_SIZE: i64 = PAGE_SIZES[0];
+
+/// A page size from a saved session, kept to the choices the bar offers.
+fn saved_page_size(size: i64) -> i64 {
+    if PAGE_SIZES.contains(&size) {
+        size
+    } else {
+        DEFAULT_PAGE_SIZE
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ViewMode {
@@ -61,6 +71,8 @@ pub struct Tab {
     projection: Entity<EditorState>,
     /// Sampled field names and types, for completion; None until sampled.
     schema: SchemaCell,
+    /// Why sampling failed, shown in the Schema view.
+    schema_error: Option<String>,
     /// What the shown results were fetched with; paging reuses it.
     applied: Query,
     page: u64,
@@ -153,9 +165,10 @@ impl Tab {
             sort,
             projection,
             schema,
+            schema_error: None,
             applied: Default::default(),
             page: 0,
-            page_size: 20,
+            page_size: DEFAULT_PAGE_SIZE,
             docs: vec![],
             count: Count::Counting,
             loading: false,
@@ -334,7 +347,6 @@ impl Humon {
             return;
         }
         tab.smart[which].on_change(&input, true, window, cx);
-        self.session_dirty = true;
         self.check_query_box(id, which, cx);
         self.refresh_code(id, window, cx);
     }
@@ -361,6 +373,8 @@ impl Humon {
             projection: tab.projection.read(cx).value().to_string(),
         };
         tab.page = 0;
+        // Saved when a query runs, not on every keystroke.
+        self.session_dirty = true;
         let (key, query) = (
             history::key(&tab.conn_id, &tab.target.db, &tab.target.name),
             tab.applied.clone(),
@@ -423,7 +437,7 @@ impl Humon {
         self.next_tab_id += 1;
         let kind = if view { CollKind::View } else { CollKind::Collection };
         let mut tab = Tab::new(id, conn_id, CollectionRef::new(client, db, coll), kind, window, cx);
-        tab.page_size = if PAGE_SIZES.contains(&page_size) { page_size } else { 20 };
+        tab.page_size = saved_page_size(page_size);
         tab.view = ViewMode::from_name(mode);
         let inputs = [
             (tab.filter.clone(), query.filter.clone()),
@@ -442,17 +456,22 @@ impl Humon {
     }
 
     /// Samples the collection in the background so the query boxes can suggest
-    /// its fields. Failing (no permission, say) just leaves completion off.
+    /// its fields. On failure (no permission, say) completion stays off.
     pub fn load_schema(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
         let sampling = self.settings.sampling();
         let Some(tab) = self.tab_mut(id) else { return };
         let fut = tab.target.clone().schema(sampling);
         self.run(fut, window, cx, move |this, res, _, cx| {
-            if let (Some(tab), Ok(schema)) = (this.tab_mut(id), res) {
-                *tab.schema.borrow_mut() = Some(Rc::new(schema));
-                for which in 0..3 {
-                    this.check_query_box(id, which, cx);
+            let Some(tab) = this.tab_mut(id) else { return };
+            match res {
+                Ok(schema) => {
+                    *tab.schema.borrow_mut() = Some(Rc::new(schema));
+                    for which in 0..3 {
+                        this.check_query_box(id, which, cx);
+                    }
                 }
+                // Completion stays off; the Schema view says why.
+                Err(e) => tab.schema_error = Some(e),
             }
         });
     }
@@ -616,5 +635,22 @@ mod tests {
             Count::from_result(Err("bad filter".into())),
             Count::Failed("bad filter".into())
         );
+    }
+
+    #[test]
+    fn view_modes_round_trip_through_their_names() {
+        use super::ViewMode;
+        for mode in [ViewMode::Tree, ViewMode::Table, ViewMode::Json, ViewMode::Schema] {
+            assert!(ViewMode::from_name(mode.name()) == mode);
+        }
+        assert!(ViewMode::from_name("") == ViewMode::Tree);
+        assert!(ViewMode::from_name("chart") == ViewMode::Tree);
+    }
+
+    #[test]
+    fn saved_page_sizes_stay_among_the_choices() {
+        use super::{DEFAULT_PAGE_SIZE, saved_page_size};
+        assert_eq!(saved_page_size(50), 50);
+        assert_eq!(saved_page_size(37), DEFAULT_PAGE_SIZE);
     }
 }

@@ -232,3 +232,7 @@ explain.running: Ejecutando explain…
 explain.collscan: "Recorrido de la colección: no se usó ningún índice, se leyeron todos los documentos."
 explain.index: "Índice usado: %{names}"
 explain.stats: "%{returned} devueltos · %{docs} documentos leídos · %{keys} claves de índice leídas · %{ms} ms"
+schema.failed: "No se pudieron leer los campos de la colección: %{error}"
+app.session_skipped: "No se reabrieron las pestañas de la última sesión: humon se cerró mientras las abría."
+explain.plan: "Plan: %{stage}, sin leer un índice ni toda la colección."
+explain.unknown: El servidor no devolvió ningún plan legible.

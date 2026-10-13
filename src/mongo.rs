@@ -75,18 +75,16 @@ fn keys_text(keys: &Document) -> String {
     let fields: Vec<String> = keys
         .iter()
         .map(|(k, v)| {
-            let plain = k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
-                && !k.starts_with(|c: char| c.is_ascii_digit());
-            let key = if plain {
+            let key = if crate::shell::is_ident(k) {
                 k.clone()
             } else {
-                serde_json::to_string(k).unwrap_or_default()
+                crate::shell::quote(k)
             };
             let value = match v {
                 Bson::Int32(n) => n.to_string(),
                 Bson::Int64(n) => n.to_string(),
                 Bson::Double(n) => n.to_string(),
-                Bson::String(s) => serde_json::to_string(s).unwrap_or_default(),
+                Bson::String(s) => crate::shell::quote(s),
                 other => other.to_string(),
             };
             format!("{key}: {value}")
@@ -993,5 +991,16 @@ mod tests {
         drop_database(c.clone(), tmp.clone()).await.unwrap();
         let dbs: Vec<String> = databases(c).await.unwrap().into_iter().map(|d| d.name).collect();
         assert!(!dbs.contains(&tmp));
+    }
+
+    #[test]
+    fn key_patterns_read_as_typed() {
+        assert_eq!(keys_text(&doc! { "age": 1, "name": -1 }), "{ age: 1, name: -1 }");
+        assert_eq!(keys_text(&doc! { "a.b": 1 }), r#"{ "a.b": 1 }"#);
+        assert_eq!(keys_text(&doc! { "$**": "text" }), r#"{ "$**": "text" }"#);
+        assert_eq!(
+            keys_text(&doc! { "loc": "2dsphere", "n": 1_i64, "d": 1.5 }),
+            r#"{ loc: "2dsphere", n: 1, d: 1.5 }"#
+        );
     }
 }

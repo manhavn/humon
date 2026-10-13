@@ -100,7 +100,6 @@ impl ConsoleTab {
                         console.smart.on_change(&input, false, window, cx);
                         console.check(cx);
                     }
-                    this.session_dirty = true;
                 }
                 _ => {}
             },
@@ -145,6 +144,8 @@ impl Humon {
     /// Runs the selection, or the whole editor when nothing is selected. The
     /// code stays in the editor, as in IntelliShell.
     pub fn run_console(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
+        // Saved when a script runs, not on every keystroke.
+        self.session_dirty = true;
         let Some(console) = self.console_mut(id) else { return };
         let state = console.editor.read(cx);
         let selected = state.selected_value().trim().to_string();

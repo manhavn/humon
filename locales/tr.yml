@@ -230,3 +230,7 @@ explain.running: Explain çalışıyor…
 explain.collscan: "Koleksiyon taraması: index kullanılmadı, tüm belgeler okundu."
 explain.index: "Kullanılan index: %{names}"
 explain.stats: "%{returned} döndü · %{docs} belge okundu · %{keys} index anahtarı okundu · %{ms} ms"
+schema.failed: "Koleksiyonun alanları okunamadı: %{error}"
+app.session_skipped: "Son oturumun sekmeleri açılmadı: humon onları açarken kapandı."
+explain.plan: "Plan: %{stage}; ne index ne de tüm koleksiyon okundu."
+explain.unknown: Sunucu okunabilir bir plan döndürmedi.

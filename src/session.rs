@@ -35,16 +35,20 @@ pub enum SavedTab {
         #[serde(default)]
         code: String,
     },
+    /// A tab type from a newer version: skipped, so the rest still restore.
+    #[serde(other)]
+    Unknown,
 }
 
 fn default_page_size() -> i64 {
-    20
+    crate::tab::DEFAULT_PAGE_SIZE
 }
 
 impl SavedTab {
     pub fn conn_id(&self) -> &str {
         match self {
             SavedTab::Collection { conn_id, .. } | SavedTab::Shell { conn_id, .. } => conn_id,
+            SavedTab::Unknown => "",
         }
     }
 }
@@ -70,6 +74,61 @@ impl Session {
     pub fn save_to(&self, path: &Path) -> Result<(), String> {
         files::write_json(path, self)
     }
+}
+
+/// Marks the start of reopening tabs; removed once it has gone well.
+fn restoring_marker(dir: &Path) -> PathBuf {
+    dir.join("session.restoring")
+}
+
+/// Whether the last launch closed while reopening tabs (the marker is still
+/// there). Clears it, so one bad session is skipped once, not forever.
+pub fn restore_crashed_in(dir: &Path) -> bool {
+    let marker = restoring_marker(dir);
+    let crashed = marker.exists();
+    let _ = std::fs::remove_file(marker);
+    crashed
+}
+
+pub fn restore_started_in(dir: &Path) {
+    let _ = std::fs::create_dir_all(dir);
+    let _ = std::fs::write(restoring_marker(dir), b"");
+}
+
+pub fn restore_finished_in(dir: &Path) {
+    let _ = std::fs::remove_file(restoring_marker(dir));
+}
+
+pub fn restore_crashed() -> bool {
+    restore_crashed_in(&files::config_dir())
+}
+
+pub fn restore_started() {
+    restore_started_in(&files::config_dir());
+}
+
+pub fn restore_finished() {
+    restore_finished_in(&files::config_dir());
+}
+
+/// The session to save: the open tabs, then those still waiting for their
+/// connection in their saved order. The active tab is the open one, or, while
+/// none is, the saved active tab if it is still waiting.
+pub fn merge(
+    open: Vec<SavedTab>,
+    open_active: Option<usize>,
+    pending: &[(usize, SavedTab)],
+    pending_active: Option<usize>,
+) -> Session {
+    let mut waiting: Vec<&(usize, SavedTab)> = pending.iter().collect();
+    waiting.sort_by_key(|(place, _)| *place);
+    let active = open_active.or_else(|| {
+        let place = pending_active?;
+        waiting.iter().position(|(p, _)| *p == place).map(|i| open.len() + i)
+    });
+    let mut tabs = open;
+    tabs.extend(waiting.into_iter().map(|(_, tab)| tab.clone()));
+    Session { tabs, active }
 }
 
 /// The connections `tabs` need, each once, in tab order.
@@ -149,5 +208,45 @@ mod tests {
             }]
         );
         assert_eq!(session.active, None);
+    }
+
+    #[test]
+    fn waiting_tabs_are_kept_with_the_active_one() {
+        let pending = [(0, shell("b")), (2, collection("b", "y"))];
+        let merged = merge(vec![collection("a", "x")], None, &pending, Some(2));
+        assert_eq!(merged.tabs, [collection("a", "x"), shell("b"), collection("b", "y")]);
+        assert_eq!(merged.active, Some(2), "the saved active tab is still waiting");
+        let merged = merge(vec![collection("a", "x")], Some(0), &pending, Some(2));
+        assert_eq!(merged.active, Some(0), "an open active tab wins");
+    }
+
+    #[test]
+    fn older_collection_entries_and_unknown_tab_types_load() {
+        let json = r#"{ "tabs": [
+            { "type": "collection", "conn_id": "a", "db": "shop", "coll": "users" },
+            { "type": "chart", "conn_id": "a" }
+        ] }"#;
+        let session: Session = serde_json::from_str(json).unwrap();
+        assert!(matches!(
+            &session.tabs[0],
+            SavedTab::Collection { page_size: 20, view: false, mode, .. } if mode.is_empty()
+        ));
+        assert_eq!(
+            session.tabs[1],
+            SavedTab::Unknown,
+            "a tab type from a newer version is skipped, not fatal"
+        );
+    }
+
+    #[test]
+    fn a_restore_that_never_finished_is_skipped_once() {
+        let dir = crate::files::test_dir("session-restore");
+        assert!(!restore_crashed_in(&dir), "a clean start");
+        restore_started_in(&dir);
+        restore_finished_in(&dir);
+        assert!(!restore_crashed_in(&dir), "a restore that finished");
+        restore_started_in(&dir);
+        assert!(restore_crashed_in(&dir), "closed while restoring");
+        assert!(!restore_crashed_in(&dir), "skipped once, then back to normal");
     }
 }

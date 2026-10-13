@@ -61,14 +61,49 @@ fn is_identifier(key: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
 }
 
-/// A double that reads as one: `2.0`, not `2`.
-fn float(f: f64) -> String {
+/// A double that reads as one in `lang`: `2.0`, not `2`; infinities and NaN
+/// spelled the way each language has them.
+fn float(lang: Lang, f: f64) -> String {
+    if !f.is_finite() {
+        let n = f.is_sign_negative();
+        return match (lang, f.is_nan()) {
+            (Lang::Node, true) => "NaN".into(),
+            (Lang::Node, false) => if n { "-Infinity" } else { "Infinity" }.into(),
+            (Lang::Python, true) => "float(\"nan\")".into(),
+            (Lang::Python, false) => format!("float(\"{}inf\")", if n { "-" } else { "" }),
+            (Lang::Go, true) => "math.NaN()".into(),
+            (Lang::Go, false) => format!("math.Inf({})", if n { -1 } else { 1 }),
+            (Lang::Java, true) => "Double.NaN".into(),
+            (Lang::Java, false) => if n {
+                "Double.NEGATIVE_INFINITY"
+            } else {
+                "Double.POSITIVE_INFINITY"
+            }
+            .into(),
+            (Lang::Rust, true) => "f64::NAN".into(),
+            (Lang::Rust, false) => if n { "f64::NEG_INFINITY" } else { "f64::INFINITY" }.into(),
+        };
+    }
     let s = f.to_string();
-    if s.contains(['.', 'e', 'E', 'N', 'i']) {
+    if lang == Lang::Node || s.contains(['.', 'e', 'E']) {
         s
     } else {
         format!("{s}.0")
     }
+}
+
+/// A regex pattern inside `/.../`: slashes escaped, unless already escaped.
+fn slashes_escaped(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut backslashes = 0;
+    for c in pattern.chars() {
+        if c == '/' && backslashes % 2 == 0 {
+            out.push('\\');
+        }
+        backslashes = if c == '\\' { backslashes + 1 } else { 0 };
+        out.push(c);
+    }
+    out
 }
 
 fn rfc3339(d: &DateTime) -> String {
@@ -170,7 +205,7 @@ fn node_value(v: &Bson, needs: &mut Needs) -> String {
             needs.add("Long");
             format!("Long.fromString(\"{n}\")")
         }
-        Bson::Double(f) => f.to_string(),
+        Bson::Double(f) => float(Lang::Node, *f),
         Bson::Decimal128(d) => {
             needs.add("Decimal128");
             format!("Decimal128.fromString(\"{d}\")")
@@ -188,7 +223,7 @@ fn node_value(v: &Bson, needs: &mut Needs) -> String {
             }
             format!("new Date(\"{s}\")")
         }
-        Bson::RegularExpression(r) => format!("/{}/{}", r.pattern.replace('/', "\\/"), r.options),
+        Bson::RegularExpression(r) => format!("/{}/{}", slashes_escaped(&r.pattern), r.options),
         Bson::Binary(b) if b.subtype == BinarySubtype::Uuid => {
             needs.add("UUID");
             format!("new UUID(\"{}\")", uuid_text(&b.bytes))
@@ -237,7 +272,7 @@ fn python_value(v: &Bson, needs: &mut Needs) -> String {
             needs.add("from bson Int64");
             format!("Int64({n})")
         }
-        Bson::Double(f) => float(*f),
+        Bson::Double(f) => float(Lang::Python, *f),
         Bson::Decimal128(d) => {
             needs.add("from bson Decimal128");
             format!("Decimal128(\"{d}\")")
@@ -334,7 +369,7 @@ fn go_value(v: &Bson, needs: &mut Needs) -> String {
         Bson::String(s) => quote(s),
         Bson::Int32(n) => n.to_string(),
         Bson::Int64(n) => format!("int64({n})"),
-        Bson::Double(f) => float(*f),
+        Bson::Double(f) => float(Lang::Go, *f),
         Bson::Decimal128(d) => {
             needs.add("decimal");
             format!("decimal(\"{d}\")")
@@ -395,7 +430,7 @@ fn java_value(v: &Bson, needs: &mut Needs) -> String {
         Bson::String(s) => quote(s),
         Bson::Int32(n) => n.to_string(),
         Bson::Int64(n) => format!("{n}L"),
-        Bson::Double(f) => float(*f),
+        Bson::Double(f) => float(Lang::Java, *f),
         Bson::Decimal128(d) => format!("Decimal128.parse(\"{d}\")"),
         Bson::Boolean(b) => b.to_string(),
         Bson::Null | Bson::Undefined => "null".into(),
@@ -438,7 +473,7 @@ fn rust_value(v: &Bson) -> String {
         Bson::String(s) => quote(s),
         Bson::Int32(n) => n.to_string(),
         Bson::Int64(n) => format!("{n}_i64"),
-        Bson::Double(f) => float(*f),
+        Bson::Double(f) => float(Lang::Rust, *f),
         Bson::Decimal128(d) => format!("\"{d}\".parse::<Decimal128>()?"),
         Bson::Boolean(b) => b.to_string(),
         Bson::Null | Bson::Undefined => "Bson::Null".into(),
@@ -800,5 +835,57 @@ FindIterable<Document> cursor = client.getDatabase("shop").getCollection("users"
         let f = find(r#"{ "a.b": "say \"hi\"", "x-y": 1 }"#, "", "", None);
         assert!(to_code(Lang::Node, &f).contains(r#""a.b": "say \"hi\"", "x-y": 1"#));
         assert!(to_code(Lang::Python, &f).contains(r#""a.b": "say \"hi\"""#));
+    }
+
+    fn one(v: Bson) -> Find {
+        let mut filter = Document::new();
+        filter.insert("x", v);
+        Find {
+            db: "shop".into(),
+            coll: "users".into(),
+            filter,
+            sort: Document::new(),
+            projection: Document::new(),
+            limit: None,
+        }
+    }
+
+    #[test]
+    fn infinity_and_nan_in_each_language() {
+        let (inf, nan) = (Bson::Double(f64::INFINITY), Bson::Double(f64::NAN));
+        assert!(to_code(Lang::Node, &one(inf.clone())).contains("x: Infinity"));
+        assert!(to_code(Lang::Node, &one(nan.clone())).contains("x: NaN"));
+        assert!(to_code(Lang::Python, &one(Bson::Double(f64::NEG_INFINITY))).contains(r#""x": float("-inf")"#));
+        assert!(to_code(Lang::Go, &one(inf.clone())).contains(r#"{"x", math.Inf(1)}"#));
+        assert!(to_code(Lang::Java, &one(nan)).contains("Double.NaN"));
+        assert!(to_code(Lang::Rust, &one(inf)).contains(r#""x": f64::INFINITY"#));
+    }
+
+    #[test]
+    fn node_regexes_escape_slashes_once() {
+        let re = |p: &str| {
+            one(Bson::RegularExpression(mongodb::bson::Regex {
+                pattern: p.into(),
+                options: "i".into(),
+            }))
+        };
+        assert!(to_code(Lang::Node, &re("a/b")).contains(r"x: /a\/b/i"));
+        assert!(
+            to_code(Lang::Node, &re(r"a\/b")).contains(r"x: /a\/b/i"),
+            "already escaped"
+        );
+        assert!(
+            to_code(Lang::Node, &re(r"a\\/b")).contains(r"x: /a\\\/b/i"),
+            "an escaped backslash, then a slash"
+        );
+    }
+
+    #[test]
+    fn base64_pads_and_uuids_get_dashes() {
+        assert_eq!(base64(b"a"), "YQ==");
+        assert_eq!(base64(b"ab"), "YWI=");
+        assert_eq!(base64(b"abc"), "YWJj");
+        assert_eq!(uuid_text(&[0x12; 16]), "12121212-1212-1212-1212-121212121212");
+        assert_eq!(uuid_text(&[0xab, 0xcd]), "abcd", "not a UUID: plain hex");
     }
 }

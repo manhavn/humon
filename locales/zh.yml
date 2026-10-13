@@ -232,3 +232,7 @@ explain.running: 正在运行 explain…
 explain.collscan: 集合扫描：未使用索引，读取了所有文档。
 explain.index: "使用的索引：%{names}"
 explain.stats: "返回 %{returned} · 读取文档 %{docs} · 读取索引键 %{keys} · %{ms} 毫秒"
+schema.failed: "无法读取集合的字段：%{error}"
+app.session_skipped: "未重新打开上次会话的标签页：humon 在打开它们时关闭了。"
+explain.plan: "计划：%{stage}，未读取索引或整个集合。"
+explain.unknown: 服务器没有返回可读取的计划。

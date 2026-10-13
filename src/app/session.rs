@@ -8,7 +8,7 @@ impl Humon {
     /// The open tabs in tab order, then those still waiting for their connection.
     fn session(&self, cx: &App) -> Session {
         let ids = self.tab_ids();
-        let mut tabs: Vec<SavedTab> = ids
+        let open: Vec<SavedTab> = ids
             .iter()
             .filter_map(|id| {
                 if let Some(tab) = self.tabs.iter().find(|t| t.id == *id) {
@@ -19,8 +19,7 @@ impl Humon {
             })
             .collect();
         let active = self.active_tab.and_then(|a| ids.iter().position(|id| *id == a));
-        tabs.extend(self.pending.iter().map(|(_, tab)| tab.clone()));
-        Session { tabs, active }
+        crate::session::merge(open, active, &self.pending, self.pending_active)
     }
 
     pub(crate) fn persist_session(&self, cx: &App) {
@@ -33,6 +32,15 @@ impl Humon {
 
     /// Connects every connection the saved tabs need.
     pub(crate) fn restore_session(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.pending.is_empty() {
+            crate::session::restore_started();
+            // Restoring has had its chance to crash; past this, it didn't.
+            cx.spawn(async move |_, cx| {
+                cx.background_executor().timer(std::time::Duration::from_secs(15)).await;
+                crate::session::restore_finished();
+            })
+            .detach();
+        }
         let ids = crate::session::connections(self.pending.iter().map(|(_, tab)| tab));
         // Tabs of a connection that no longer exists can't come back.
         self.pending
@@ -69,6 +77,7 @@ impl Humon {
         }
         let before = self.active_tab;
         let mut active = before;
+        let mut first = None;
         for (place, tab) in mine {
             let opened = match tab {
                 SavedTab::Collection {
@@ -101,6 +110,7 @@ impl Humon {
                     );
                     Some(id)
                 }
+                SavedTab::Unknown => None,
                 SavedTab::Shell { db, code, .. } => {
                     let id = self.open_console(conn_id, &db, window, cx);
                     if let Some(id) = id
@@ -111,12 +121,14 @@ impl Humon {
                     id
                 }
             };
+            first = first.or(opened);
             if self.pending_active == Some(place) {
                 self.pending_active = None;
                 active = opened;
             }
         }
-        self.active_tab = active.or(self.active_tab);
+        // Something is active: the saved active tab, else what was, else the first restored.
+        self.active_tab = active.or(first);
         self.session_dirty = true;
         cx.notify();
     }

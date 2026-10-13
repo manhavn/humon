@@ -117,6 +117,7 @@ impl Humon {
                 if let (Some(tab), Some(&ix)) = (this.tab_mut(id), clicked.first()) {
                     tab.view = views[ix];
                 }
+                this.session_dirty = true;
                 cx.notify();
             }));
         let size_switch = ui::segmented(("size", id))

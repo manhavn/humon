@@ -335,4 +335,18 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn resolves_the_system_codes_of_every_language() {
+        let available: Vec<String> = ["ar", "en", "es", "fr", "hi", "tr", "zh"].map(String::from).to_vec();
+        for (system, code) in [
+            ("zh-Hans-CN", "zh"),
+            ("es-419", "es"),
+            ("ar-SA", "ar"),
+            ("hi-IN", "hi"),
+            ("fr_CA", "fr"),
+        ] {
+            assert_eq!(resolve(system, &available), code, "{system}");
+        }
+    }
 }

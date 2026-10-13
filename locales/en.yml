@@ -232,3 +232,7 @@ explain.running: Explaining…
 explain.collscan: "Collection scan: no index was used, every document was read."
 explain.index: "Index used: %{names}"
 explain.stats: "%{returned} returned · %{docs} documents read · %{keys} index keys read · %{ms} ms"
+schema.failed: "Couldn't read the collection's fields: %{error}"
+app.session_skipped: "The last session's tabs weren't reopened: humon closed while reopening them."
+explain.plan: "Plan: %{stage}, without reading an index or the whole collection."
+explain.unknown: The server returned no plan to read.

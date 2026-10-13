@@ -132,86 +132,25 @@ pub fn preprocess(code: &str) -> String {
 
 /// Top-level `const` and `let` as `var`, as mongosh does: values stay
 /// between runs, and running the same script again isn't a redeclaration.
-/// Declarations inside functions, blocks, loops and literals are untouched.
+/// Read with the highlighter's lexer, so strings, templates, regexes and
+/// comments never count; declarations inside brackets are untouched.
 pub fn top_level_var(code: &str) -> String {
-    let bytes = code.as_bytes();
     let mut out = String::with_capacity(code.len());
-    let mut depth = 0usize;
-    let mut i = 0;
-    // The last significant character, to tell a regex `/` from division.
-    let mut last = b';';
-    while i < bytes.len() {
-        let c = bytes[i];
-        let rest = &code[i..];
-        // Skip what can hold braces or keywords without being code.
-        let skip = if rest.starts_with("//") {
-            rest.find('\n').unwrap_or(rest.len())
-        } else if rest.starts_with("/*") {
-            rest.find("*/").map_or(rest.len(), |e| e + 2)
-        } else if matches!(c, b'"' | b'\'' | b'`') || (c == b'/' && b"(,=:[!&|?{};".contains(&last)) {
-            let mut j = 1;
-            let mut nested = 0usize;
-            while j < rest.len() {
-                let d = rest.as_bytes()[j];
-                if d == b'\\' {
-                    j += 2;
-                    continue;
-                }
-                if c == b'`' && rest.as_bytes()[j..].starts_with(b"${") {
-                    nested += 1;
-                } else if c == b'`' && nested > 0 && d == b'}' {
-                    nested -= 1;
-                } else if d == c && nested == 0 {
-                    j += 1;
-                    break;
-                }
-                j += 1;
+    let (mut depth, mut copied) = (0usize, 0);
+    for (range, kind) in crate::highlight::tokenize(code) {
+        let text = &code[range.clone()];
+        match kind {
+            "punctuation.bracket" if matches!(text, "{" | "(" | "[") => depth += 1,
+            "punctuation.bracket" => depth = depth.saturating_sub(1),
+            "keyword" if depth == 0 && matches!(text, "const" | "let") => {
+                out.push_str(&code[copied..range.start]);
+                out.push_str("var");
+                copied = range.end;
             }
-            // An escape before a multi-byte character can stop mid-character.
-            let mut end = j.min(rest.len());
-            while !rest.is_char_boundary(end) {
-                end += 1;
-            }
-            end
-        } else {
-            0
-        };
-        if skip > 0 {
-            out.push_str(&rest[..skip]);
-            last = b'x';
-            i += skip;
-            continue;
-        }
-        let word_start = i == 0
-            || !(bytes[i - 1].is_ascii_alphanumeric()
-                || bytes[i - 1] == b'_'
-                || bytes[i - 1] == b'$'
-                || bytes[i - 1] == b'.');
-        if depth == 0 && word_start {
-            for kw in ["const", "let"] {
-                if rest.starts_with(kw) && rest[kw.len()..].starts_with(|ch: char| ch.is_whitespace()) {
-                    out.push_str("var");
-                    i += kw.len();
-                    last = b'x';
-                    break;
-                }
-            }
-            if i < bytes.len() && bytes[i] != c {
-                continue;
-            }
-        }
-        match c {
-            b'{' | b'(' | b'[' => depth += 1,
-            b'}' | b')' | b']' => depth = depth.saturating_sub(1),
             _ => {}
         }
-        if !c.is_ascii_whitespace() {
-            last = c;
-        }
-        let ch = rest.chars().next().unwrap_or_default();
-        out.push(ch);
-        i += ch.len_utf8();
     }
+    out.push_str(&code[copied..]);
     out
 }
 
@@ -812,5 +751,30 @@ mod tests {
             "a write error must not look like success: {dup:?}"
         );
         assert_eq!(value(&mut e, "db.humon_console_test.drop()"), json!(true));
+    }
+
+    #[test]
+    fn top_level_var_reads_code_like_the_highlighter() {
+        assert_eq!(
+            top_level_var("const{a}=o\nlet[b]=c"),
+            "var{a}=o\nvar[b]=c",
+            "destructuring"
+        );
+        assert_eq!(top_level_var("a;const b = 1"), "a;var b = 1");
+        assert_eq!(
+            top_level_var("const r = /[/{]/\nconst b = 1"),
+            "var r = /[/{]/\nvar b = 1",
+            "a brace in a regex class"
+        );
+        assert_eq!(
+            top_level_var("function f() { return /{/ }\nconst c = 1"),
+            "function f() { return /{/ }\nvar c = 1",
+            "a regex after return"
+        );
+        assert_eq!(
+            top_level_var("print(`${ \"}\" }`)\nconst d = 1"),
+            "print(`${ \"}\" }`)\nvar d = 1"
+        );
+        assert_eq!(top_level_var("/* { */ const e = 1"), "/* { */ var e = 1");
     }
 }

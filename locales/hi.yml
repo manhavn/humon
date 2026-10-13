@@ -232,3 +232,7 @@ explain.running: Explain चल रहा है…
 explain.collscan: "कलेक्शन स्कैन: कोई इंडेक्स इस्तेमाल नहीं हुआ, सभी डॉक्यूमेंट पढ़े गए।"
 explain.index: "इस्तेमाल हुआ इंडेक्स: %{names}"
 explain.stats: "%{returned} लौटाए · %{docs} डॉक्यूमेंट पढ़े · %{keys} इंडेक्स कुंजियाँ पढ़ीं · %{ms} ms"
+schema.failed: "कलेक्शन के फ़ील्ड नहीं पढ़े जा सके: %{error}"
+app.session_skipped: "पिछले सत्र के टैब दोबारा नहीं खोले गए: उन्हें खोलते समय humon बंद हो गया था।"
+explain.plan: "प्लान: %{stage}, न इंडेक्स पढ़ा गया न पूरा कलेक्शन।"
+explain.unknown: सर्वर ने पढ़ने लायक कोई प्लान नहीं लौटाया।

@@ -232,3 +232,7 @@ explain.running: Explain en cours…
 explain.collscan: "Parcours de la collection : aucun index utilisé, tous les documents ont été lus."
 explain.index: "Index utilisé : %{names}"
 explain.stats: "%{returned} renvoyés · %{docs} documents lus · %{keys} clés d’index lues · %{ms} ms"
+schema.failed: "Impossible de lire les champs de la collection : %{error}"
+app.session_skipped: "Les onglets de la dernière session n’ont pas été rouverts : humon s’est fermé pendant leur ouverture."
+explain.plan: "Plan : %{stage}, sans lire d’index ni toute la collection."
+explain.unknown: Le serveur n’a renvoyé aucun plan lisible.
