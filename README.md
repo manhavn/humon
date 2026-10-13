@@ -43,10 +43,9 @@ With [Homebrew](https://brew.sh):
 brew install --cask yldrmzffr/tap/humon
 ```
 
-`brew upgrade` keeps it up to date. Or download the latest `.dmg` from
+Or download the latest `.dmg` from
 [Releases](https://github.com/yldrmzffr/humon/releases/latest), open it and drag humon
-into Applications. It runs on Apple Silicon and Intel Macs
-(macOS 12 or newer).
+into Applications. It runs on Apple Silicon and Intel Macs (macOS 12 or newer).
 
 The app is not notarized by Apple yet, so the first launch is blocked with a warning.
 Open **System Settings → Privacy & Security** and click **Open Anyway** (once), or run:
@@ -55,12 +54,17 @@ Open **System Settings → Privacy & Security** and click **Open Anyway** (once)
 xattr -dr com.apple.quarantine /Applications/humon.app
 ```
 
-humon tells you at the bottom of the sidebar when a newer version is out.
+humon tells you at the bottom of the sidebar when a newer version is out; with
+Homebrew, `brew upgrade` installs it.
 
 ## Features
 
+**Connect**
+- Any connection string, including Atlas (`mongodb+srv://`) and compressed
+  connections (`compressors=zlib`, `zstd`, `snappy`)
+- Saved connections, each with a color its tabs share; passwords in the Keychain
+
 **Browse**
-- Saved connections, each with a color its tabs share
 - Connections → databases → collections, with a quick collection search
 - Quick open (⌘K): jump to any collection or a database's shell by typing,
   e.g. `users`, `shop.ord` or `>_ logs`
@@ -69,12 +73,14 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 **Query**
 - Filter, sort and project in mongo shell syntax:
   `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
-- Suggestions as you type: field names with their types, operators that fit each
-  field, and values like `1`/`-1` for sort. Fields come from a sample of the
-  collection, then the server is asked for documents that don't fit it, so rare
-  fields and types are found too (both in Settings)
-- Warnings as you type: fields that aren't in the sampled documents (with a "did you
-  mean"), unknown operators, values of the wrong type, malformed operator arguments
+- Suggestions as you type: field names with their types and how often they appear,
+  operators that fit each field (every operator, from MongoDB's own specifications,
+  with its docs link), and values like `1`/`-1` for sort
+- Warnings as you type: unknown fields (with a "did you mean"), unknown operators,
+  values of the wrong type for a field, malformed operator arguments
+- Fields are learned from a sample of the collection; then the server is asked for
+  documents that don't fit it, until none are left, so rare fields and types are
+  found too and a warning can say a field exists nowhere (both in Settings)
 - Tree, table and JSON views; the JSON view can be selected, copied and searched
 - Query history and favorites for every collection
 - Status bar with the document count and how long the query took
@@ -89,10 +95,12 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 **Shell**
 - A built-in shell like Studio 3T's IntelliShell: write in the editor, run it, read
   (and select, copy, search) the results below
-- Completion: collections after `db.`, methods after `db.users.`, and inside
-  `find({ … })`, `aggregate([ … ])` or `updateOne(…)` the fields of that collection,
-  every query operator, stage, expression and accumulator; in a pipeline, later
-  stages see the fields earlier ones produce (after `$group`, `$project`, `$unwind`…)
+- Completion: databases after `use`, collections after `db.`, methods after
+  `db.users.` and `.find().`, and inside `find({ … })`, `aggregate([ … ])` or
+  `updateOne(…)` the fields of that collection with every query operator, stage,
+  expression and accumulator. In a pipeline, later stages see the fields earlier
+  ones produce (after `$group`, `$project`, `$unwind`…)
+- The same warnings as the query boxes, in every query in the script
 - mongosh-style JavaScript on an embedded QuickJS engine:
 
   ```js
@@ -110,12 +118,14 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 
 **And**
 - English and Turkish; adding a language is one file (see below)
+- A welcome on first launch to pick the language and options
 
 ## Keyboard shortcuts
 
 | Keys | Where | Does |
 | --- | --- | --- |
 | ⌘K | anywhere | Quick open a collection or shell |
+| ↑ ↓ Enter Esc | completion menu | Pick, insert, close |
 | ↑ ↓ Enter Esc | quick open | Pick, open, close |
 | ⌘-click, middle-click | collection in the sidebar | Open in a new tab |
 | middle-click | tab | Close the tab |
@@ -137,6 +147,10 @@ humon tells you at the bottom of the sidebar when a newer version is out.
   machine someone else already controls.
 - The same folder holds `history.json` (recent and favorite queries) and
   `settings.json`.
+- To learn a collection's fields, humon reads a sample of it and, unless turned off,
+  runs a few queries for documents that don't fit the sample. Those can't use an
+  index, so each is limited to 5 seconds and all of them to 20. Both are in
+  Settings (⚙) if you'd rather spare a busy server.
 - humon makes one network request of its own: on start it asks GitHub for the latest
   release, to show the update notice. Turn it off in Settings (⚙).
 
@@ -177,19 +191,23 @@ Pull requests are very welcome.
 ## Tests
 
 humon is built test-first: logic lives in plain functions with unit tests,
-storage takes a directory so tests use temp folders, and live tests run
-against a real MongoDB.
+storage takes a directory and a secret store so tests use temp folders and an
+in-memory Keychain, and live tests run against a real MongoDB.
 
 ```sh
 cargo test --release
 
-# Also against a real server on port 27018, after loading the test data:
-mongosh mongodb://127.0.0.1:27018 scripts/seed-test-db.js
-HUMON_TEST_URI=mongodb://127.0.0.1:27018 cargo test --release -- --include-ignored
+# Also against a real server (any test server; the data is created by the script):
+mongosh "$URI" scripts/seed-test-db.js
+HUMON_TEST_URI="$URI" cargo test --release -- --include-ignored
 ```
 
+`--include-ignored` also runs `keychain_round_trip`, which writes and deletes a test
+item in your real Keychain (under `dev.muzaffer.humon.test`); CI skips it.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released, and
-[CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+[CHANGELOG.md](CHANGELOG.md) for what changed in each version. Found a bug or
+missing something? [Open an issue](https://github.com/yldrmzffr/humon/issues).
 
 ## To do
 
@@ -202,9 +220,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released, an
 - [ ] Edit a single field without opening the whole document
 - [ ] Update or delete many documents by filter (with confirmation)
 - [ ] Import from JSON / CSV
-- [ ] Schema overview: fields, types, how often they appear
+- [ ] Schema overview: fields, types, how often they appear (the data is already there)
 - [ ] SSH tunnel and TLS certificate options
-- [ ] Notarized macOS releases (no first-launch warning)
+- [ ] Notarized macOS releases (no first-launch warning), then the main Homebrew repo
 - [ ] Linux and Windows builds
 - [ ] UI polish: fonts, sizes, spacing
 - [ ] UI-level tests with gpui's test harness
@@ -215,19 +233,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how changes are made and released, an
 | --- | --- |
 | `src/app/` | The window: sidebar, connections, tab bar, quick open, settings |
 | `src/tab/` | A collection tab: queries and paging, tree/table/JSON views, editor, history and export panels, status bar |
-| `src/console/` | The shell: QuickJS engine, mongosh-like API (`prelude.js`), history, tab view |
+| `src/console/` | The shell: QuickJS engine, mongosh-like API (`prelude.js`), history, completion, tab view |
 | `src/mongo.rs` | Talking to MongoDB (runs on tokio); `CollectionRef` holds the collection operations |
 | `src/query.rs` | Mongo shell syntax → BSON |
 | `src/shell.rs` | Extended JSON → shell text |
 | `src/highlight/` | Syntax colors: a pure lexer, and its hookup to the code editor |
 | `src/complete/` | Completion and warnings for MQL: in the query boxes, in pipelines, and in the shell |
-| `src/schema/` | Sampled collection schemas, and how pipeline stages reshape them |
+| `src/schema/` | Collection schemas: sampling, searching for what the sample missed, and how pipeline stages reshape them |
 | `src/mql/` | Every operator, stage, expression and accumulator, from MongoDB's specifications |
 | `src/smart.rs` | The typing helpers |
 | `src/palette.rs` | Quick open's matching and ranking |
 | `src/manage.rs` | Creating, renaming and dropping databases and collections |
 | `src/version.rs` | Version, release notes and the update check |
-| `src/store.rs`, `src/history.rs`, `src/settings.rs`, `src/files.rs` | Saved connections, query history, settings, and the JSON files behind them |
+| `src/store.rs` | Saved connections, with passwords in the Keychain |
+| `src/history.rs`, `src/settings.rs`, `src/files.rs` | Query history, settings, and the JSON files behind them |
+| `scripts/` | Release, app bundle and Homebrew cask scripts, the MQL table generator, test data |
 
 ## License
 
