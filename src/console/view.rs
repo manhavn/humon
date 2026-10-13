@@ -41,6 +41,8 @@ struct Block {
     editor: Entity<EditorState>,
     started: std::time::Instant,
     took: Option<std::time::Duration>,
+    /// Folded blocks show only their header; a new run folds the others.
+    open: bool,
 }
 
 pub struct ConsoleTab {
@@ -169,12 +171,17 @@ impl Humon {
             state.set_value(text, window, cx);
             state
         });
+        for block in &mut console.blocks {
+            block.open = false;
+        }
+        let block_id = console.next_block;
         console.blocks.push(Block {
-            id: console.next_block,
+            id: block_id,
             entry,
             editor,
             started: std::time::Instant::now(),
             took: None,
+            open: true,
         });
         console.next_block += 1;
         if console.blocks.len() > MAX_BLOCKS {
@@ -190,7 +197,8 @@ impl Humon {
                     if let Ok(reply) = reply {
                         console.completion_db.replace(reply.db.clone());
                         console.db = reply.db;
-                        if let Some(block) = console.blocks.last_mut() {
+                        // By id: the block may have been deleted while running.
+                        if let Some(block) = console.blocks.iter_mut().find(|b| b.id == block_id) {
                             block.entry.lines = lines(&reply.outputs);
                             block.took = Some(block.started.elapsed());
                             let text = body(&block.entry.lines);
@@ -414,10 +422,12 @@ impl Humon {
             theme.background,
         );
         let mono = theme.mono_font_family.clone();
-        let group: SharedString = format!("block-{id}-{}", block.id).into();
+        let block_id = block.id;
+        let group: SharedString = format!("block-{id}-{block_id}").into();
+        // Header buttons don't also fold the block they sit on.
         let action = |key: &str, label: String| {
             div()
-                .id(SharedString::from(format!("{key}-{id}-{}", block.id)))
+                .id(SharedString::from(format!("{key}-{id}-{block_id}")))
                 .px_2()
                 .border_1()
                 .border_color(border)
@@ -438,21 +448,33 @@ impl Humon {
             .group_hover(group.clone(), |s| s.opacity(1.))
             .child(
                 action("copy-result", t!("console.copy_result").into()).on_click(move |_, _, cx| {
+                    cx.stop_propagation();
                     cx.write_to_clipboard(ClipboardItem::new_string(result.clone()));
                 }),
             )
             .child(
                 action("copy-query", t!("console.copy_query").into()).on_click(move |_, _, cx| {
+                    cx.stop_propagation();
                     cx.write_to_clipboard(ClipboardItem::new_string(code.clone()));
                 }),
             )
             .child(
                 action("run-again", t!("console.run_again").into()).on_click(cx.listener(
                     move |this, _, window, cx| {
+                        cx.stop_propagation();
                         this.set_console_input(id, again.clone(), window, cx);
                         this.run_console(id, window, cx);
                     },
                 )),
+            )
+            .child(
+                action("delete-block", t!("console.delete").into()).on_click(cx.listener(move |this, _, _, cx| {
+                    cx.stop_propagation();
+                    if let Some(console) = this.console_mut(id) {
+                        console.blocks.retain(|b| b.id != block_id);
+                    }
+                    cx.notify();
+                })),
             );
         let took = match block.took {
             Some(d) => crate::tab::status::format_duration(d),
@@ -460,6 +482,7 @@ impl Humon {
         };
         let lines = block.editor.read(cx).value().lines().count().max(1);
         let header = div()
+            .id(SharedString::from(format!("block-header-{id}-{block_id}")))
             .flex()
             .items_center()
             .gap_2()
@@ -467,6 +490,24 @@ impl Humon {
             .py_1()
             .bg(panel)
             .text_xs()
+            .cursor_pointer()
+            .hover(|s| s.bg(hover))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                if let Some(block) = this
+                    .console_mut(id)
+                    .and_then(|c| c.blocks.iter_mut().find(|b| b.id == block_id))
+                {
+                    block.open = !block.open;
+                }
+                cx.notify();
+            }))
+            .child(
+                div()
+                    .flex_none()
+                    .w(px(10.))
+                    .text_color(muted)
+                    .child(if block.open { "▾" } else { "▸" }),
+            )
             .child(
                 div()
                     .flex_none()
@@ -477,7 +518,7 @@ impl Humon {
             .child(actions)
             .child(div().flex_none().text_color(muted).child(took));
         div()
-            .id(SharedString::from(format!("block-{id}-{}", block.id)))
+            .id(SharedString::from(format!("block-{id}-{block_id}")))
             .group(group)
             .flex()
             .border_b_1()
@@ -490,11 +531,19 @@ impl Humon {
                     .when(failed(&block.entry.lines), |d| d.bg(danger)),
             )
             .child(
-                div().flex_1().min_w_0().flex().flex_col().child(header).child(
-                    Editor::new(&block.editor)
-                        .readonly(true)
-                        .h(px((lines as f32 * 18. + 16.).clamp(34., 360.))),
-                ),
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .child(header)
+                    .when(block.open, |d| {
+                        d.child(
+                            Editor::new(&block.editor)
+                                .readonly(true)
+                                .h(px((lines as f32 * 18. + 16.).clamp(34., 480.))),
+                        )
+                    }),
             )
             .into_any_element()
     }
