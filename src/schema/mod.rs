@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use mongodb::bson::{Bson, Document};
 
+mod discover;
 mod stages;
 
 /// How many documents to sample when the user hasn't chosen.
@@ -19,6 +20,14 @@ pub const SAMPLE_SIZES: &[u32] = &[100, 500, 1000, 5000, 20000];
 /// bound; past this many paths new ones are ignored.
 const MAX_FIELDS: usize = 1000;
 const MAX_DEPTH: usize = 16;
+
+/// How a collection's schema is read: the sample size, and whether to then
+/// search the collection for what the sample missed.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Sampling {
+    pub size: u32,
+    pub discover: bool,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Field {
@@ -39,6 +48,9 @@ pub struct Schema {
     pub fields: Vec<Field>,
     /// Some paths were left out because there were too many.
     pub truncated: bool,
+    /// Every document in the collection was checked against these fields and
+    /// types (see `discover`), so a field that isn't here doesn't exist.
+    pub complete: bool,
 }
 
 impl Schema {
@@ -104,11 +116,22 @@ pub struct Builder {
     sampled: u64,
     fields: HashMap<String, Acc>,
     truncated: bool,
+    /// Off while folding in documents that were searched for, not sampled.
+    counting: bool,
 }
 
 impl Builder {
+    /// A document from the random sample: its fields count towards presence.
     pub fn add(&mut self, doc: &Document) {
         self.sampled += 1;
+        self.counting = true;
+        self.walk(doc, "", 0);
+    }
+
+    /// A document found by searching for what the sample missed: its fields
+    /// and types become known, but don't count as seen in the sample.
+    pub fn add_found(&mut self, doc: &Document) {
+        self.counting = false;
         self.walk(doc, "", 0);
     }
 
@@ -146,8 +169,9 @@ impl Builder {
             }
             self.fields.insert(path.to_string(), Acc::default());
         }
+        let counting = self.counting;
         let acc = self.fields.get_mut(path).expect("just inserted");
-        if acc.last_doc != doc {
+        if counting && acc.last_doc != doc {
             acc.last_doc = doc;
             acc.count += 1;
         }
@@ -159,15 +183,16 @@ impl Builder {
         }
     }
 
-    pub fn finish(self) -> Schema {
+    /// The schema so far; the builder can keep going.
+    pub fn snapshot(&self) -> Schema {
         let mut fields: Vec<Field> = self
             .fields
-            .into_iter()
+            .iter()
             .map(|(path, acc)| Field {
-                path,
+                path: path.clone(),
                 count: acc.count,
-                types: by_count(acc.types),
-                items: by_count(acc.items),
+                types: by_count(acc.types.clone()),
+                items: by_count(acc.items.clone()),
             })
             .collect();
         fields.sort_by(|a, b| a.path.cmp(&b.path));
@@ -175,7 +200,12 @@ impl Builder {
             sampled: self.sampled,
             fields,
             truncated: self.truncated,
+            complete: false,
         }
+    }
+
+    pub fn finish(self) -> Schema {
+        self.snapshot()
     }
 }
 

@@ -327,9 +327,9 @@ impl Humon {
     /// Samples the collection in the background so the query boxes can suggest
     /// its fields. Failing (no permission, say) just leaves completion off.
     pub fn load_schema(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let sample = self.settings.schema_sample();
+        let sampling = self.settings.sampling();
         let Some(tab) = self.tab_mut(id) else { return };
-        let fut = tab.target.clone().schema(sample);
+        let fut = tab.target.clone().schema(sampling);
         self.run(fut, window, cx, move |this, res, _, cx| {
             if let (Some(tab), Ok(schema)) = (this.tab_mut(id), res) {
                 *tab.schema.borrow_mut() = Some(Rc::new(schema));

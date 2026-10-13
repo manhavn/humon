@@ -126,6 +126,8 @@ settings.check_updates: Açılışta GitHub'da yeni sürüm var mı bak
 settings.schema: Alan önerileri
 settings.schema_sample: Alanları öğrenmek için koleksiyon başına örneklenen belge sayısı
 settings.schema_hint: Daha çok belge nadir alanları da bulur ama daha uzun sürer ve sunucuya daha çok yük bindirir. Daha az belge hızlıdır ama sadece bazı belgelerde olan alanları kaçırabilir. Belgeler tek tek okunup tutulmadığı için bellek kullanımı değişmez.
+settings.discover: Örneklemin kaçırdığı alanları bütün koleksiyonda da ara
+settings.discover_hint: Örneklemden sonra humon sunucudan gördüklerine uymayan belgeleri ister, uymayan kalmayana kadar. Nadir alanlar ve tipler de bulunur, uyarılar bir alanın hiçbir belgede olmadığını söyleyebilir. Bu sorgular index kullanamaz; her biri 5, hepsi birden 20 saniyeyle sınırlı.
 update.available: "%{version} hazır ↗"
 settings.version: "humon %{version}"
 settings.close: Kapat
@@ -187,6 +189,7 @@ complete.size: dizi uzunluğu
 complete.mod: kalan
 complete.not: tersi
 check.unknown_field: "%{field} örneklenen belgelerde yok."
+check.unknown_field_anywhere: "%{field} koleksiyondaki hiçbir belgede yok."
 check.did_you_mean: "%{name} mı demek istedin?"
 check.unknown_operator: "Bilinmeyen operatör: %{op}."
 check.unknown_argument: "%{op} için %{arg} diye bir argüman yok."

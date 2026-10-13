@@ -14,7 +14,7 @@ use mongodb::Client;
 use crate::complete::shell::{Spot, complete_shell, spot};
 use crate::highlight::{completion_response, is_completion_trigger};
 use crate::mongo::{self, CollectionRef, RT};
-use crate::schema::Schema;
+use crate::schema::{Sampling, Schema};
 
 pub struct ShellCompleter {
     inner: Rc<Inner>,
@@ -24,7 +24,7 @@ struct Inner {
     client: Client,
     /// The database `db` points at; the tab updates it after each run.
     db: Rc<RefCell<String>>,
-    sample: u32,
+    sampling: Sampling,
     databases: RefCell<Option<Rc<Vec<String>>>>,
     collections: RefCell<HashMap<String, Rc<Vec<String>>>>,
     schemas: RefCell<HashMap<(String, String), Rc<Schema>>>,
@@ -47,12 +47,12 @@ enum Fetch {
 }
 
 impl ShellCompleter {
-    pub fn new(client: Client, db: Rc<RefCell<String>>, sample: u32) -> Self {
+    pub fn new(client: Client, db: Rc<RefCell<String>>, sampling: Sampling) -> Self {
         Self {
             inner: Rc::new(Inner {
                 client,
                 db,
-                sample,
+                sampling,
                 databases: RefCell::default(),
                 collections: RefCell::default(),
                 schemas: RefCell::default(),
@@ -121,11 +121,11 @@ impl CompletionProvider for ShellCompleter {
         if !self.inner.pending.borrow_mut().insert(key.clone()) {
             return Task::ready(Ok(CompletionResponse::Array(vec![])));
         }
-        let (inner, text, client, sample) = (
+        let (inner, text, client, sampling) = (
             self.inner.clone(),
             text.clone(),
             self.inner.client.clone(),
-            self.inner.sample,
+            self.inner.sampling,
         );
         // The fetch runs on its own: the editor drops this request's task on the
         // next keystroke, and the fetched data must still reach the cache. A
@@ -154,7 +154,7 @@ impl CompletionProvider for ShellCompleter {
                     Data::Names(names)
                 }
                 Fetch::Schema(db, coll) => {
-                    let found = RT.spawn(CollectionRef::new(client, &db, &coll).schema(sample)).await;
+                    let found = RT.spawn(CollectionRef::new(client, &db, &coll).schema(sampling)).await;
                     let schema = Rc::new(match found {
                         Ok(Ok(schema)) => schema,
                         _ => Schema::default(),

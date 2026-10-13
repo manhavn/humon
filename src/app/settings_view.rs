@@ -125,7 +125,18 @@ impl Humon {
         let suggestions = section(t!("settings.schema"), border, panel)
             .child(div().text_sm().child(t!("settings.schema_sample").to_string()))
             .child(samples)
-            .child(hint(t!("settings.schema_hint"), muted));
+            .child(hint(t!("settings.schema_hint"), muted))
+            .child(
+                Checkbox::new("discover-schema")
+                    .label(t!("settings.discover").to_string())
+                    .checked(self.settings.discover_schema())
+                    .on_click(cx.listener(|this, checked: &bool, _, cx| {
+                        this.settings.discover_schema = Some(*checked);
+                        this.save_settings();
+                        cx.notify();
+                    })),
+            )
+            .child(hint(t!("settings.discover_hint"), muted));
 
         let updates = section(t!("settings.updates"), border, panel).child(
             Checkbox::new("check-updates")

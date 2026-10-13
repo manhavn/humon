@@ -188,6 +188,7 @@ impl Schema {
             sampled: self.sampled,
             fields: Vec::new(),
             truncated: false,
+            complete: self.complete,
         }
     }
 

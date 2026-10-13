@@ -128,6 +128,8 @@ settings.check_updates: Check GitHub for a new version on start
 settings.schema: Field suggestions
 settings.schema_sample: Documents sampled per collection to learn its fields
 settings.schema_hint: More documents find rare fields but take longer and put more load on the server. Fewer are faster but may miss fields only some documents have. Documents are read one by one and not kept, so memory use stays the same.
+settings.discover: Also search the whole collection for fields the sample missed
+settings.discover_hint: After sampling, humon asks the server for documents that don't fit what it has seen, until none are left. Rare fields and types are found, and warnings can say a field exists nowhere. These queries can't use an index, so each is limited to 5 seconds and all of them to 20.
 update.available: "%{version} available ↗"
 settings.version: "humon %{version}"
 settings.close: Close
@@ -189,6 +191,7 @@ complete.size: array length
 complete.mod: remainder
 complete.not: negates
 check.unknown_field: "%{field} isn't in the sampled documents."
+check.unknown_field_anywhere: "%{field} isn't in any document of the collection."
 check.did_you_mean: "Did you mean %{name}?"
 check.unknown_operator: "Unknown operator %{op}."
 check.unknown_argument: "%{op} has no argument %{arg}."

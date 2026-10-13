@@ -428,12 +428,13 @@ const TYPES: &[&str] = &[
 
 fn describe(field: &Field, sampled: u64) -> String {
     let types: Vec<&str> = field.types.iter().take(3).map(|(t, _)| *t).collect();
-    let share = if sampled == 0 {
-        100
-    } else {
-        (field.count * 100).div_ceil(sampled).min(100)
+    let share = match (field.count, sampled) {
+        (_, 0) => "100%".to_string(),
+        // Found by searching the collection, not in the random sample.
+        (0, _) => "<1%".to_string(),
+        (n, total) => format!("{}%", (n * 100).div_ceil(total).min(100)),
     };
-    format!("{} · {share}%", types.join(", "))
+    format!("{} · {share}", types.join(", "))
 }
 
 /// How well `name` matches what was typed: lower is better, None is no match.
@@ -975,5 +976,14 @@ mod tests {
             labels(&at("[ { $| } ]", Mode::Update)).contains(&"$set"),
             "update pipelines"
         );
+    }
+
+    #[test]
+    fn fields_only_found_by_searching_show_as_rare() {
+        let mut builder = crate::schema::Builder::default();
+        builder.add(&doc! { "a": 1 });
+        builder.add_found(&doc! { "rare": 1 });
+        let c = complete("{ ra }", 4, Mode::Filter, &builder.finish());
+        assert_eq!(c.items[0].detail, "int · <1%");
     }
 }

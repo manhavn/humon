@@ -62,9 +62,10 @@ humon tells you at the bottom of the sidebar when a newer version is out.
 **Query**
 - Filter, sort and project in mongo shell syntax:
   `{ _id: ObjectId("…"), createdAt: { $gt: ISODate("2024-01-01") } }`
-- Suggestions as you type: field names with their types (learned from a sample of
-  the collection, size in Settings), operators that fit each field, and values like
-  `1`/`-1` for sort
+- Suggestions as you type: field names with their types, operators that fit each
+  field, and values like `1`/`-1` for sort. Fields come from a sample of the
+  collection, then the server is asked for documents that don't fit it, so rare
+  fields and types are found too (both in Settings)
 - Warnings as you type: fields that aren't in the sampled documents (with a "did you
   mean"), unknown operators, values of the wrong type, malformed operator arguments
 - Tree, table and JSON views; the JSON view can be selected, copied and searched

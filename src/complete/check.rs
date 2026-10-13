@@ -21,9 +21,11 @@ pub enum Severity {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Message {
+    /// `everywhere`: the whole collection was checked, not just a sample.
     UnknownField {
         field: String,
         suggestion: Option<String>,
+        everywhere: bool,
     },
     UnknownOperator {
         op: String,
@@ -61,8 +63,17 @@ impl Message {
             None => String::new(),
         };
         match self {
-            Message::UnknownField { field, suggestion } => {
-                format!("{}{}", t!("check.unknown_field", field = field), hint(suggestion))
+            Message::UnknownField {
+                field,
+                suggestion,
+                everywhere,
+            } => {
+                let text = if *everywhere {
+                    t!("check.unknown_field_anywhere", field = field)
+                } else {
+                    t!("check.unknown_field", field = field)
+                };
+                format!("{text}{}", hint(suggestion))
             }
             Message::UnknownOperator { op, suggestion } => {
                 format!("{}{}", t!("check.unknown_operator", op = op), hint(suggestion))
@@ -459,6 +470,7 @@ impl Checker<'_> {
             Message::UnknownField {
                 field: path[prefix.len()..].to_string(),
                 suggestion,
+                everywhere: schema.complete,
             },
         );
     }
@@ -704,6 +716,7 @@ mod tests {
         Message::UnknownField {
             field: field.into(),
             suggestion: suggestion.map(String::from),
+            everywhere: false,
         }
     }
 
@@ -874,5 +887,21 @@ mod tests {
     fn messages_read_well() {
         let m = unknown_field("emial", Some("email"));
         assert_eq!(m.text(), "emial isn't in the sampled documents. Did you mean email?");
+    }
+
+    #[test]
+    fn a_complete_schema_says_the_field_is_nowhere() {
+        let mut complete = schema();
+        complete.complete = true;
+        let p = check("{ emial: 1 }", Mode::Filter, &complete);
+        assert!(matches!(&p[0].message, Message::UnknownField { everywhere: true, .. }));
+        assert_eq!(
+            p[0].message.text(),
+            "emial isn't in any document of the collection. Did you mean email?"
+        );
+        assert!(matches!(
+            &check("{ emial: 1 }", Mode::Filter, &schema())[0].message,
+            Message::UnknownField { everywhere: false, .. }
+        ));
     }
 }

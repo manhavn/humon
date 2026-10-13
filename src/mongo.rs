@@ -289,9 +289,18 @@ impl CollectionRef {
 
     /// The shape of the collection from a random sample of `size` documents.
     /// Each document is folded in and dropped, so a big sample costs time, not memory.
-    pub async fn schema(self, size: u32) -> Result<crate::schema::Schema, String> {
-        let mut cursor = self
-            .handle()
+    ///
+    /// With `discover`, the server is then asked for documents that don't fit
+    /// what the sample showed, until none are left (the schema is `complete`)
+    /// or the time and round budget runs out. Those queries can't use an index,
+    /// so each is capped in time.
+    pub async fn schema(self, sampling: crate::schema::Sampling) -> Result<crate::schema::Schema, String> {
+        let crate::schema::Sampling { size, discover } = sampling;
+        const ROUNDS: usize = 20;
+        const BATCH: i64 = 100;
+        const BUDGET: Duration = Duration::from_secs(20);
+        let collection = self.handle();
+        let mut cursor = collection
             .aggregate([doc! { "$sample": { "size": size } }])
             .max_time(Duration::from_secs(30))
             .await
@@ -299,6 +308,41 @@ impl CollectionRef {
         let mut builder = crate::schema::Builder::default();
         while let Some(doc) = cursor.try_next().await.map_err(err)? {
             builder.add(&doc);
+        }
+        if !discover {
+            return Ok(builder.finish());
+        }
+        let start = Instant::now();
+        for _ in 0..ROUNDS {
+            let schema = builder.snapshot();
+            // Fields beyond the cap are dropped on purpose; searching would never end.
+            if schema.truncated || start.elapsed() > BUDGET {
+                return Ok(schema);
+            }
+            let found = collection
+                .find(doc! { "$nor": [{ "$jsonSchema": schema.json_schema() }] })
+                .limit(BATCH)
+                .max_time(Duration::from_secs(5))
+                .await;
+            let Ok(mut cursor) = found else { return Ok(schema) };
+            let mut any = false;
+            loop {
+                match cursor.try_next().await {
+                    Ok(Some(doc)) => {
+                        any = true;
+                        builder.add_found(&doc);
+                    }
+                    Ok(None) => break,
+                    // Timed out mid-way: keep what came, the schema stays incomplete.
+                    Err(_) => return Ok(builder.finish()),
+                }
+            }
+            if !any {
+                return Ok(crate::schema::Schema {
+                    complete: true,
+                    ..schema
+                });
+            }
         }
         Ok(builder.finish())
     }
@@ -518,18 +562,87 @@ mod tests {
     #[tokio::test]
     #[ignore = "needs a live MongoDB"]
     async fn live_schema() {
-        let schema = users().await.schema(1000).await.unwrap();
+        let schema = users()
+            .await
+            .schema(crate::schema::Sampling {
+                size: 1000,
+                discover: false,
+            })
+            .await
+            .unwrap();
         assert_eq!(schema.sampled, 137, "asking for more than exists samples them all");
         let city = schema.field("address.city").unwrap();
         assert_eq!((city.count, city.types.as_slice()), (137, &[("string", 137)][..]));
         assert_eq!(schema.field("big").unwrap().types, [("long", 137)]);
         assert_eq!(schema.field("tags").unwrap().items, [("string", 274)]);
-        assert_eq!(users().await.schema(10).await.unwrap().sampled, 10);
+        assert_eq!(
+            users()
+                .await
+                .schema(crate::schema::Sampling {
+                    size: 10,
+                    discover: false
+                })
+                .await
+                .unwrap()
+                .sampled,
+            10
+        );
         let view = CollectionRef::new(client().await, "shop", "adults");
         assert!(
-            view.schema(50).await.unwrap().field("age").is_some(),
+            view.schema(crate::schema::Sampling {
+                size: 50,
+                discover: true
+            })
+            .await
+            .unwrap()
+            .field("age")
+            .is_some(),
             "views can be sampled"
         );
+    }
+
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_schema_discovery_finds_what_the_sample_missed() {
+        let coll = scratch("discover").await;
+        let docs: Vec<Document> = (0..1500)
+            .map(|i| match i {
+                777 => doc! { "age": 1, "promo": { "code": "x" } },
+                1200 => doc! { "age": "old" },
+                _ => doc! { "age": i },
+            })
+            .collect();
+        coll.handle().insert_many(docs).await.unwrap();
+
+        let sampled = coll
+            .clone()
+            .schema(crate::schema::Sampling {
+                size: 20,
+                discover: false,
+            })
+            .await
+            .unwrap();
+        assert!(!sampled.complete, "a sample alone proves nothing");
+
+        let found = coll
+            .clone()
+            .schema(crate::schema::Sampling {
+                size: 20,
+                discover: true,
+            })
+            .await
+            .unwrap();
+        assert!(found.complete, "every document matches in the end");
+        assert_eq!(found.sampled, 20, "presence still comes from the random sample");
+        assert!(found.field("promo.code").is_some(), "a field in 1 of 1500 documents");
+        assert!(found.field("age").unwrap().types.iter().any(|(t, _)| *t == "string"));
+        let left = coll
+            .handle()
+            .count_documents(doc! { "$nor": [{ "$jsonSchema": found.json_schema() }] })
+            .await
+            .unwrap();
+        assert_eq!(left, 0, "the server agrees nothing is left out");
+        coll.drop().await.unwrap();
     }
 
     #[tokio::test]

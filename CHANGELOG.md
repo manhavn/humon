@@ -6,6 +6,13 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+- Schema discovery (#3): after sampling, humon asks the server for
+  documents that don't fit what it has seen, until none are left, so rare
+  fields and types are found too. Warnings then say a field exists nowhere
+  rather than "not in the sample". Each query is limited to 5 seconds and
+  all of them to 20; it can be turned off in Settings
+- Fields found only this way show as "<1%" in suggestions
+
 ## [0.1.3] - 2026-10-13
 
 - Completion in the shell: collections after `db.`, collection and cursor

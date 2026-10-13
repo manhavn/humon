@@ -56,12 +56,12 @@ impl ConsoleTab {
         conn_id: &str,
         client: Client,
         db: &str,
-        sample: u32,
+        sampling: crate::schema::Sampling,
         window: &mut Window,
         cx: &mut Context<Humon>,
     ) -> Self {
         let completion_db = Rc::new(RefCell::new(db.to_string()));
-        let completer = Rc::new(ShellCompleter::new(client.clone(), completion_db.clone(), sample));
+        let completer = Rc::new(ShellCompleter::new(client.clone(), completion_db.clone(), sampling));
         let editor = cx.new(|cx| {
             let mut state = shell_editor(window, cx);
             state.lsp_mut().completion_provider = Some(completer.clone());
