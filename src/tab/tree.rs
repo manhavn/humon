@@ -158,6 +158,31 @@ impl Humon {
         let theme = cx.theme();
         let (muted, hover) = (theme.muted_foreground, theme.list_hover);
         let path = format!("{parent}/{key}");
+        let id = tab.id;
+        let row_group: SharedString = format!("row-{id}-{path}").into();
+        let copy = {
+            let text = copy_text(value);
+            div()
+                .id(SharedString::from(format!("copy-{id}-{path}")))
+                .flex_none()
+                .px_1()
+                .rounded_sm()
+                .text_color(muted)
+                .cursor_pointer()
+                .opacity(0.)
+                .group_hover(row_group.clone(), |s| s.opacity(1.))
+                .hover(|s| s.bg(hover))
+                .child("⧉")
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
+                    if let Some(tab) = this.tab_mut(id) {
+                        tab.notice = Some(t!("tree.copied").into());
+                    }
+                    // Copying a nested value mustn't also fold or unfold it.
+                    cx.stop_propagation();
+                    cx.notify();
+                }))
+        };
         let container = match value {
             Value::Object(m) if !is_wrapper(m) => Some(if m.is_empty() {
                 "{}".to_string()
@@ -171,7 +196,10 @@ impl Humon {
             .style("property")
             .and_then(|s| s.color)
             .unwrap_or(theme.foreground);
+        // Fixed-width parts don't shrink, so a long value can't pull its row left;
+        // the value is cut with an ellipsis instead (copy gets all of it).
         let row = div()
+            .group(row_group.clone())
             .flex()
             .gap_1()
             .pl(px(depth as f32 * 16.))
@@ -185,15 +213,21 @@ impl Humon {
                 .filter_map(|(r, kind)| syntax.style(kind).map(|s| (r, s)))
                 .collect();
             rows.push(
-                row.child(div().w(px(10.)))
-                    .child(div().text_color(key_color).child(format!("{key}:")))
-                    .child(StyledText::new(text).with_highlights(highlights))
+                row.child(div().w(px(10.)).flex_none())
+                    .child(div().flex_none().text_color(key_color).child(format!("{key}:")))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .child(StyledText::new(text).with_highlights(highlights)),
+                    )
+                    .child(copy)
                     .into_any_element(),
             );
             return;
         };
         let open = tab.expanded.contains(&path);
-        let id = tab.id;
         rows.push(
             row.id(SharedString::from(format!("row-{id}-{path}")))
                 .cursor_pointer()
@@ -209,9 +243,16 @@ impl Humon {
                         cx.notify();
                     }
                 }))
-                .child(div().w(px(10.)).text_color(muted).child(if open { "▾" } else { "▸" }))
-                .child(div().text_color(key_color).child(format!("{key}:")))
-                .child(div().text_color(muted).child(summary))
+                .child(
+                    div()
+                        .w(px(10.))
+                        .flex_none()
+                        .text_color(muted)
+                        .child(if open { "▾" } else { "▸" }),
+                )
+                .child(div().flex_none().text_color(key_color).child(format!("{key}:")))
+                .child(div().flex_1().min_w_0().truncate().text_color(muted).child(summary))
+                .child(copy)
                 .into_any_element(),
         );
         if !open {
@@ -246,6 +287,15 @@ impl Humon {
     }
 }
 
+/// What a row's copy button puts on the clipboard: strings as they are,
+/// anything else as the tree shows it.
+pub(crate) fn copy_text(value: &Value) -> String {
+    match value {
+        Value::String(s) => s.clone(),
+        other => to_shell(other, ""),
+    }
+}
+
 /// One field of a document, as the tree draws it.
 pub(crate) struct Field<'a> {
     /// Path of the containing value, used to remember what is expanded.
@@ -253,4 +303,26 @@ pub(crate) struct Field<'a> {
     pub key: &'a str,
     pub value: &'a Value,
     pub depth: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::copy_text;
+    use serde_json::json;
+
+    #[test]
+    fn copies_strings_bare_and_the_rest_as_shell_text() {
+        assert_eq!(copy_text(&json!("Mozilla/5.0 (Macintosh)")), "Mozilla/5.0 (Macintosh)");
+        assert_eq!(
+            copy_text(&json!({ "$oid": "69ba8398b08a8f31679f43cb" })),
+            "ObjectId(\"69ba8398b08a8f31679f43cb\")"
+        );
+        assert_eq!(copy_text(&json!(null)), "null");
+        assert_eq!(copy_text(&json!({ "$numberInt": "5" })), "5");
+        assert_eq!(
+            copy_text(&json!({ "a": { "$numberInt": "1" } })),
+            "{\n  a: 1\n}",
+            "nested values pasted readably"
+        );
+    }
 }

@@ -149,6 +149,20 @@ impl Humon {
                 })),
         );
 
+        let mut thanks = section(t!("settings.thanks"), border, panel);
+        for (i, (name, url)) in crate::version::THANKS.iter().enumerate() {
+            thanks = thanks.child(
+                div()
+                    .id(SharedString::from(format!("thanks-{i}")))
+                    .text_sm()
+                    .text_color(accent)
+                    .cursor_pointer()
+                    .hover(|s| s.underline())
+                    .child(name.to_string())
+                    .on_click(move |_, _, cx| cx.open_url(url)),
+            );
+        }
+
         let footer = div()
             .flex()
             .items_center()
@@ -195,6 +209,7 @@ impl Humon {
                         .child(language)
                         .child(suggestions)
                         .child(updates)
+                        .child(thanks)
                         .child(footer),
                 ),
             )

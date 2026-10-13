@@ -51,6 +51,7 @@ card.confirm_delete: Emin misin?
 
 tree.fields: "{ %{n} alan }"
 tree.array: "Dizi [%{n}]"
+tree.copied: Kopyalandı
 
 history.toggle: Geçmiş
 history.save: ☆ Kaydet
@@ -137,6 +138,7 @@ settings.welcome_title: humon'a hoş geldin
 settings.welcome: Dilini ve ayarlarını seç; bunları kenar çubuğundaki ⚙ ile istediğin zaman değiştirebilirsin. Sonra ilk bağlantını ekle.
 settings.continue: Devam et
 settings.github: GitHub ↗
+settings.thanks: Teşekkürler
 
 query.at: "%{msg} (satır %{line}, sütun %{col})"
 query.must_be_object: "sorgu { ... } biçiminde bir nesne olmalı"

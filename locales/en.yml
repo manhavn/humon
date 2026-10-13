@@ -53,6 +53,7 @@ card.confirm_delete: Sure?
 
 tree.fields: "{ %{n} fields }"
 tree.array: "Array [%{n}]"
+tree.copied: Copied
 
 history.toggle: History
 history.save: ☆ Save
@@ -139,6 +140,7 @@ settings.welcome_title: Welcome to humon
 settings.welcome: Pick your language and options; you can change them any time with ⚙ in the sidebar. Then add your first connection.
 settings.continue: Continue
 settings.github: GitHub ↗
+settings.thanks: Thanks
 
 query.at: "%{msg} (line %{line}, column %{col})"
 query.must_be_object: "the query must be an object: { ... }"

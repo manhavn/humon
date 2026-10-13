@@ -4,6 +4,9 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const REPO_URL: &str = "https://github.com/yldrmzffr/humon";
 
+/// People thanked in Settings and the README (a test keeps the two the same).
+pub const THANKS: &[(&str, &str)] = &[("Jérôme Tamarelle (@GromNaN)", "https://github.com/GromNaN")];
+
 /// GitHub's API for the newest published release.
 const LATEST_URL: &str = "https://api.github.com/repos/yldrmzffr/humon/releases/latest";
 
@@ -67,7 +70,23 @@ pub fn release_notes(changelog: &str, version: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Release, is_newer, parse_latest, release_notes};
+    use super::{Release, THANKS, is_newer, parse_latest, release_notes};
+
+    #[test]
+    fn thanks_match_the_readme() {
+        let readme = include_str!("../README.md");
+        let start = readme.find("## Thanks").expect("README has a Thanks section");
+        let end = readme[start..].find("\n## License").map_or(readme.len(), |e| start + e);
+        let section = &readme[start..end];
+        let listed = section.lines().filter(|l| l.starts_with("- [")).count();
+        assert_eq!(listed, THANKS.len(), "same people in both");
+        for (name, url) in THANKS {
+            assert!(
+                section.contains(&format!("[{name}]({url})")),
+                "{name} missing from the README"
+            );
+        }
+    }
 
     #[test]
     fn newer_compares_numbers_not_text() {
