@@ -74,7 +74,10 @@ impl EngineHandle {
                 };
                 let _ = ready_tx.send(Ok(engine.stop_handle()));
                 for request in rx {
-                    let outputs = engine.eval(&request.code);
+                    // A bug in humon mustn't leave the tab waiting forever: it
+                    // becomes an error on this run, and the shell carries on.
+                    let outputs = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| engine.eval(&request.code)))
+                        .unwrap_or_else(|_| vec![Output::Error(t!("console.crashed").into())]);
                     let _ = request.reply.send(Reply {
                         outputs,
                         db: engine.db(),
@@ -154,7 +157,7 @@ pub fn top_level_var(code: &str) -> String {
                     j += 2;
                     continue;
                 }
-                if c == b'`' && rest[j..].starts_with("${") {
+                if c == b'`' && rest.as_bytes()[j..].starts_with(b"${") {
                     nested += 1;
                 } else if c == b'`' && nested > 0 && d == b'}' {
                     nested -= 1;
@@ -164,7 +167,12 @@ pub fn top_level_var(code: &str) -> String {
                 }
                 j += 1;
             }
-            j.min(rest.len())
+            // An escape before a multi-byte character can stop mid-character.
+            let mut end = j.min(rest.len());
+            while !rest.is_char_boundary(end) {
+                end += 1;
+            }
+            end
         } else {
             0
         };
@@ -575,6 +583,12 @@ mod tests {
             assert_eq!(top_level_var(code), code, "{code}");
         }
         assert_eq!(top_level_var("{ a: 1 }\nconst b = /x{/"), "{ a: 1 }\nvar b = /x{/");
+        // Characters of more than one byte, in templates and after escapes.
+        let code = "const users = []\nusers.forEach(u => print(`${u.name} — ${u.city}`))\nlet s = '\\é ü'";
+        assert_eq!(
+            top_level_var(code),
+            "var users = []\nusers.forEach(u => print(`${u.name} — ${u.city}`))\nvar s = '\\é ü'"
+        );
     }
 
     #[test]

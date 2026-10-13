@@ -124,6 +124,7 @@ console.copy_query: क्वेरी कॉपी करें
 console.run_again: फिर से चलाएँ
 console.delete: हटाएँ
 console.running: चल रहा है…
+console.crashed: "शेल में कुछ गड़बड़ हो गई। कृपया GitHub पर बताएँ।"
 console.hint: "⌘↵ चलाता है (कुछ चुना हो तो सिर्फ़ वही) · ⌥↑↓ पिछले कमांड"
 console.history: इतिहास
 console.no_history: अभी तक कोई कमांड नहीं

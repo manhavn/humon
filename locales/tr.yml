@@ -122,6 +122,7 @@ console.copy_query: Sorguyu kopyala
 console.run_again: Tekrar çalıştır
 console.delete: Sil
 console.running: çalışıyor…
+console.crashed: "Shell'de bir şeyler ters gitti. Lütfen GitHub'da bildir."
 console.hint: "⌘↵ çalıştırır (seçim varsa sadece onu) · ⌥↑↓ önceki komutlar"
 console.history: Geçmiş
 console.no_history: Henüz komut yok

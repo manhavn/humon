@@ -124,6 +124,7 @@ console.copy_query: Copier la requête
 console.run_again: Exécuter à nouveau
 console.delete: Supprimer
 console.running: exécution…
+console.crashed: "Une erreur est survenue dans le shell. Signalez-la sur GitHub."
 console.hint: "⌘↵ exécute (seulement la sélection, s'il y en a une) · ⌥↑↓ commandes précédentes"
 console.history: Historique
 console.no_history: Aucune commande pour l'instant

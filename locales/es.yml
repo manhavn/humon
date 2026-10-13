@@ -124,6 +124,7 @@ console.copy_query: Copiar consulta
 console.run_again: Volver a ejecutar
 console.delete: Eliminar
 console.running: ejecutando…
+console.crashed: "Algo salió mal en el shell. Infórmalo en GitHub, por favor."
 console.hint: "⌘↵ ejecuta (solo la selección, si la hay) · ⌥↑↓ comandos anteriores"
 console.history: Historial
 console.no_history: Aún no hay comandos

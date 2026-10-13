@@ -124,6 +124,7 @@ console.copy_query: Copy query
 console.run_again: Run again
 console.delete: Delete
 console.running: running…
+console.crashed: "Something went wrong in the shell. Please report it on GitHub."
 console.hint: "⌘↵ runs (just the selection, if any) · ⌥↑↓ earlier commands"
 console.history: History
 console.no_history: No commands yet

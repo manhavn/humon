@@ -124,6 +124,7 @@ console.copy_query: نسخ الاستعلام
 console.run_again: تشغيل مجددًا
 console.delete: حذف
 console.running: جارٍ التشغيل…
+console.crashed: "حدث خطأ في الطرفية. يُرجى الإبلاغ عنه على GitHub."
 console.hint: "⌘↵ للتشغيل (التحديد فقط، إن وُجد) · ⌥↑↓ الأوامر السابقة"
 console.history: السجل
 console.no_history: لا توجد أوامر بعد

@@ -124,6 +124,7 @@ console.copy_query: 拷贝查询
 console.run_again: 再次运行
 console.delete: 删除
 console.running: 运行中…
+console.crashed: "Shell 出现了问题，请在 GitHub 上报告。"
 console.hint: "⌘↵ 运行（若有选中内容则只运行选中部分）· ⌥↑↓ 之前的命令"
 console.history: 历史记录
 console.no_history: 还没有命令

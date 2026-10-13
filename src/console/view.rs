@@ -207,6 +207,15 @@ impl Humon {
                             let text = body(&block.entry.lines);
                             block.editor.update(cx, |s, cx| s.set_value(text, window, cx));
                         }
+                    } else if let Some(block) = console.blocks.iter_mut().find(|b| b.id == block_id) {
+                        // The shell's thread is gone: say so instead of "running…" forever.
+                        block.entry.lines = vec![Line {
+                            text: t!("console.crashed").into(),
+                            kind: LineKind::Error,
+                        }];
+                        block.took = Some(block.started.elapsed());
+                        let text = body(&block.entry.lines);
+                        block.editor.update(cx, |s, cx| s.set_value(text, window, cx));
                     }
                     console.scroll.scroll_to_bottom();
                 }
