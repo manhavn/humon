@@ -14,9 +14,17 @@ All notable changes to humon. The format follows
 - Explain: whether a query used an index, how much it read and how long
   it took
 - The query as driver code for Node.js, Python, Go, Java and Rust
-
 - Spanish, French, Chinese (Simplified), Hindi and Arabic. Arabic text
   shows, but the layout stays left to right
+- A cleaner, more consistent look: the same spacing, sizes and button styles
+  everywhere, a sidebar with the app's name and a clear New connection
+  button, segmented controls for views and page sizes, vector icons
+- Shell scripts can run again (top-level `const` and `let` no longer clash),
+  and a script with non-ASCII text no longer hangs at "running…"
+- The Schema view says why sampling failed instead of loading forever
+- If humon closes while reopening tabs, the next launch starts without them
+  once, instead of failing the same way again
+- Explain reads sharded plans and names plans like `IDHACK` correctly
 
 ## [0.1.6] - 2026-10-13
 
