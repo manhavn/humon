@@ -3,7 +3,7 @@
 use super::*;
 use crate::ui;
 use gpui_kit::component::button::{Button, ButtonVariants};
-use gpui_kit::component::{Selectable, Sizable};
+use gpui_kit::component::{IconName, Selectable, Sizable};
 
 impl Humon {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -48,7 +48,7 @@ impl Humon {
                         Button::new("add-conn")
                             .small()
                             .ghost()
-                            .label("+")
+                            .icon(IconName::Plus)
                             .tooltip(t!("sidebar.new_connection"))
                             .selected(self.adding)
                             .on_click(cx.listener(|this, _, _, cx| {
@@ -595,7 +595,7 @@ impl Humon {
                 Button::new("settings")
                     .small()
                     .ghost()
-                    .label("⚙")
+                    .icon(IconName::Settings)
                     .tooltip(t!("settings.title"))
                     .selected(self.show_settings)
                     .on_click(cx.listener(|this, _, _, cx| {

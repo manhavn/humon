@@ -214,21 +214,21 @@ impl Humon {
                     .items_center()
                     .gap(px(ui::SPACE / 2.))
                     .child(
-                        ui::tool("prev", "‹", false)
+                        ui::icon_tool("prev", IconName::ChevronLeft, t!("tab.previous"))
                             .disabled(page == 0 || tab.loading)
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.go_to_page(id, page.saturating_sub(1), window, cx);
                             })),
                     )
                     .child(
-                        ui::tool("next", "›", false)
+                        ui::icon_tool("next", IconName::ChevronRight, t!("tab.next"))
                             .disabled(!has_next || tab.loading)
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.go_to_page(id, page + 1, window, cx);
                             })),
                     )
                     .child(
-                        ui::tool("refresh", "↻", false)
+                        ui::icon_tool("refresh", IconName::RefreshCw, t!("tab.refresh"))
                             .disabled(tab.loading)
                             .on_click(cx.listener(move |this, _, window, cx| {
                                 this.refresh(id, window, cx);

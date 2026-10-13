@@ -27,6 +27,9 @@ form.uri_required: La cadena de conexión no puede estar vacía
 tab.filter_placeholder: "{ campo: 'valor' }"
 tab.projection_placeholder: "{ campo: 1 }"
 tab.find: Buscar
+tab.previous: Página anterior
+tab.next: Página siguiente
+tab.refresh: Recargar
 tab.indexes: Índices
 tab.explain: Explain
 tab.code: Código

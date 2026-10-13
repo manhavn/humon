@@ -27,6 +27,9 @@ form.uri_required: कनेक्शन स्ट्रिंग खाली �
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: खोजें
+tab.previous: पिछला पेज
+tab.next: अगला पेज
+tab.refresh: फिर से लोड करें
 tab.indexes: इंडेक्स
 tab.explain: Explain
 tab.code: कोड

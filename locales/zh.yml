@@ -27,6 +27,9 @@ form.uri_required: 连接字符串不能为空
 tab.filter_placeholder: "{ field: 'value' }"
 tab.projection_placeholder: "{ field: 1 }"
 tab.find: 查找
+tab.previous: 上一页
+tab.next: 下一页
+tab.refresh: 重新载入
 tab.indexes: 索引
 tab.explain: Explain
 tab.code: 代码

@@ -6,7 +6,7 @@
 //! `TEXT`, secondary text `SMALL`; data and code use the mono font at `SMALL`.
 
 use gpui_kit::component::button::{Button, ButtonGroup, ButtonVariants};
-use gpui_kit::component::{Selectable, Sizable};
+use gpui_kit::component::{IconName, Selectable, Sizable};
 use gpui_kit::*;
 
 /// Between controls in a row, and between stacked blocks.
@@ -62,6 +62,11 @@ pub fn action(id: impl Into<ElementId>, label: impl Into<SharedString>) -> Butto
 /// A quiet action in a toolbar; `on` marks the panel it opens as open.
 pub fn tool(id: impl Into<ElementId>, label: impl Into<SharedString>, on: bool) -> Button {
     Button::new(id).small().ghost().label(label).selected(on)
+}
+
+/// A quiet toolbar button showing only an icon, named in its tooltip.
+pub fn icon_tool(id: impl Into<ElementId>, icon: IconName, tooltip: impl Into<SharedString>) -> Button {
+    Button::new(id).small().ghost().icon(icon).tooltip(tooltip)
 }
 
 /// One-of-several choice, like a segmented control.

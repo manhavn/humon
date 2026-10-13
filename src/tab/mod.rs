@@ -5,11 +5,11 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use gpui_kit::component::Selectable;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::highlighter::HighlightTheme;
 use gpui_kit::component::input::{Editor, EditorState, HighlightStyleResolver, InputEvent, InputHighlighter};
 use gpui_kit::component::{ActiveTheme, Disableable};
+use gpui_kit::component::{IconName, Selectable};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 use serde_json::Value;

@@ -25,6 +25,9 @@ form.uri_required: Bağlantı adresi boş olamaz
 tab.filter_placeholder: "{ alan: 'değer' }"
 tab.projection_placeholder: "{ alan: 1 }"
 tab.find: Bul
+tab.previous: Önceki sayfa
+tab.next: Sonraki sayfa
+tab.refresh: Yenile
 tab.indexes: Index'ler
 tab.explain: Explain
 tab.code: Kod
