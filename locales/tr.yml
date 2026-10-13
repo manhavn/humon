@@ -108,6 +108,10 @@ console.title: Shell
 console.run: Çalıştır
 console.stop: Durdur
 console.clear: Temizle
+console.copy_all: Tümünü kopyala
+console.copy_result: Sonucu kopyala
+console.copy_query: Sorguyu kopyala
+console.run_again: Tekrar çalıştır
 console.running: çalışıyor…
 console.hint: "⌘↵ çalıştırır (seçim varsa sadece onu) · ⌥↑↓ önceki komutlar"
 console.history: Geçmiş

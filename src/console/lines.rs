@@ -44,14 +44,50 @@ pub fn transcript(entries: &[Entry]) -> String {
                 }
             })
             .collect();
-        out.extend(entry.lines.iter().map(|l| match l.kind {
-            LineKind::Value | LineKind::Print => l.text.clone(),
-            LineKind::Info => format!("// {}", l.text),
-            LineKind::Error => format!("// ✖ {}", l.text),
-        }));
+        if !entry.lines.is_empty() {
+            out.push(body(&entry.lines));
+        }
         blocks.push(out.join("\n"));
     }
     blocks.join("\n\n")
+}
+
+/// What a result block shows: values and prints as they are, notes and
+/// errors as `//` comments, so the text stays valid shell code.
+pub fn body(lines: &[Line]) -> String {
+    lines
+        .iter()
+        .map(|l| match l.kind {
+            LineKind::Value | LineKind::Print => l.text.clone(),
+            LineKind::Info => format!("// {}", l.text),
+            LineKind::Error => format!("// ✖ {}", l.text),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// What "copy result" takes: the values and prints, without the notes.
+pub fn result_text(lines: &[Line]) -> String {
+    lines
+        .iter()
+        .filter(|l| matches!(l.kind, LineKind::Value | LineKind::Print))
+        .map(|l| l.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub fn failed(lines: &[Line]) -> bool {
+    lines.iter().any(|l| l.kind == LineKind::Error)
+}
+
+/// A query in one line for a block's header: its first line, with "…" when there is more.
+pub fn summary(code: &str) -> String {
+    let mut lines = code.lines().map(str::trim).filter(|l| !l.is_empty());
+    match (lines.next(), lines.next()) {
+        (Some(first), Some(_)) => format!("{first} …"),
+        (Some(first), None) => first.to_string(),
+        _ => String::new(),
+    }
 }
 
 pub fn lines(outputs: &[Output]) -> Vec<Line> {
@@ -75,7 +111,7 @@ pub fn lines(outputs: &[Output]) -> Vec<Line> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Entry, Line, LineKind, lines, transcript};
+    use super::{Entry, Line, LineKind, body, failed, lines, result_text, summary, transcript};
     use crate::console::engine::Output;
     use serde_json::json;
 
@@ -140,5 +176,27 @@ mod tests {
             vec![l("\"text\"", LineKind::Value)]
         );
         assert_eq!(lines(&[Output::Value(json!([]))]), vec![l("[]", LineKind::Value)]);
+    }
+
+    #[test]
+    fn a_block_shows_everything_and_copies_only_the_result() {
+        let out = vec![
+            l("[", LineKind::Value),
+            l("]", LineKind::Value),
+            l("hi", LineKind::Print),
+            l("Type \"it\" for more", LineKind::Info),
+        ];
+        assert_eq!(body(&out), "[\n]\nhi\n// Type \"it\" for more");
+        assert_eq!(result_text(&out), "[\n]\nhi", "notes aren't part of the result");
+        assert!(!failed(&out));
+        assert!(failed(&[l("boom", LineKind::Error)]));
+        assert_eq!(body(&[l("boom", LineKind::Error)]), "// ✖ boom");
+    }
+
+    #[test]
+    fn a_query_is_summed_up_in_its_first_line() {
+        assert_eq!(summary("db.a.find()"), "db.a.find()");
+        assert_eq!(summary("\n  db.a.find()\n  .limit(1)\n"), "db.a.find() …");
+        assert_eq!(summary(""), "");
     }
 }

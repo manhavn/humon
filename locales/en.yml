@@ -110,6 +110,10 @@ console.title: Shell
 console.run: Run
 console.stop: Stop
 console.clear: Clear
+console.copy_all: Copy all
+console.copy_result: Copy result
+console.copy_query: Copy query
+console.run_again: Run again
 console.running: running…
 console.hint: "⌘↵ runs (just the selection, if any) · ⌥↑↓ earlier commands"
 console.history: History

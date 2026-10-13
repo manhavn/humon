@@ -1,9 +1,10 @@
 //! The shell tab, laid out like Studio 3T's IntelliShell: a multi-line
-//! editor on top, a read-only results pane below that can be selected,
-//! copied and searched like any editor.
+//! editor on top, and below it one block per run: the query in a header with
+//! copy and run-again buttons, and its result in a read-only editor that can
+//! be selected, copied and searched.
 
 use gpui_kit::component::button::{Button, ButtonVariants};
-use gpui_kit::component::input::{Editor, EditorState, InputEvent, Position};
+use gpui_kit::component::input::{Editor, EditorState, InputEvent};
 use gpui_kit::component::{ActiveTheme, Disableable};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -18,7 +19,7 @@ use crate::complete::check::check;
 use crate::complete::shell::arguments;
 use crate::console::complete::ShellCompleter;
 use crate::console::engine::EngineHandle;
-use crate::console::lines::{Entry, Line, LineKind, lines, transcript};
+use crate::console::lines::{Entry, Line, LineKind, body, failed, lines, result_text, summary, transcript};
 use crate::console::recall::Recall;
 use crate::highlight::{shell_editor, show_problems};
 use crate::smart::Smart;
@@ -30,6 +31,17 @@ pub const KEY_CONTEXT: &str = "HumonShell";
 
 /// Commands the history menu lists.
 const HISTORY_ROWS: usize = 20;
+/// Runs kept on screen; older ones drop off the top.
+const MAX_BLOCKS: usize = 100;
+
+/// One run: the command, its output, and the editor showing the output.
+struct Block {
+    id: usize,
+    entry: Entry,
+    editor: Entity<EditorState>,
+    started: std::time::Instant,
+    took: Option<std::time::Duration>,
+}
 
 pub struct ConsoleTab {
     pub id: usize,
@@ -41,10 +53,14 @@ pub struct ConsoleTab {
     completer: Rc<ShellCompleter>,
     handle: Option<EngineHandle>,
     editor: Entity<EditorState>,
-    results: Entity<EditorState>,
+    blocks: Vec<Block>,
+    next_block: usize,
+    /// Keeps the newest block in view.
+    scroll: ScrollHandle,
+    /// Why the shell couldn't start, shown in place of results.
+    start_error: Option<String>,
     smart: Smart,
     recall: Recall,
-    entries: Vec<Entry>,
     running: bool,
     history_open: bool,
     _subscriptions: Vec<Subscription>,
@@ -68,7 +84,6 @@ impl ConsoleTab {
             state.focus(window, cx);
             state
         });
-        let results = cx.new(|cx| shell_editor(window, cx));
         let sub = cx.subscribe_in(
             &editor,
             window,
@@ -89,9 +104,6 @@ impl ConsoleTab {
             Ok(h) => (Some(h), None),
             Err(e) => (None, Some(e)),
         };
-        if let Some(e) = start_error {
-            results.update(cx, |s, cx| s.set_value(format!("// ✖ {e}"), window, cx));
-        }
         Self {
             id,
             conn_id: conn_id.to_string(),
@@ -100,10 +112,12 @@ impl ConsoleTab {
             completer,
             handle,
             editor,
-            results,
+            blocks: Vec::new(),
+            next_block: 0,
+            scroll: ScrollHandle::new(),
+            start_error,
             smart: Smart::default(),
             recall: Recall::default(),
-            entries: Vec::new(),
             running: false,
             history_open: false,
             _subscriptions: vec![sub],
@@ -121,24 +135,6 @@ impl Humon {
         let Some(console) = self.console_mut(id) else { return };
         console.smart.reset(&text);
         console.input_focus(window, cx, text);
-    }
-
-    /// Redraws the results pane and scrolls to its end.
-    fn show_results(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(console) = self.console_mut(id) else { return };
-        let text = transcript(&console.entries);
-        let last = text.lines().count().saturating_sub(1) as u32;
-        console.results.update(cx, |s, cx| {
-            s.set_value(text, window, cx);
-            s.set_cursor_position(
-                Position {
-                    line: last,
-                    character: 0,
-                },
-                window,
-                cx,
-            );
-        });
     }
 
     /// Runs the selection, or the whole editor when nothing is selected. The
@@ -159,16 +155,33 @@ impl Humon {
         let rx = handle.eval(code.clone());
         console.recall.push(&code);
         console.history_open = false;
-        console.entries.push(Entry {
+        let entry = Entry {
             db: console.db.clone(),
             code,
             lines: vec![Line {
                 text: t!("console.running").into(),
                 kind: LineKind::Info,
             }],
+        };
+        let text = body(&entry.lines);
+        let editor = cx.new(|cx| {
+            let mut state = shell_editor(window, cx);
+            state.set_value(text, window, cx);
+            state
         });
+        console.blocks.push(Block {
+            id: console.next_block,
+            entry,
+            editor,
+            started: std::time::Instant::now(),
+            took: None,
+        });
+        console.next_block += 1;
+        if console.blocks.len() > MAX_BLOCKS {
+            console.blocks.remove(0);
+        }
         console.running = true;
-        self.show_results(id, window, cx);
+        console.scroll.scroll_to_bottom();
         cx.spawn_in(window, async move |this, cx| {
             let reply = rx.await;
             this.update_in(cx, |this, window, cx| {
@@ -177,12 +190,15 @@ impl Humon {
                     if let Ok(reply) = reply {
                         console.completion_db.replace(reply.db.clone());
                         console.db = reply.db;
-                        if let Some(entry) = console.entries.last_mut() {
-                            entry.lines = lines(&reply.outputs);
+                        if let Some(block) = console.blocks.last_mut() {
+                            block.entry.lines = lines(&reply.outputs);
+                            block.took = Some(block.started.elapsed());
+                            let text = body(&block.entry.lines);
+                            block.editor.update(cx, |s, cx| s.set_value(text, window, cx));
                         }
                     }
+                    console.scroll.scroll_to_bottom();
                 }
-                this.show_results(id, window, cx);
                 cx.notify();
             })
             .ok();
@@ -260,12 +276,22 @@ impl Humon {
             .child(
                 Button::new(("console-clear", id))
                     .label(t!("console.clear"))
-                    .on_click(cx.listener(move |this, _, window, cx| {
+                    .on_click(cx.listener(move |this, _, _, cx| {
                         if let Some(console) = this.console_mut(id) {
-                            console.entries.clear();
+                            console.blocks.clear();
                         }
-                        this.show_results(id, window, cx);
                         cx.notify();
+                    })),
+            )
+            .child(
+                Button::new(("console-copy-all", id))
+                    .label(t!("console.copy_all"))
+                    .disabled(console.blocks.is_empty())
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(console) = this.console_mut(id) {
+                            let entries: Vec<Entry> = console.blocks.iter().map(|b| b.entry.clone()).collect();
+                            cx.write_to_clipboard(ClipboardItem::new_string(transcript(&entries)));
+                        }
                     })),
             )
             .child(
@@ -356,11 +382,121 @@ impl Humon {
             )
             .child(
                 div()
+                    .id(("console-blocks", id))
                     .flex_1()
                     .min_h_0()
+                    .overflow_y_scroll()
+                    .track_scroll(&console.scroll)
                     .bg(bg)
-                    .child(Editor::new(&console.results).readonly(true).h(relative(1.))),
+                    .when_some(console.start_error.clone(), |d, e| {
+                        d.child(
+                            div()
+                                .px_3()
+                                .py_2()
+                                .text_color(cx.theme().danger)
+                                .child(format!("✖ {e}")),
+                        )
+                    })
+                    .children(console.blocks.iter().map(|b| self.render_block(id, b, cx))),
             )
+    }
+
+    /// One run: a header with the query and, on hover, copy and run-again;
+    /// below it the result. Failed runs get a red edge.
+    fn render_block(&self, id: usize, block: &Block, cx: &mut Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let (border, muted, panel, hover, danger, bg) = (
+            theme.border,
+            theme.muted_foreground,
+            theme.sidebar,
+            theme.list_hover,
+            theme.danger,
+            theme.background,
+        );
+        let mono = theme.mono_font_family.clone();
+        let group: SharedString = format!("block-{id}-{}", block.id).into();
+        let action = |key: &str, label: String| {
+            div()
+                .id(SharedString::from(format!("{key}-{id}-{}", block.id)))
+                .px_2()
+                .border_1()
+                .border_color(border)
+                .rounded_sm()
+                .bg(bg)
+                .cursor_pointer()
+                .hover(|s| s.bg(hover))
+                .child(label)
+        };
+        let result = result_text(&block.entry.lines);
+        let code = block.entry.code.clone();
+        let again = code.clone();
+        let actions = div()
+            .flex_none()
+            .flex()
+            .gap_1()
+            .opacity(0.)
+            .group_hover(group.clone(), |s| s.opacity(1.))
+            .child(
+                action("copy-result", t!("console.copy_result").into()).on_click(move |_, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(result.clone()));
+                }),
+            )
+            .child(
+                action("copy-query", t!("console.copy_query").into()).on_click(move |_, _, cx| {
+                    cx.write_to_clipboard(ClipboardItem::new_string(code.clone()));
+                }),
+            )
+            .child(
+                action("run-again", t!("console.run_again").into()).on_click(cx.listener(
+                    move |this, _, window, cx| {
+                        this.set_console_input(id, again.clone(), window, cx);
+                        this.run_console(id, window, cx);
+                    },
+                )),
+            );
+        let took = match block.took {
+            Some(d) => crate::tab::status::format_duration(d),
+            None => t!("console.running").into(),
+        };
+        let lines = block.editor.read(cx).value().lines().count().max(1);
+        let header = div()
+            .flex()
+            .items_center()
+            .gap_2()
+            .px_3()
+            .py_1()
+            .bg(panel)
+            .text_xs()
+            .child(
+                div()
+                    .flex_none()
+                    .text_color(muted)
+                    .child(format!("{}>", block.entry.db)),
+            )
+            .child(div().flex_1().min_w_0().truncate().child(summary(&block.entry.code)))
+            .child(actions)
+            .child(div().flex_none().text_color(muted).child(took));
+        div()
+            .id(SharedString::from(format!("block-{id}-{}", block.id)))
+            .group(group)
+            .flex()
+            .border_b_1()
+            .border_color(border)
+            .font_family(mono)
+            .child(
+                div()
+                    .w(px(3.))
+                    .flex_none()
+                    .when(failed(&block.entry.lines), |d| d.bg(danger)),
+            )
+            .child(
+                div().flex_1().min_w_0().flex().flex_col().child(header).child(
+                    Editor::new(&block.editor)
+                        .readonly(true)
+                        .h(px((lines as f32 * 18. + 16.).clamp(34., 360.))),
+                ),
+            )
+            .into_any_element()
     }
 }
 
