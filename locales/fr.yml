@@ -1,0 +1,211 @@
+# Français. Pour ajouter une langue, copiez ce fichier vers locales/<code>.yml
+# (par exemple de.yml), traduisez les valeurs et recompilez ; elle apparaît
+# alors dans les Réglages. Conservez les espaces réservés %{...} tels quels.
+_version: 1
+_language_name: Français
+
+app.empty_first: Ajoutez votre première connexion avec le formulaire à gauche.
+app.empty_pick: Choisissez une connexion et une collection à gauche. ⌘-clic ou clic du milieu ouvre un nouvel onglet.
+
+sidebar.connections: Connexions
+sidebar.search: Rechercher des collections…
+sidebar.connecting: Connexion…
+sidebar.loading: Chargement…
+sidebar.no_collections: Aucune collection
+sidebar.no_match: Aucune collection correspondante
+sidebar.confirm_delete: Supprimer ?
+
+form.name: Nom, p. ex. Prod Atlas
+form.uri: mongodb+srv://user:password@cluster.mongodb.net
+form.color: Couleur
+form.no_color: aucune
+form.cancel: Annuler
+form.save: Enregistrer et connecter
+form.uri_required: La chaîne de connexion ne peut pas être vide
+
+tab.filter_placeholder: "{ field: 'value' }"
+tab.projection_placeholder: "{ field: 1 }"
+tab.find: Rechercher
+tab.reset: Réinitialiser
+tab.add: + Ajouter
+tab.view_tree: Arbre
+tab.view_table: Tableau
+tab.view_json: JSON
+tab.loading: Chargement…
+tab.no_docs: Aucun document
+tab.counting: comptage…
+tab.many: beaucoup
+tab.range: "%{from}–%{to} sur %{total}"
+tab.inserted: "%{n} document(s) inséré(s)"
+tab.new_document: Nouveau document
+tab.array_hint: "Pour plusieurs, écrivez un tableau : [{…}, {…}]"
+tab.save_hint: ⌘↵ pour enregistrer
+tab.cancel: Annuler
+tab.save: Enregistrer
+tab.saving: Enregistrement…
+tab.insert: Insérer
+
+card.edit: Modifier
+card.clone: Dupliquer
+card.copy: Copier
+card.delete: Supprimer
+card.confirm_delete: Sûr ?
+
+tree.fields: "{ %{n} champs }"
+tree.array: "Tableau [%{n}]"
+tree.copied: Copié
+
+history.toggle: Historique
+history.save: ☆ Enregistrer
+history.favorites: Favoris
+history.recent: Récentes
+history.empty: Aucune requête enregistrée ou récente
+history.saved: Ajoutée aux favoris
+
+status.counting: comptage…
+status.count_slow: le comptage a pris trop de temps
+status.count_failed: "échec du comptage : %{error}"
+status.documents: "%{n} documents"
+status.filtered: (filtré)
+status.running: requête en cours…
+status.took: "requête %{time}"
+
+kind.view: vue
+kind.timeseries: série temporelle
+
+errors.gone: document introuvable ; quelqu'un l'a peut-être supprimé
+errors.id_immutable: _id ne peut pas être modifié
+errors.collection_exists: "la collection %{name} existe déjà"
+errors.invalid_id: "_id non valide : %{error}"
+errors.keychain: "Keychain : %{error}"
+errors.migrate_secrets: "%{count} mot(s) de passe enregistré(s) n'ont pas pu être déplacés vers le Keychain et restent pour l'instant dans secrets.json. Keychain : %{error}"
+
+export.button: Exporter
+export.page: "Cette page (%{n})"
+export.all: Tous les résultats
+export.all_count: "Tous les résultats (%{n})"
+export.save: Enregistrer…
+export.running: Exportation…
+export.done: "%{n} documents exportés vers %{file}"
+export.csv_note: "CSV : les valeurs imbriquées sont écrites en JSON"
+
+manage.new_db: Nouvelle base de données
+manage.new_coll: Nouvelle collection
+manage.rename: Renommer la collection
+manage.drop_coll: Supprimer la collection
+manage.drop_db: Supprimer la base de données
+manage.db_name: nom de la base de données
+manage.coll_name: nom de la collection
+manage.first_coll: nom de la première collection
+manage.new_name: nouveau nom
+manage.type_to_confirm: "Tapez %{name} pour confirmer. Cette action est irréversible."
+manage.new_db_hint: MongoDB crée une base de données en même temps que sa première collection.
+manage.create: Créer
+manage.rename_button: Renommer
+manage.drop_button: Supprimer
+manage.cancel: Annuler
+manage.name_required: Le nom ne peut pas être vide
+
+console.title: Shell
+console.run: Exécuter
+console.stop: Arrêter
+console.clear: Effacer
+console.copy_all: Tout copier
+console.copy_result: Copier le résultat
+console.copy_query: Copier la requête
+console.run_again: Exécuter à nouveau
+console.delete: Supprimer
+console.running: exécution…
+console.hint: "⌘↵ exécute (seulement la sélection, s'il y en a une) · ⌥↑↓ commandes précédentes"
+console.history: Historique
+console.no_history: Aucune commande pour l'instant
+console.switched: "base %{db} sélectionnée"
+console.more: "Tapez \"it\" pour la suite"
+console.no_cursor: aucun curseur à poursuivre
+console.not_connected: non connecté
+
+palette.placeholder: Rechercher des collections ou ouvrir un shell…
+palette.empty: Aucun résultat
+tab.shell: ">_ Shell"
+
+settings.title: Réglages
+settings.language: Langue
+settings.contribute: Votre langue manque ? Copiez locales/en.yml vers locales/<code>.yml, traduisez-le et envoyez une pull request.
+settings.updates: Mises à jour
+settings.check_updates: Rechercher une nouvelle version sur GitHub au démarrage
+settings.schema: Suggestions de champs
+settings.schema_sample: Documents échantillonnés par collection pour apprendre ses champs
+settings.schema_hint: Plus de documents trouvent les champs rares, mais prennent plus de temps et chargent davantage le serveur. Moins de documents vont plus vite, mais peuvent manquer des champs présents dans quelques documents seulement. Les documents sont lus un par un et non conservés, donc la mémoire utilisée reste la même.
+settings.discover: Rechercher aussi dans toute la collection les champs manqués par l'échantillon
+settings.discover_hint: Après l'échantillonnage, humon demande au serveur les documents qui ne correspondent pas à ce qu'il a vu, jusqu'à ce qu'il n'en reste plus. Les champs et types rares sont trouvés, et les avertissements peuvent indiquer qu'un champ n'existe nulle part. Ces requêtes ne peuvent pas utiliser d'index, donc chacune est limitée à 5 secondes et l'ensemble à 20.
+update.available: "%{version} disponible ↗"
+settings.version: "humon %{version}"
+settings.close: Fermer
+settings.welcome_title: Bienvenue dans humon
+settings.welcome: Choisissez votre langue et vos options ; vous pouvez les modifier à tout moment avec ⚙ dans la barre latérale. Ajoutez ensuite votre première connexion.
+settings.continue: Continuer
+settings.github: GitHub ↗
+settings.thanks: Merci
+
+query.at: "%{msg} (ligne %{line}, colonne %{col})"
+query.must_be_object: "la requête doit être un objet : { ... }"
+query.items_must_be_docs: "chaque élément doit être un document : { ... }"
+query.trailing: caractères inattendus en fin de saisie
+query.expected_value: valeur attendue
+query.expected_char: "'%{c}' attendu"
+query.unexpected_char: "caractère inattendu '%{c}'"
+query.invalid_ejson: "JSON étendu non valide : %{error}"
+query.expected_key: nom de champ attendu
+query.unclosed_string: chaîne non terminée
+query.invalid_escape: échappement \u non valide
+query.unclosed_regex: regex non terminée
+query.expected_number: nombre attendu
+query.invalid_number: "nombre non valide '%{text}'"
+query.invalid_object_id: "ObjectId non valide : %{value}"
+query.object_id_string: ObjectId attend une chaîne
+query.number_int_value: NumberInt attend une valeur
+query.number_int_range: NumberInt hors limites
+query.number_long_value: NumberLong attend une valeur
+query.number_decimal_value: NumberDecimal attend une valeur
+query.invalid_decimal: "décimal non valide : %{value}"
+query.invalid_uuid: "UUID non valide : %{value}"
+query.uuid_string: UUID attend une chaîne
+query.bin_data_subtype: sous-type BinData non valide
+query.bin_data_form: "BinData doit être de la forme BinData(subtype, \"base64\")"
+query.invalid_timestamp: Timestamp non valide
+query.timestamp_form: Timestamp doit être de la forme Timestamp(seconds, increment)
+query.regexp_string: RegExp attend une chaîne
+query.unknown: "expression inconnue : %{name}"
+query.integer_expected_value: "entier attendu : %{value}"
+query.integer_expected: entier attendu
+query.invalid_date: "date non valide : %{value}"
+complete.and: toutes doivent correspondre
+complete.or: une au moins doit correspondre
+complete.nor: aucune ne doit correspondre
+complete.expr: expression d'agrégation
+complete.eq: égal
+complete.ne: différent
+complete.gt: supérieur à
+complete.gte: supérieur ou égal
+complete.lt: inférieur à
+complete.lte: inférieur ou égal
+complete.in: l'un de
+complete.nin: aucun de
+complete.exists: possède le champ
+complete.type: a le type
+complete.regex: correspond à un motif
+complete.elem_match: un élément correspond
+complete.all: contient tous
+complete.size: longueur du tableau
+complete.mod: reste
+complete.not: négation
+check.unknown_field: "%{field} ne figure pas dans les documents échantillonnés."
+check.unknown_field_anywhere: "%{field} ne figure dans aucun document de la collection."
+check.did_you_mean: "Vouliez-vous dire %{name} ?"
+check.unknown_operator: "Opérateur inconnu %{op}."
+check.unknown_argument: "%{op} n'a pas d'argument %{arg}."
+check.missing_argument: "%{op} requiert %{arg}."
+check.type_mismatch: "%{field} contient %{types} dans les documents échantillonnés, pas %{value}."
+check.argument_type: "%{op} attend %{types}."
+check.argument_count: "%{op} attend %{count} valeurs."
+check.one_operator_per_stage: "Une étape contient exactement un opérateur."

@@ -302,4 +302,34 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn every_language_keeps_the_placeholders() {
+        // A translated or dropped %{name} shows up raw, or loses the value.
+        fn placeholders(text: &str) -> Vec<(String, Vec<String>)> {
+            text.lines()
+                .filter(|l| !l.starts_with('#') && !l.starts_with(' ') && l.contains(':'))
+                .map(|l| {
+                    let (key, value) = l.split_once(':').unwrap();
+                    let mut names: Vec<String> = value
+                        .split("%{")
+                        .skip(1)
+                        .filter_map(|p| p.split_once('}').map(|(n, _)| n.to_string()))
+                        .collect();
+                    names.sort();
+                    (key.to_string(), names)
+                })
+                .collect()
+        }
+        let en = placeholders(include_str!("../locales/en.yml"));
+        for code in languages() {
+            let text = std::fs::read_to_string(format!("{}/locales/{code}.yml", env!("CARGO_MANIFEST_DIR"))).unwrap();
+            let theirs = placeholders(&text);
+            for (key, names) in &en {
+                if let Some((_, other)) = theirs.iter().find(|(k, _)| k == key) {
+                    assert_eq!(other, names, "{code}.yml `{key}`");
+                }
+            }
+        }
+    }
 }

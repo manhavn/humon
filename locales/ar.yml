@@ -1,0 +1,211 @@
+# العربية. لإضافة لغة، انسخ هذا الملف إلى locales/<code>.yml
+# (مثلًا de.yml)، وترجم القيم ثم أعد البناء؛ ستظهر عندها
+# في الإعدادات. اترك العناصر النائبة %{...} كما هي.
+_version: 1
+_language_name: العربية
+
+app.empty_first: أضف اتصالك الأول من النموذج على اليسار.
+app.empty_pick: اختر اتصالًا ومجموعة من اليسار. ⌘-نقر أو النقر بالزر الأوسط يفتح علامة تبويب جديدة.
+
+sidebar.connections: الاتصالات
+sidebar.search: ابحث في المجموعات…
+sidebar.connecting: جارٍ الاتصال…
+sidebar.loading: جارٍ التحميل…
+sidebar.no_collections: لا توجد مجموعات
+sidebar.no_match: لا توجد مجموعات مطابقة
+sidebar.confirm_delete: حذف؟
+
+form.name: الاسم، مثل Prod Atlas
+form.uri: mongodb+srv://user:password@cluster.mongodb.net
+form.color: اللون
+form.no_color: بلا
+form.cancel: إلغاء
+form.save: حفظ واتصال
+form.uri_required: لا يمكن أن تكون سلسلة الاتصال فارغة
+
+tab.filter_placeholder: "{ field: 'value' }"
+tab.projection_placeholder: "{ field: 1 }"
+tab.find: بحث
+tab.reset: إعادة تعيين
+tab.add: + إضافة
+tab.view_tree: شجرة
+tab.view_table: جدول
+tab.view_json: JSON
+tab.loading: جارٍ التحميل…
+tab.no_docs: لا توجد مستندات
+tab.counting: جارٍ العد…
+tab.many: كثير
+tab.range: "%{from}–%{to} من %{total}"
+tab.inserted: "تم إدراج %{n} مستند(ات)"
+tab.new_document: مستند جديد
+tab.array_hint: "لإدراج عدة مستندات، اكتب مصفوفة: [{…}, {…}]"
+tab.save_hint: ⌘↵ للحفظ
+tab.cancel: إلغاء
+tab.save: حفظ
+tab.saving: جارٍ الحفظ…
+tab.insert: إدراج
+
+card.edit: تعديل
+card.clone: استنساخ
+card.copy: نسخ
+card.delete: حذف
+card.confirm_delete: متأكد؟
+
+tree.fields: "{ %{n} حقول }"
+tree.array: "مصفوفة [%{n}]"
+tree.copied: تم النسخ
+
+history.toggle: السجل
+history.save: ☆ حفظ
+history.favorites: المفضلة
+history.recent: الأخيرة
+history.empty: لا توجد استعلامات محفوظة أو حديثة بعد
+history.saved: تم الحفظ في المفضلة
+
+status.counting: جارٍ العد…
+status.count_slow: استغرق العد وقتًا طويلًا
+status.count_failed: "فشل العد: %{error}"
+status.documents: "%{n} مستندات"
+status.filtered: (مُصفّاة)
+status.running: جارٍ تنفيذ الاستعلام…
+status.took: "الاستعلام %{time}"
+
+kind.view: عرض
+kind.timeseries: سلسلة زمنية
+
+errors.gone: المستند غير موجود؛ ربما حذفه أحدهم
+errors.id_immutable: لا يمكن تغيير _id
+errors.collection_exists: "المجموعة %{name} موجودة بالفعل"
+errors.invalid_id: "قيمة _id غير صالحة: %{error}"
+errors.keychain: "Keychain: %{error}"
+errors.migrate_secrets: "تعذّر نقل %{count} كلمة (كلمات) مرور محفوظة إلى Keychain، وستبقى في secrets.json حاليًا. Keychain: %{error}"
+
+export.button: تصدير
+export.page: "هذه الصفحة (%{n})"
+export.all: كل النتائج
+export.all_count: "كل النتائج (%{n})"
+export.save: حفظ…
+export.running: جارٍ التصدير…
+export.done: "تم تصدير %{n} مستندات إلى %{file}"
+export.csv_note: "CSV: تُكتب القيم المتداخلة بصيغة JSON"
+
+manage.new_db: قاعدة بيانات جديدة
+manage.new_coll: مجموعة جديدة
+manage.rename: إعادة تسمية المجموعة
+manage.drop_coll: حذف المجموعة
+manage.drop_db: حذف قاعدة البيانات
+manage.db_name: اسم قاعدة البيانات
+manage.coll_name: اسم المجموعة
+manage.first_coll: اسم المجموعة الأولى
+manage.new_name: الاسم الجديد
+manage.type_to_confirm: "اكتب %{name} للتأكيد. لا يمكن التراجع عن ذلك."
+manage.new_db_hint: ينشئ MongoDB قاعدة البيانات مع مجموعتها الأولى.
+manage.create: إنشاء
+manage.rename_button: إعادة تسمية
+manage.drop_button: حذف
+manage.cancel: إلغاء
+manage.name_required: لا يمكن أن يكون الاسم فارغًا
+
+console.title: الطرفية
+console.run: تشغيل
+console.stop: إيقاف
+console.clear: مسح
+console.copy_all: نسخ الكل
+console.copy_result: نسخ النتيجة
+console.copy_query: نسخ الاستعلام
+console.run_again: تشغيل مجددًا
+console.delete: حذف
+console.running: جارٍ التشغيل…
+console.hint: "⌘↵ للتشغيل (التحديد فقط، إن وُجد) · ⌥↑↓ الأوامر السابقة"
+console.history: السجل
+console.no_history: لا توجد أوامر بعد
+console.switched: "تم التبديل إلى قاعدة البيانات %{db}"
+console.more: "اكتب \"it\" للمزيد"
+console.no_cursor: لا يوجد مؤشر للمتابعة
+console.not_connected: غير متصل
+
+palette.placeholder: ابحث في المجموعات أو افتح الطرفية…
+palette.empty: لا توجد نتائج
+tab.shell: ">_ الطرفية"
+
+settings.title: الإعدادات
+settings.language: اللغة
+settings.contribute: لغتك غير موجودة؟ انسخ locales/en.yml إلى locales/<code>.yml، وترجمه وأرسل طلب سحب (pull request).
+settings.updates: التحديثات
+settings.check_updates: التحقق من وجود إصدار جديد على GitHub عند التشغيل
+settings.schema: اقتراحات الحقول
+settings.schema_sample: عدد المستندات المأخوذة كعيّنة من كل مجموعة للتعرّف على حقولها
+settings.schema_hint: المزيد من المستندات يكشف الحقول النادرة لكنه يستغرق وقتًا أطول ويزيد الحمل على الخادم. والعدد الأقل أسرع لكنه قد يُغفل حقولًا لا توجد إلا في بعض المستندات. تُقرأ المستندات واحدًا تلو الآخر ولا يُحتفظ بها، لذا يبقى استخدام الذاكرة كما هو.
+settings.discover: البحث أيضًا في المجموعة كاملةً عن الحقول التي فاتت العيّنة
+settings.discover_hint: بعد أخذ العيّنة، يطلب humon من الخادم المستندات التي لا تطابق ما رآه، حتى لا يتبقى شيء. فتُكتشف الحقول والأنواع النادرة، ويمكن للتحذيرات أن تبيّن أن حقلًا غير موجود في أي مكان. لا يمكن لهذه الاستعلامات استخدام فهرس، لذا يُحدّ كل منها بـ 5 ثوانٍ ومجموعها بـ 20.
+update.available: "%{version} متاح ↗"
+settings.version: "humon %{version}"
+settings.close: إغلاق
+settings.welcome_title: مرحبًا بك في humon
+settings.welcome: اختر لغتك وخياراتك؛ يمكنك تغييرها في أي وقت عبر ⚙ في الشريط الجانبي. ثم أضف اتصالك الأول.
+settings.continue: متابعة
+settings.github: GitHub ↗
+settings.thanks: شكرًا
+
+query.at: "%{msg} (السطر %{line}، العمود %{col})"
+query.must_be_object: "يجب أن يكون الاستعلام كائنًا: { ... }"
+query.items_must_be_docs: "يجب أن يكون كل عنصر مستندًا: { ... }"
+query.trailing: أحرف زائدة غير متوقعة في النهاية
+query.expected_value: يُتوقع قيمة
+query.expected_char: "يُتوقع '%{c}'"
+query.unexpected_char: "حرف غير متوقع '%{c}'"
+query.invalid_ejson: "صيغة Extended JSON غير صالحة: %{error}"
+query.expected_key: يُتوقع اسم حقل
+query.unclosed_string: سلسلة نصية غير مغلقة
+query.invalid_escape: تسلسل هروب \u غير صالح
+query.unclosed_regex: تعبير نمطي غير مغلق
+query.expected_number: يُتوقع رقم
+query.invalid_number: "رقم غير صالح '%{text}'"
+query.invalid_object_id: "قيمة ObjectId غير صالحة: %{value}"
+query.object_id_string: يأخذ ObjectId سلسلة نصية
+query.number_int_value: يأخذ NumberInt قيمة
+query.number_int_range: قيمة NumberInt خارج النطاق
+query.number_long_value: يأخذ NumberLong قيمة
+query.number_decimal_value: يأخذ NumberDecimal قيمة
+query.invalid_decimal: "رقم عشري غير صالح: %{value}"
+query.invalid_uuid: "قيمة UUID غير صالحة: %{value}"
+query.uuid_string: يأخذ UUID سلسلة نصية
+query.bin_data_subtype: نوع فرعي غير صالح لـ BinData
+query.bin_data_form: "يجب أن يكون BinData بالشكل BinData(subtype, \"base64\")"
+query.invalid_timestamp: قيمة Timestamp غير صالحة
+query.timestamp_form: يجب أن يكون Timestamp بالشكل Timestamp(seconds, increment)
+query.regexp_string: يأخذ RegExp سلسلة نصية
+query.unknown: "تعبير غير معروف: %{name}"
+query.integer_expected_value: "يُتوقع عدد صحيح: %{value}"
+query.integer_expected: يُتوقع عدد صحيح
+query.invalid_date: "تاريخ غير صالح: %{value}"
+complete.and: يجب أن تتطابق كلها
+complete.or: يكفي تطابق أيٍّ منها
+complete.nor: يجب ألا يتطابق أيٌّ منها
+complete.expr: تعبير تجميع
+complete.eq: يساوي
+complete.ne: لا يساوي
+complete.gt: أكبر من
+complete.gte: أكبر من أو يساوي
+complete.lt: أصغر من
+complete.lte: أصغر من أو يساوي
+complete.in: واحد من
+complete.nin: ليس أيًّا من
+complete.exists: يحتوي على الحقل
+complete.type: من النوع
+complete.regex: يطابق نمطًا
+complete.elem_match: عنصر واحد يطابق
+complete.all: يحتوي على الكل
+complete.size: طول المصفوفة
+complete.mod: باقي القسمة
+complete.not: ينفي
+check.unknown_field: "الحقل %{field} غير موجود في المستندات المأخوذة كعيّنة."
+check.unknown_field_anywhere: "الحقل %{field} غير موجود في أي مستند من المجموعة."
+check.did_you_mean: "هل تقصد %{name}؟"
+check.unknown_operator: "عامل غير معروف %{op}."
+check.unknown_argument: "لا يقبل %{op} الوسيط %{arg}."
+check.missing_argument: "يحتاج %{op} إلى %{arg}."
+check.type_mismatch: "يحتوي %{field} على %{types} في المستندات المأخوذة كعيّنة، وليس %{value}."
+check.argument_type: "يأخذ %{op} القيم من نوع %{types}."
+check.argument_count: "يأخذ %{op} عدد %{count} من القيم."
+check.one_operator_per_stage: "تحتوي المرحلة على عامل واحد فقط."

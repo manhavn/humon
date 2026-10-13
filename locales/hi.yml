@@ -1,0 +1,211 @@
+# हिन्दी। नई भाषा जोड़ने के लिए इस फ़ाइल को locales/<code>.yml में कॉपी करें
+# (जैसे de.yml), मानों का अनुवाद करें और फिर से build करें; तब वह
+# सेटिंग्स में दिखेगी। %{...} placeholders को जैसा है वैसा ही रखें।
+_version: 1
+_language_name: हिन्दी
+
+app.empty_first: बाईं ओर के फ़ॉर्म से अपना पहला कनेक्शन जोड़ें।
+app.empty_pick: बाईं ओर से एक कनेक्शन और एक कलेक्शन चुनें। ⌘-क्लिक या मिडल-क्लिक से नया टैब खुलता है।
+
+sidebar.connections: कनेक्शन
+sidebar.search: कलेक्शन खोजें…
+sidebar.connecting: कनेक्ट हो रहा है…
+sidebar.loading: लोड हो रहा है…
+sidebar.no_collections: कोई कलेक्शन नहीं
+sidebar.no_match: कोई मिलता-जुलता कलेक्शन नहीं
+sidebar.confirm_delete: हटाएँ?
+
+form.name: नाम, जैसे Prod Atlas
+form.uri: mongodb+srv://user:password@cluster.mongodb.net
+form.color: रंग
+form.no_color: कोई नहीं
+form.cancel: रद्द करें
+form.save: सेव करें और कनेक्ट करें
+form.uri_required: कनेक्शन स्ट्रिंग खाली नहीं हो सकती
+
+tab.filter_placeholder: "{ field: 'value' }"
+tab.projection_placeholder: "{ field: 1 }"
+tab.find: खोजें
+tab.reset: रीसेट
+tab.add: + जोड़ें
+tab.view_tree: ट्री
+tab.view_table: टेबल
+tab.view_json: JSON
+tab.loading: लोड हो रहा है…
+tab.no_docs: कोई डॉक्यूमेंट नहीं
+tab.counting: गिनती हो रही है…
+tab.many: कई
+tab.range: "%{total} में से %{from}–%{to}"
+tab.inserted: "%{n} डॉक्यूमेंट जोड़े गए"
+tab.new_document: नया डॉक्यूमेंट
+tab.array_hint: "एक से ज़्यादा के लिए ऐरे लिखें: [{…}, {…}]"
+tab.save_hint: ⌘↵ से सेव करें
+tab.cancel: रद्द करें
+tab.save: सेव करें
+tab.saving: सेव हो रहा है…
+tab.insert: इन्सर्ट करें
+
+card.edit: एडिट करें
+card.clone: क्लोन करें
+card.copy: कॉपी करें
+card.delete: हटाएँ
+card.confirm_delete: पक्का?
+
+tree.fields: "{ %{n} फ़ील्ड }"
+tree.array: "ऐरे [%{n}]"
+tree.copied: कॉपी हो गया
+
+history.toggle: इतिहास
+history.save: ☆ सेव करें
+history.favorites: पसंदीदा
+history.recent: हाल की
+history.empty: अभी तक कोई सेव की गई या हाल की क्वेरी नहीं
+history.saved: पसंदीदा में सेव किया गया
+
+status.counting: गिनती हो रही है…
+status.count_slow: गिनती में बहुत समय लगा
+status.count_failed: "गिनती विफल: %{error}"
+status.documents: "%{n} डॉक्यूमेंट"
+status.filtered: (फ़िल्टर किया गया)
+status.running: क्वेरी चल रही है…
+status.took: "क्वेरी %{time}"
+
+kind.view: व्यू
+kind.timeseries: टाइमसीरीज़
+
+errors.gone: डॉक्यूमेंट नहीं मिला; शायद किसी ने इसे हटा दिया है
+errors.id_immutable: _id बदला नहीं जा सकता
+errors.collection_exists: "कलेक्शन %{name} पहले से मौजूद है"
+errors.invalid_id: "अमान्य _id: %{error}"
+errors.keychain: "Keychain: %{error}"
+errors.migrate_secrets: "%{count} सेव किए गए पासवर्ड Keychain में नहीं ले जाए जा सके और फ़िलहाल secrets.json में ही रहेंगे। Keychain: %{error}"
+
+export.button: एक्सपोर्ट
+export.page: "यह पेज (%{n})"
+export.all: सभी परिणाम
+export.all_count: "सभी परिणाम (%{n})"
+export.save: सेव करें…
+export.running: एक्सपोर्ट हो रहा है…
+export.done: "%{n} डॉक्यूमेंट %{file} में एक्सपोर्ट किए गए"
+export.csv_note: "CSV: नेस्टेड मान JSON के रूप में लिखे जाते हैं"
+
+manage.new_db: नया डेटाबेस
+manage.new_coll: नया कलेक्शन
+manage.rename: कलेक्शन का नाम बदलें
+manage.drop_coll: कलेक्शन ड्रॉप करें
+manage.drop_db: डेटाबेस ड्रॉप करें
+manage.db_name: डेटाबेस का नाम
+manage.coll_name: कलेक्शन का नाम
+manage.first_coll: पहले कलेक्शन का नाम
+manage.new_name: नया नाम
+manage.type_to_confirm: "पुष्टि के लिए %{name} टाइप करें। इसे वापस नहीं किया जा सकता।"
+manage.new_db_hint: MongoDB डेटाबेस को उसके पहले कलेक्शन के साथ ही बनाता है।
+manage.create: बनाएँ
+manage.rename_button: नाम बदलें
+manage.drop_button: ड्रॉप करें
+manage.cancel: रद्द करें
+manage.name_required: नाम खाली नहीं हो सकता
+
+console.title: शेल
+console.run: चलाएँ
+console.stop: रोकें
+console.clear: साफ़ करें
+console.copy_all: सब कॉपी करें
+console.copy_result: परिणाम कॉपी करें
+console.copy_query: क्वेरी कॉपी करें
+console.run_again: फिर से चलाएँ
+console.delete: हटाएँ
+console.running: चल रहा है…
+console.hint: "⌘↵ चलाता है (कुछ चुना हो तो सिर्फ़ वही) · ⌥↑↓ पिछले कमांड"
+console.history: इतिहास
+console.no_history: अभी तक कोई कमांड नहीं
+console.switched: "db %{db} पर स्विच किया"
+console.more: 'और देखने के लिए "it" टाइप करें'
+console.no_cursor: जारी रखने के लिए कोई कर्सर नहीं
+console.not_connected: कनेक्ट नहीं है
+
+palette.placeholder: कलेक्शन खोजें या शेल खोलें…
+palette.empty: कोई मिलान नहीं
+tab.shell: ">_ शेल"
+
+settings.title: सेटिंग्स
+settings.language: भाषा
+settings.contribute: आपकी भाषा नहीं है? locales/en.yml को locales/<code>.yml में कॉपी करें, उसका अनुवाद करें और पुल रिक्वेस्ट भेजें।
+settings.updates: अपडेट
+settings.check_updates: शुरू होने पर GitHub पर नया वर्ज़न जाँचें
+settings.schema: फ़ील्ड सुझाव
+settings.schema_sample: फ़ील्ड पहचानने के लिए हर कलेक्शन से सैंपल किए जाने वाले डॉक्यूमेंट
+settings.schema_hint: ज़्यादा डॉक्यूमेंट से दुर्लभ फ़ील्ड भी मिल जाते हैं, पर समय ज़्यादा लगता है और सर्वर पर लोड बढ़ता है। कम डॉक्यूमेंट तेज़ हैं, पर वे फ़ील्ड छूट सकते हैं जो सिर्फ़ कुछ डॉक्यूमेंट में हैं। डॉक्यूमेंट एक-एक करके पढ़े जाते हैं और रखे नहीं जाते, इसलिए मेमोरी का उपयोग उतना ही रहता है।
+settings.discover: सैंपल में छूटे फ़ील्ड के लिए पूरे कलेक्शन में भी खोजें
+settings.discover_hint: सैंपलिंग के बाद humon सर्वर से ऐसे डॉक्यूमेंट माँगता है जो अब तक देखे गए से मेल नहीं खाते, जब तक कोई न बचे। इससे दुर्लभ फ़ील्ड और टाइप मिल जाते हैं, और चेतावनी बता सकती है कि कोई फ़ील्ड कहीं मौजूद नहीं है। ये क्वेरी इंडेक्स का उपयोग नहीं कर सकतीं, इसलिए हर एक 5 सेकंड तक और सभी मिलाकर 20 सेकंड तक सीमित हैं।
+update.available: "%{version} उपलब्ध ↗"
+settings.version: "humon %{version}"
+settings.close: बंद करें
+settings.welcome_title: humon में आपका स्वागत है
+settings.welcome: अपनी भाषा और विकल्प चुनें; इन्हें आप कभी भी साइडबार में ⚙ से बदल सकते हैं। फिर अपना पहला कनेक्शन जोड़ें।
+settings.continue: जारी रखें
+settings.github: GitHub ↗
+settings.thanks: धन्यवाद
+
+query.at: "%{msg} (पंक्ति %{line}, कॉलम %{col})"
+query.must_be_object: "क्वेरी एक ऑब्जेक्ट होनी चाहिए: { ... }"
+query.items_must_be_docs: "हर आइटम एक डॉक्यूमेंट होना चाहिए: { ... }"
+query.trailing: अंत में अनपेक्षित अक्षर
+query.expected_value: मान अपेक्षित है
+query.expected_char: "'%{c}' अपेक्षित है"
+query.unexpected_char: "अनपेक्षित अक्षर '%{c}'"
+query.invalid_ejson: "अमान्य extended JSON: %{error}"
+query.expected_key: फ़ील्ड का नाम अपेक्षित है
+query.unclosed_string: स्ट्रिंग बंद नहीं हुई
+query.invalid_escape: अमान्य \u escape
+query.unclosed_regex: regex बंद नहीं हुआ
+query.expected_number: संख्या अपेक्षित है
+query.invalid_number: "अमान्य संख्या '%{text}'"
+query.invalid_object_id: "अमान्य ObjectId: %{value}"
+query.object_id_string: ObjectId को एक स्ट्रिंग चाहिए
+query.number_int_value: NumberInt को एक मान चाहिए
+query.number_int_range: NumberInt सीमा से बाहर है
+query.number_long_value: NumberLong को एक मान चाहिए
+query.number_decimal_value: NumberDecimal को एक मान चाहिए
+query.invalid_decimal: "अमान्य decimal: %{value}"
+query.invalid_uuid: "अमान्य UUID: %{value}"
+query.uuid_string: UUID को एक स्ट्रिंग चाहिए
+query.bin_data_subtype: अमान्य BinData subtype
+query.bin_data_form: 'BinData इस रूप में होना चाहिए: BinData(subtype, "base64")'
+query.invalid_timestamp: अमान्य Timestamp
+query.timestamp_form: Timestamp का रूप Timestamp(seconds, increment) होना चाहिए
+query.regexp_string: RegExp को एक स्ट्रिंग चाहिए
+query.unknown: "अज्ञात एक्सप्रेशन: %{name}"
+query.integer_expected_value: "पूर्णांक अपेक्षित है: %{value}"
+query.integer_expected: पूर्णांक अपेक्षित है
+query.invalid_date: "अमान्य तारीख: %{value}"
+complete.and: सभी मेल खाने चाहिए
+complete.or: कोई भी मेल खा सकता है
+complete.nor: कोई भी मेल न खाए
+complete.expr: एग्रीगेशन एक्सप्रेशन
+complete.eq: बराबर
+complete.ne: बराबर नहीं
+complete.gt: से बड़ा
+complete.gte: बड़ा या बराबर
+complete.lt: से छोटा
+complete.lte: छोटा या बराबर
+complete.in: इनमें से एक
+complete.nin: इनमें से कोई नहीं
+complete.exists: फ़ील्ड मौजूद है
+complete.type: दिया गया टाइप है
+complete.regex: पैटर्न से मेल खाता है
+complete.elem_match: कोई एलिमेंट मेल खाता है
+complete.all: सभी शामिल हैं
+complete.size: ऐरे की लंबाई
+complete.mod: शेषफल
+complete.not: उलट देता है
+check.unknown_field: "%{field} सैंपल किए गए डॉक्यूमेंट में नहीं है।"
+check.unknown_field_anywhere: "%{field} कलेक्शन के किसी भी डॉक्यूमेंट में नहीं है।"
+check.did_you_mean: "क्या आपका मतलब %{name} था?"
+check.unknown_operator: "अज्ञात ऑपरेटर %{op}।"
+check.unknown_argument: "%{op} में %{arg} नाम का कोई आर्ग्युमेंट नहीं है।"
+check.missing_argument: "%{op} को %{arg} चाहिए।"
+check.type_mismatch: "सैंपल किए गए डॉक्यूमेंट में %{field} में %{types} है, %{value} नहीं।"
+check.argument_type: "%{op} %{types} लेता है।"
+check.argument_count: "%{op} %{count} मान लेता है।"
+check.one_operator_per_stage: "एक स्टेज में ठीक एक ऑपरेटर होता है।"

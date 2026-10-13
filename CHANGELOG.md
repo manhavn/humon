@@ -6,6 +6,9 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+- Spanish, French, Chinese (Simplified), Hindi and Arabic. Arabic text
+  shows, but the layout stays left to right
+
 ## [0.1.6] - 2026-10-13
 
 - Shell results are one block per run: the query and its run time in a

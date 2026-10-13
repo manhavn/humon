@@ -1,0 +1,211 @@
+# 简体中文。要添加新语言，请将此文件复制为 locales/<code>.yml
+# （例如 de.yml），翻译其中的值并重新构建，之后即可在“设置”中选择。
+# 请保持 %{...} 占位符不变。
+_version: 1
+_language_name: 简体中文
+
+app.empty_first: 使用左侧表单添加你的第一个连接。
+app.empty_pick: 在左侧选择一个连接和集合。按住 ⌘ 点按或用中键点按可在新标签页中打开。
+
+sidebar.connections: 连接
+sidebar.search: 搜索集合…
+sidebar.connecting: 正在连接…
+sidebar.loading: 正在载入…
+sidebar.no_collections: 没有集合
+sidebar.no_match: 没有匹配的集合
+sidebar.confirm_delete: 删除？
+
+form.name: 名称，例如 Prod Atlas
+form.uri: mongodb+srv://user:password@cluster.mongodb.net
+form.color: 颜色
+form.no_color: 无
+form.cancel: 取消
+form.save: 保存并连接
+form.uri_required: 连接字符串不能为空
+
+tab.filter_placeholder: "{ field: 'value' }"
+tab.projection_placeholder: "{ field: 1 }"
+tab.find: 查找
+tab.reset: 重置
+tab.add: + 添加
+tab.view_tree: 树
+tab.view_table: 表格
+tab.view_json: JSON
+tab.loading: 正在载入…
+tab.no_docs: 没有文档
+tab.counting: 正在计数…
+tab.many: 很多
+tab.range: "%{from}–%{to}，共 %{total}"
+tab.inserted: "已插入 %{n} 个文档"
+tab.new_document: 新建文档
+tab.array_hint: "插入多个文档时，请写成数组：[{…}, {…}]"
+tab.save_hint: ⌘↵ 保存
+tab.cancel: 取消
+tab.save: 保存
+tab.saving: 正在保存…
+tab.insert: 插入
+
+card.edit: 编辑
+card.clone: 克隆
+card.copy: 拷贝
+card.delete: 删除
+card.confirm_delete: 确定吗？
+
+tree.fields: "{ %{n} 个字段 }"
+tree.array: "数组 [%{n}]"
+tree.copied: 已拷贝
+
+history.toggle: 历史记录
+history.save: ☆ 保存
+history.favorites: 收藏
+history.recent: 最近
+history.empty: 还没有已保存或最近的查询
+history.saved: 已添加到收藏
+
+status.counting: 正在计数…
+status.count_slow: 计数耗时过长
+status.count_failed: "计数失败：%{error}"
+status.documents: "%{n} 个文档"
+status.filtered: （已过滤）
+status.running: 查询运行中…
+status.took: "查询 %{time}"
+
+kind.view: 视图
+kind.timeseries: 时间序列
+
+errors.gone: 找不到文档，可能已被他人删除
+errors.id_immutable: _id 不能更改
+errors.collection_exists: "集合 %{name} 已存在"
+errors.invalid_id: "无效的 _id：%{error}"
+errors.keychain: "Keychain：%{error}"
+errors.migrate_secrets: "有 %{count} 个已保存的密码无法移入 Keychain，暂时保留在 secrets.json 中。Keychain：%{error}"
+
+export.button: 导出
+export.page: "当前页（%{n}）"
+export.all: 全部结果
+export.all_count: "全部结果（%{n}）"
+export.save: 保存…
+export.running: 正在导出…
+export.done: "已将 %{n} 个文档导出到 %{file}"
+export.csv_note: "CSV：嵌套值将以 JSON 格式写入"
+
+manage.new_db: 新建数据库
+manage.new_coll: 新建集合
+manage.rename: 重命名集合
+manage.drop_coll: 删除集合
+manage.drop_db: 删除数据库
+manage.db_name: 数据库名称
+manage.coll_name: 集合名称
+manage.first_coll: 第一个集合的名称
+manage.new_name: 新名称
+manage.type_to_confirm: "输入 %{name} 以确认。此操作无法撤销。"
+manage.new_db_hint: MongoDB 会在创建第一个集合时一并创建数据库。
+manage.create: 创建
+manage.rename_button: 重命名
+manage.drop_button: 删除
+manage.cancel: 取消
+manage.name_required: 名称不能为空
+
+console.title: Shell
+console.run: 运行
+console.stop: 停止
+console.clear: 清除
+console.copy_all: 全部拷贝
+console.copy_result: 拷贝结果
+console.copy_query: 拷贝查询
+console.run_again: 再次运行
+console.delete: 删除
+console.running: 运行中…
+console.hint: "⌘↵ 运行（若有选中内容则只运行选中部分）· ⌥↑↓ 之前的命令"
+console.history: 历史记录
+console.no_history: 还没有命令
+console.switched: "已切换到数据库 %{db}"
+console.more: '输入 "it" 查看更多'
+console.no_cursor: 没有可继续的游标
+console.not_connected: 未连接
+
+palette.placeholder: 搜索集合或打开 Shell…
+palette.empty: 没有匹配项
+tab.shell: ">_ Shell"
+
+settings.title: 设置
+settings.language: 语言
+settings.contribute: 没有你的语言？将 locales/en.yml 复制为 locales/<code>.yml，翻译后提交 pull request。
+settings.updates: 更新
+settings.check_updates: 启动时在 GitHub 上检查新版本
+settings.schema: 字段建议
+settings.schema_sample: 每个集合采样的文档数，用于了解其字段
+settings.schema_hint: 采样更多文档能发现少见的字段，但耗时更长，服务器负载也更高；采样较少则更快，但可能遗漏只在部分文档中出现的字段。文档逐个读取且不会保留，因此内存占用保持不变。
+settings.discover: 同时在整个集合中搜索采样遗漏的字段
+settings.discover_hint: 采样完成后，humon 会向服务器查询与已见结构不符的文档，直到没有为止。这样可以发现少见的字段和类型，警告也能指出某个字段在任何文档中都不存在。这些查询无法使用索引，因此每个查询限时 5 秒，总计限时 20 秒。
+update.available: "%{version} 可用 ↗"
+settings.version: "humon %{version}"
+settings.close: 关闭
+settings.welcome_title: 欢迎使用 humon
+settings.welcome: 选择语言和选项，之后可随时通过侧边栏中的 ⚙ 更改。然后添加你的第一个连接。
+settings.continue: 继续
+settings.github: GitHub ↗
+settings.thanks: 致谢
+
+query.at: "%{msg}（第 %{line} 行，第 %{col} 列）"
+query.must_be_object: "查询必须是一个对象：{ ... }"
+query.items_must_be_docs: "每一项都必须是文档：{ ... }"
+query.trailing: 末尾有多余的字符
+query.expected_value: 此处应为值
+query.expected_char: "此处应为 '%{c}'"
+query.unexpected_char: "意外的字符 '%{c}'"
+query.invalid_ejson: "无效的扩展 JSON：%{error}"
+query.expected_key: 此处应为字段名
+query.unclosed_string: 字符串未结束
+query.invalid_escape: 无效的 \u 转义
+query.unclosed_regex: 正则表达式未结束
+query.expected_number: 此处应为数字
+query.invalid_number: "无效的数字 '%{text}'"
+query.invalid_object_id: "无效的 ObjectId：%{value}"
+query.object_id_string: ObjectId 需要一个字符串
+query.number_int_value: NumberInt 需要一个值
+query.number_int_range: NumberInt 超出范围
+query.number_long_value: NumberLong 需要一个值
+query.number_decimal_value: NumberDecimal 需要一个值
+query.invalid_decimal: "无效的小数：%{value}"
+query.invalid_uuid: "无效的 UUID：%{value}"
+query.uuid_string: UUID 需要一个字符串
+query.bin_data_subtype: 无效的 BinData 子类型
+query.bin_data_form: 'BinData 格式应为 BinData(subtype, "base64")'
+query.invalid_timestamp: 无效的 Timestamp
+query.timestamp_form: Timestamp 格式应为 Timestamp(seconds, increment)
+query.regexp_string: RegExp 需要一个字符串
+query.unknown: "未知表达式：%{name}"
+query.integer_expected_value: "此处应为整数：%{value}"
+query.integer_expected: 此处应为整数
+query.invalid_date: "无效的日期：%{value}"
+complete.and: 全部匹配
+complete.or: 任一匹配
+complete.nor: 全不匹配
+complete.expr: 聚合表达式
+complete.eq: 等于
+complete.ne: 不等于
+complete.gt: 大于
+complete.gte: 大于或等于
+complete.lt: 小于
+complete.lte: 小于或等于
+complete.in: 属于其一
+complete.nin: 都不属于
+complete.exists: 包含该字段
+complete.type: 属于该类型
+complete.regex: 匹配模式
+complete.elem_match: 有元素匹配
+complete.all: 包含全部
+complete.size: 数组长度
+complete.mod: 取余
+complete.not: 取反
+check.unknown_field: "采样的文档中没有 %{field}。"
+check.unknown_field_anywhere: "集合中没有任何文档包含 %{field}。"
+check.did_you_mean: "你是不是要输入 %{name}？"
+check.unknown_operator: "未知运算符 %{op}。"
+check.unknown_argument: "%{op} 没有参数 %{arg}。"
+check.missing_argument: "%{op} 需要 %{arg}。"
+check.type_mismatch: "在采样的文档中，%{field} 的类型为 %{types}，而不是 %{value}。"
+check.argument_type: "%{op} 接受 %{types}。"
+check.argument_count: "%{op} 接受 %{count} 个值。"
+check.one_operator_per_stage: "每个阶段只能包含一个运算符。"

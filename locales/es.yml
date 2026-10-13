@@ -1,0 +1,211 @@
+# Español. Para añadir un idioma, copia este archivo a locales/<code>.yml
+# (por ejemplo de.yml), traduce los valores y vuelve a compilar; entonces aparecerá
+# en Ajustes. Deja los marcadores %{...} tal como están.
+_version: 1
+_language_name: Español
+
+app.empty_first: Añade tu primera conexión con el formulario de la izquierda.
+app.empty_pick: Elige una conexión y una colección a la izquierda. ⌘-clic o clic central abre una pestaña nueva.
+
+sidebar.connections: Conexiones
+sidebar.search: Buscar colecciones…
+sidebar.connecting: Conectando…
+sidebar.loading: Cargando…
+sidebar.no_collections: No hay colecciones
+sidebar.no_match: Ninguna colección coincide
+sidebar.confirm_delete: ¿Eliminar?
+
+form.name: Nombre, p. ej. Prod Atlas
+form.uri: mongodb+srv://user:password@cluster.mongodb.net
+form.color: Color
+form.no_color: ninguno
+form.cancel: Cancelar
+form.save: Guardar y conectar
+form.uri_required: La cadena de conexión no puede estar vacía
+
+tab.filter_placeholder: "{ campo: 'valor' }"
+tab.projection_placeholder: "{ campo: 1 }"
+tab.find: Buscar
+tab.reset: Restablecer
+tab.add: + Añadir
+tab.view_tree: Árbol
+tab.view_table: Tabla
+tab.view_json: JSON
+tab.loading: Cargando…
+tab.no_docs: No hay documentos
+tab.counting: contando…
+tab.many: muchos
+tab.range: "%{from}–%{to} de %{total}"
+tab.inserted: "%{n} documento(s) insertado(s)"
+tab.new_document: Nuevo documento
+tab.array_hint: "Para varios, escribe un array: [{…}, {…}]"
+tab.save_hint: ⌘↵ para guardar
+tab.cancel: Cancelar
+tab.save: Guardar
+tab.saving: Guardando…
+tab.insert: Insertar
+
+card.edit: Editar
+card.clone: Duplicar
+card.copy: Copiar
+card.delete: Eliminar
+card.confirm_delete: ¿Seguro?
+
+tree.fields: "{ %{n} campos }"
+tree.array: "Array [%{n}]"
+tree.copied: Copiado
+
+history.toggle: Historial
+history.save: ☆ Guardar
+history.favorites: Favoritos
+history.recent: Recientes
+history.empty: Aún no hay consultas guardadas ni recientes
+history.saved: Guardado en favoritos
+
+status.counting: contando…
+status.count_slow: el conteo tardó demasiado
+status.count_failed: "error al contar: %{error}"
+status.documents: "%{n} documentos"
+status.filtered: (filtrado)
+status.running: ejecutando consulta…
+status.took: "consulta %{time}"
+
+kind.view: vista
+kind.timeseries: serie temporal
+
+errors.gone: documento no encontrado; puede que alguien lo haya eliminado
+errors.id_immutable: _id no se puede cambiar
+errors.collection_exists: "la colección %{name} ya existe"
+errors.invalid_id: "_id no válido: %{error}"
+errors.keychain: "Keychain: %{error}"
+errors.migrate_secrets: "%{count} contraseña(s) guardada(s) no se pudieron mover al Keychain y por ahora siguen en secrets.json. Keychain: %{error}"
+
+export.button: Exportar
+export.page: "Esta página (%{n})"
+export.all: Todos los resultados
+export.all_count: "Todos los resultados (%{n})"
+export.save: Guardar…
+export.running: Exportando…
+export.done: "%{n} documentos exportados a %{file}"
+export.csv_note: "CSV: los valores anidados se escriben como JSON"
+
+manage.new_db: Nueva base de datos
+manage.new_coll: Nueva colección
+manage.rename: Renombrar colección
+manage.drop_coll: Eliminar colección
+manage.drop_db: Eliminar base de datos
+manage.db_name: nombre de la base de datos
+manage.coll_name: nombre de la colección
+manage.first_coll: nombre de la primera colección
+manage.new_name: nuevo nombre
+manage.type_to_confirm: "Escribe %{name} para confirmar. No se puede deshacer."
+manage.new_db_hint: MongoDB crea una base de datos junto con su primera colección.
+manage.create: Crear
+manage.rename_button: Renombrar
+manage.drop_button: Eliminar
+manage.cancel: Cancelar
+manage.name_required: El nombre no puede estar vacío
+
+console.title: Shell
+console.run: Ejecutar
+console.stop: Detener
+console.clear: Limpiar
+console.copy_all: Copiar todo
+console.copy_result: Copiar resultado
+console.copy_query: Copiar consulta
+console.run_again: Volver a ejecutar
+console.delete: Eliminar
+console.running: ejecutando…
+console.hint: "⌘↵ ejecuta (solo la selección, si la hay) · ⌥↑↓ comandos anteriores"
+console.history: Historial
+console.no_history: Aún no hay comandos
+console.switched: "cambiado a la base de datos %{db}"
+console.more: 'Escribe "it" para ver más'
+console.no_cursor: no hay cursor para continuar
+console.not_connected: sin conexión
+
+palette.placeholder: Busca colecciones o abre un shell…
+palette.empty: Sin resultados
+tab.shell: ">_ Shell"
+
+settings.title: Ajustes
+settings.language: Idioma
+settings.contribute: ¿Falta tu idioma? Copia locales/en.yml a locales/<code>.yml, tradúcelo y envía un pull request.
+settings.updates: Actualizaciones
+settings.check_updates: Buscar una nueva versión en GitHub al iniciar
+settings.schema: Sugerencias de campos
+settings.schema_sample: Documentos muestreados por colección para conocer sus campos
+settings.schema_hint: Más documentos encuentran campos poco comunes, pero tardan más y cargan más el servidor. Menos documentos son más rápidos, pero pueden pasar por alto campos que solo tienen algunos documentos. Los documentos se leen uno a uno y no se guardan, así que el uso de memoria no cambia.
+settings.discover: Buscar también en toda la colección los campos que la muestra no encontró
+settings.discover_hint: Tras el muestreo, humon pide al servidor documentos que no encajan con lo que ya ha visto, hasta que no quede ninguno. Así se encuentran campos y tipos poco comunes, y las advertencias pueden indicar que un campo no existe en ningún documento. Estas consultas no pueden usar un índice, así que cada una se limita a 5 segundos y todas juntas a 20.
+update.available: "%{version} disponible ↗"
+settings.version: "humon %{version}"
+settings.close: Cerrar
+settings.welcome_title: Te damos la bienvenida a humon
+settings.welcome: Elige tu idioma y tus opciones; puedes cambiarlos cuando quieras con ⚙ en la barra lateral. Después añade tu primera conexión.
+settings.continue: Continuar
+settings.github: GitHub ↗
+settings.thanks: Agradecimientos
+
+query.at: "%{msg} (línea %{line}, columna %{col})"
+query.must_be_object: "la consulta debe ser un objeto: { ... }"
+query.items_must_be_docs: "cada elemento debe ser un documento: { ... }"
+query.trailing: caracteres inesperados al final
+query.expected_value: se esperaba un valor
+query.expected_char: "se esperaba '%{c}'"
+query.unexpected_char: "carácter inesperado '%{c}'"
+query.invalid_ejson: "JSON extendido no válido: %{error}"
+query.expected_key: se esperaba un nombre de campo
+query.unclosed_string: cadena sin cerrar
+query.invalid_escape: escape \u no válido
+query.unclosed_regex: regex sin cerrar
+query.expected_number: se esperaba un número
+query.invalid_number: "número no válido '%{text}'"
+query.invalid_object_id: "ObjectId no válido: %{value}"
+query.object_id_string: ObjectId recibe una cadena
+query.number_int_value: NumberInt necesita un valor
+query.number_int_range: NumberInt fuera de rango
+query.number_long_value: NumberLong necesita un valor
+query.number_decimal_value: NumberDecimal necesita un valor
+query.invalid_decimal: "decimal no válido: %{value}"
+query.invalid_uuid: "UUID no válido: %{value}"
+query.uuid_string: UUID recibe una cadena
+query.bin_data_subtype: subtipo de BinData no válido
+query.bin_data_form: 'BinData debe ser BinData(subtype, "base64")'
+query.invalid_timestamp: Timestamp no válido
+query.timestamp_form: Timestamp debe ser Timestamp(seconds, increment)
+query.regexp_string: RegExp recibe una cadena
+query.unknown: "expresión desconocida: %{name}"
+query.integer_expected_value: "se esperaba un entero: %{value}"
+query.integer_expected: se esperaba un entero
+query.invalid_date: "fecha no válida: %{value}"
+complete.and: todos deben coincidir
+complete.or: alguno puede coincidir
+complete.nor: ninguno puede coincidir
+complete.expr: expresión de agregación
+complete.eq: igual
+complete.ne: distinto
+complete.gt: mayor que
+complete.gte: mayor o igual
+complete.lt: menor que
+complete.lte: menor o igual
+complete.in: uno de
+complete.nin: ninguno de
+complete.exists: tiene el campo
+complete.type: tiene el tipo
+complete.regex: coincide con un patrón
+complete.elem_match: un elemento coincide
+complete.all: contiene todos
+complete.size: longitud del array
+complete.mod: resto
+complete.not: niega
+check.unknown_field: "%{field} no está en los documentos muestreados."
+check.unknown_field_anywhere: "%{field} no está en ningún documento de la colección."
+check.did_you_mean: "¿Quisiste decir %{name}?"
+check.unknown_operator: "Operador desconocido %{op}."
+check.unknown_argument: "%{op} no tiene el argumento %{arg}."
+check.missing_argument: "%{op} necesita %{arg}."
+check.type_mismatch: "%{field} contiene %{types} en los documentos muestreados, no %{value}."
+check.argument_type: "%{op} recibe %{types}."
+check.argument_count: "%{op} recibe %{count} valores."
+check.one_operator_per_stage: "Una etapa contiene exactamente un operador."

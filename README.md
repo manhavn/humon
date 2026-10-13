@@ -117,7 +117,8 @@ Homebrew, `brew upgrade` installs it.
   `UUID`, …)
 
 **And**
-- English and Turkish; adding a language is one file (see below)
+- English, Turkish, Spanish, French, Chinese (Simplified), Hindi and Arabic; adding a
+  language is one file (see below). Arabic text shows, but the layout stays left to right
 - A welcome on first launch to pick the language and options
 
 ## Keyboard shortcuts
