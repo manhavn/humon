@@ -236,3 +236,6 @@ schema.failed: "无法读取集合的字段：%{error}"
 app.session_skipped: "未重新打开上次会话的标签页：humon 在打开它们时关闭了。"
 explain.plan: "计划：%{stage}，未读取索引或整个集合。"
 explain.unknown: 服务器没有返回可读取的计划。
+indexes.sparse: 稀疏
+indexes.partial: 部分
+indexes.ttl: "TTL %{seconds} 秒"

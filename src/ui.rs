@@ -17,6 +17,8 @@ pub const INSET: f32 = 12.;
 pub const ROW: f32 = 28.;
 /// A bar holding a row of controls.
 pub const BAR: f32 = 44.;
+/// One level of nesting in a tree.
+pub const INDENT: f32 = 16.;
 pub const TEXT: f32 = 13.;
 pub const SMALL: f32 = 12.;
 
@@ -72,6 +74,25 @@ pub fn icon_tool(id: impl Into<ElementId>, icon: IconName, tooltip: impl Into<Sh
 /// One-of-several choice, like a segmented control.
 pub fn segmented(id: impl Into<ElementId>) -> ButtonGroup {
     ButtonGroup::new(id).small().outline()
+}
+
+/// Actions laid over the end of a row while it is hovered, taking no room
+/// from the row's text otherwise.
+pub fn hover_actions(group: impl Into<SharedString>, background: Hsla, muted: Hsla) -> Div {
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .right_0()
+        .pr(px(INSET / 2.))
+        .pl(px(SPACE))
+        .flex()
+        .items_center()
+        .gap_1()
+        .bg(background)
+        .text_color(muted)
+        .invisible()
+        .group_hover(group.into(), |s| s.visible())
 }
 
 /// A secondary line of text.

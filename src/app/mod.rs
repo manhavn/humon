@@ -49,7 +49,7 @@ pub struct Humon {
     pub tabs: Vec<Tab>,
     pub consoles: Vec<ConsoleTab>,
     pub active_tab: Option<usize>,
-    pub(crate) next_tab_id: usize,
+    next_tab_id: usize,
     adding: bool,
     form_name: Entity<InputState>,
     form_uri: Entity<InputState>,
@@ -385,21 +385,30 @@ impl Humon {
         let Some(client) = self.conns[ix].client.clone() else {
             return;
         };
-        let id = self.next_tab_id;
-        self.next_tab_id += 1;
-        let tab = Tab::new(
-            id,
-            &at.conn_id,
-            CollectionRef::new(client, &at.db, &at.coll),
-            at.kind,
-            window,
-            cx,
-        );
-        self.tabs.push(tab);
+        let target = CollectionRef::new(client, &at.db, &at.coll);
+        let id = self.add_tab(&at.conn_id, target, at.kind, window, cx, |_| {});
         self.active_tab = Some(id);
         self.session_dirty = true;
         self.run_query(id, window, cx);
         self.load_schema(id, window, cx);
+    }
+
+    /// Adds a collection tab, set up by `prepare` before it is shown; returns its id.
+    pub(crate) fn add_tab(
+        &mut self,
+        conn_id: &str,
+        target: CollectionRef,
+        kind: CollKind,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        prepare: impl FnOnce(&mut Tab),
+    ) -> usize {
+        let id = self.next_tab_id;
+        self.next_tab_id += 1;
+        let mut tab = Tab::new(id, conn_id, target, kind, window, cx);
+        prepare(&mut tab);
+        self.tabs.push(tab);
+        id
     }
 
     /// Every open tab's id, collections and shells together, in tab order.

@@ -82,42 +82,37 @@ impl Humon {
         let (border, muted, panel) = (theme.border, theme.muted_foreground, theme.sidebar);
         let id = tab.id;
         let mut row = ui::panel(border, panel).flex_row().flex_wrap().items_center();
-        for (format, label) in [(ExportFormat::Json, "JSON"), (ExportFormat::Csv, "CSV")] {
-            row = row.child(
-                Button::new(SharedString::from(format!("format-{label}")))
-                    .small()
-                    .label(label)
-                    .when(tab.export_format == format, |b| b.primary())
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(tab) = this.tab_mut(id) {
-                            tab.export_format = format;
-                        }
-                        cx.notify();
-                    })),
-            );
-        }
+        let formats = [ExportFormat::Json, ExportFormat::Csv];
+        row = row.child(
+            ui::segmented("export-format")
+                .children(formats.iter().zip(["JSON", "CSV"]).map(|(format, label)| {
+                    Button::new(SharedString::from(format!("format-{label}")))
+                        .label(label)
+                        .selected(tab.export_format == *format)
+                }))
+                .on_click(cx.listener(move |this, clicked: &Vec<usize>, _, cx| {
+                    if let (Some(tab), Some(&ix)) = (this.tab_mut(id), clicked.first()) {
+                        tab.export_format = formats[ix];
+                    }
+                    cx.notify();
+                })),
+        );
         let all_label = match &tab.count {
             Count::Known(n) => t!("export.all_count", n = thousands(*n)).to_string(),
             _ => t!("export.all").to_string(),
         };
-        row = row.child(div().w(px(12.)));
-        for (all, label) in [
-            (false, t!("export.page", n = tab.docs.len()).to_string()),
-            (true, all_label),
-        ] {
-            row = row.child(
-                Button::new(SharedString::from(format!("scope-{all}")))
-                    .small()
-                    .label(label)
-                    .when(tab.export_all == all, |b| b.primary())
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        if let Some(tab) = this.tab_mut(id) {
-                            tab.export_all = all;
-                        }
-                        cx.notify();
-                    })),
-            );
-        }
+        let page_label = t!("export.page", n = tab.docs.len()).to_string();
+        row = row.child(
+            ui::segmented("export-scope")
+                .child(Button::new("scope-page").label(page_label).selected(!tab.export_all))
+                .child(Button::new("scope-all").label(all_label).selected(tab.export_all))
+                .on_click(cx.listener(move |this, clicked: &Vec<usize>, _, cx| {
+                    if let (Some(tab), Some(&ix)) = (this.tab_mut(id), clicked.first()) {
+                        tab.export_all = ix == 1;
+                    }
+                    cx.notify();
+                })),
+        );
         row.child(div().flex_1())
             .when(tab.export_format == ExportFormat::Csv, |d| {
                 d.child(div().text_color(muted).child(t!("export.csv_note").to_string()))
@@ -252,19 +247,12 @@ impl Humon {
         if !tab.code_open {
             return;
         }
-        let parse = |label: &str, input: &Entity<EditorState>| {
-            crate::query::parse_document(&input.read(cx).value()).map_err(|e| format!("{label}: {e}"))
-        };
-        let find = (|| {
-            Ok::<_, String>(crate::codegen::Find {
-                db: tab.target.db.clone(),
-                coll: tab.target.name.clone(),
-                filter: parse("Filter", &tab.filter)?,
-                sort: parse("Sort", &tab.sort)?,
-                projection: parse("Project", &tab.projection)?,
-                limit: Some(tab.page_size),
-            })
-        })();
+        let find = crate::codegen::Find::parse(
+            &tab.target.db,
+            &tab.target.name,
+            &tab.typed_query(cx),
+            Some(tab.page_size),
+        );
         match find {
             Ok(find) => {
                 tab.code_error = None;
@@ -280,39 +268,42 @@ impl Humon {
         let theme = cx.theme();
         let (border, panel, danger) = (theme.border, theme.sidebar, theme.danger);
         let id = tab.id;
-        let mut langs = div().flex().flex_wrap().items_center().gap_2();
-        for lang in crate::codegen::Lang::ALL {
-            langs = langs.child(
+        let langs = ui::segmented("code-lang")
+            .children(crate::codegen::Lang::ALL.iter().map(|lang| {
                 Button::new(SharedString::from(format!("code-{}", lang.label())))
-                    .small()
                     .label(lang.label())
-                    .when(tab.code_lang == lang, |b| b.primary())
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        if let Some(tab) = this.tab_mut(id) {
-                            tab.code_lang = lang;
-                        }
-                        this.refresh_code(id, window, cx);
-                        cx.notify();
-                    })),
-            );
-        }
+                    .selected(tab.code_lang == *lang)
+            }))
+            .on_click(cx.listener(move |this, clicked: &Vec<usize>, window, cx| {
+                if let (Some(tab), Some(&ix)) = (this.tab_mut(id), clicked.first()) {
+                    tab.code_lang = crate::codegen::Lang::ALL[ix];
+                }
+                this.refresh_code(id, window, cx);
+                cx.notify();
+            }));
         let code = tab.code_view.read(cx).value().to_string();
         let lines = code.lines().count().max(1);
         ui::panel(border, panel)
             .child(
-                langs.child(div().flex_1()).child(
-                    Button::new("code-copy")
-                        .small()
-                        .label(t!("card.copy"))
-                        .disabled(tab.code_error.is_some())
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            cx.write_to_clipboard(ClipboardItem::new_string(code.clone()));
-                            if let Some(tab) = this.tab_mut(id) {
-                                tab.notice = Some(t!("tree.copied").into());
-                            }
-                            cx.notify();
-                        })),
-                ),
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(ui::SPACE))
+                    .child(langs)
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("code-copy")
+                            .small()
+                            .label(t!("card.copy"))
+                            .disabled(tab.code_error.is_some())
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                cx.write_to_clipboard(ClipboardItem::new_string(code.clone()));
+                                if let Some(tab) = this.tab_mut(id) {
+                                    tab.notice = Some(t!("tree.copied").into());
+                                }
+                                cx.notify();
+                            })),
+                    ),
             )
             .map(|d| match &tab.code_error {
                 Some(e) => d.child(div().text_color(danger).child(e.clone())),
@@ -374,10 +365,15 @@ impl Humon {
     /// Explains what the query bar holds now.
     pub(crate) fn run_explain(&mut self, id: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(tab) = self.tab_mut(id) else { return };
+        let Query {
+            filter,
+            sort,
+            projection,
+        } = tab.typed_query(cx);
         let args = FindArgs {
-            filter: tab.filter.read(cx).value().to_string(),
-            sort: tab.sort.read(cx).value().to_string(),
-            projection: tab.projection.read(cx).value().to_string(),
+            filter,
+            sort,
+            projection,
             skip: 0,
             limit: tab.page_size,
         };
@@ -407,13 +403,13 @@ impl Humon {
                         badges.push(t!("indexes.unique").to_string());
                     }
                     if index.sparse {
-                        badges.push("sparse".to_string());
+                        badges.push(t!("indexes.sparse").to_string());
                     }
                     if index.partial {
-                        badges.push("partial".to_string());
+                        badges.push(t!("indexes.partial").to_string());
                     }
                     if let Some(s) = index.ttl {
-                        badges.push(format!("TTL {s}s"));
+                        badges.push(t!("indexes.ttl", seconds = s).to_string());
                     }
                     let name = index.name.clone();
                     let confirm = tab.confirm_drop_index.as_deref() == Some(index.name.as_str());

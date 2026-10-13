@@ -72,12 +72,7 @@ fn score(item: &Item, query: &str) -> Option<u32> {
 
 /// The command a shell opened from a collection starts with.
 pub fn shell_starter(coll: &str) -> String {
-    let mut chars = coll.chars();
-    let identifier = chars
-        .next()
-        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$');
-    if identifier && !DB_METHODS.contains(&coll) && !coll.starts_with('_') {
+    if crate::shell::is_ident(coll) && !DB_METHODS.contains(&coll) && !coll.starts_with('_') {
         format!("db.{coll}.find()")
     } else {
         format!(

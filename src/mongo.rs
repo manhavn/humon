@@ -45,7 +45,7 @@ fn err(e: mongodb::error::Error) -> String {
     e.to_string()
 }
 
-fn parse_arg(label: &str, src: &str) -> Result<Document, String> {
+pub(crate) fn parse_arg(label: &str, src: &str) -> Result<Document, String> {
     query::parse_document(src).map_err(|e| format!("{label}: {e}"))
 }
 

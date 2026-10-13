@@ -6,6 +6,8 @@ use std::collections::BTreeSet;
 use mongodb::bson::spec::BinarySubtype;
 use mongodb::bson::{Bson, DateTime, Document};
 
+use crate::shell::{is_ident, quote};
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Lang {
     Node,
@@ -39,6 +41,21 @@ pub struct Find {
     pub limit: Option<i64>,
 }
 
+impl Find {
+    /// A find from the query bar's text; errors name the box they came from.
+    pub fn parse(db: &str, coll: &str, query: &crate::history::Query, limit: Option<i64>) -> Result<Find, String> {
+        use crate::mongo::parse_arg;
+        Ok(Find {
+            db: db.to_string(),
+            coll: coll.to_string(),
+            filter: parse_arg("Filter", &query.filter)?,
+            sort: parse_arg("Sort", &query.sort)?,
+            projection: parse_arg("Project", &query.projection)?,
+            limit,
+        })
+    }
+}
+
 /// Imports and helper functions the rendered values need, in order.
 #[derive(Default)]
 struct Needs(BTreeSet<&'static str>);
@@ -47,18 +64,6 @@ impl Needs {
     fn add(&mut self, what: &'static str) {
         self.0.insert(what);
     }
-}
-
-fn quote(s: &str) -> String {
-    serde_json::to_string(s).unwrap_or_default()
-}
-
-fn is_identifier(key: &str) -> bool {
-    let mut chars = key.chars();
-    chars
-        .next()
-        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_' || c == '$')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$')
 }
 
 /// A double that reads as one in `lang`: `2.0`, not `2`; infinities and NaN
@@ -189,7 +194,7 @@ fn node_value(v: &Bson, needs: &mut Needs) -> String {
             let fields: Vec<String> = d
                 .iter()
                 .map(|(k, v)| {
-                    let key = if is_identifier(k) { k.clone() } else { quote(k) };
+                    let key = if is_ident(k) { k.clone() } else { quote(k) };
                     format!("{key}: {}", node_value(v, needs))
                 })
                 .collect();
@@ -887,5 +892,28 @@ FindIterable<Document> cursor = client.getDatabase("shop").getCollection("users"
         assert_eq!(base64(b"abc"), "YWJj");
         assert_eq!(uuid_text(&[0x12; 16]), "12121212-1212-1212-1212-121212121212");
         assert_eq!(uuid_text(&[0xab, 0xcd]), "abcd", "not a UUID: plain hex");
+    }
+
+    #[test]
+    fn parse_names_the_box_with_the_error() {
+        let query = |filter: &str, sort: &str| crate::history::Query {
+            filter: filter.into(),
+            sort: sort.into(),
+            projection: String::new(),
+        };
+        let ok = Find::parse("shop", "users", &query("", ""), Some(20)).unwrap();
+        assert!(ok.filter.is_empty() && ok.sort.is_empty() && ok.limit == Some(20));
+        assert!(
+            Find::parse("shop", "users", &query("{ a: ", ""), None)
+                .err()
+                .unwrap()
+                .starts_with("Filter:")
+        );
+        assert!(
+            Find::parse("shop", "users", &query("", "{ a: "), None)
+                .err()
+                .unwrap()
+                .starts_with("Sort:")
+        );
     }
 }

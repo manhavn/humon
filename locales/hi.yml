@@ -236,3 +236,6 @@ schema.failed: "कलेक्शन के फ़ील्ड नहीं प
 app.session_skipped: "पिछले सत्र के टैब दोबारा नहीं खोले गए: उन्हें खोलते समय humon बंद हो गया था।"
 explain.plan: "प्लान: %{stage}, न इंडेक्स पढ़ा गया न पूरा कलेक्शन।"
 explain.unknown: सर्वर ने पढ़ने लायक कोई प्लान नहीं लौटाया।
+indexes.sparse: स्पार्स
+indexes.partial: आंशिक
+indexes.ttl: "TTL %{seconds} सेकंड"

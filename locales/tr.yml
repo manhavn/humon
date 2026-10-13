@@ -234,3 +234,6 @@ schema.failed: "Koleksiyonun alanları okunamadı: %{error}"
 app.session_skipped: "Son oturumun sekmeleri açılmadı: humon onları açarken kapandı."
 explain.plan: "Plan: %{stage}; ne index ne de tüm koleksiyon okundu."
 explain.unknown: Sunucu okunabilir bir plan döndürmedi.
+indexes.sparse: seyrek
+indexes.partial: kısmi
+indexes.ttl: "TTL %{seconds} sn"

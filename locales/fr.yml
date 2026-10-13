@@ -236,3 +236,6 @@ schema.failed: "Impossible de lire les champs de la collection : %{error}"
 app.session_skipped: "Les onglets de la dernière session n’ont pas été rouverts : humon s’est fermé pendant leur ouverture."
 explain.plan: "Plan : %{stage}, sans lire d’index ni toute la collection."
 explain.unknown: Le serveur n’a renvoyé aucun plan lisible.
+indexes.sparse: creux
+indexes.partial: partiel
+indexes.ttl: "TTL %{seconds} s"

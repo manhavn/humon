@@ -236,3 +236,6 @@ schema.failed: "Couldn't read the collection's fields: %{error}"
 app.session_skipped: "The last session's tabs weren't reopened: humon closed while reopening them."
 explain.plan: "Plan: %{stage}, without reading an index or the whole collection."
 explain.unknown: The server returned no plan to read.
+indexes.sparse: sparse
+indexes.partial: partial
+indexes.ttl: "TTL %{seconds}s"

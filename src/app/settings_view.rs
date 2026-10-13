@@ -1,8 +1,8 @@
 //! The settings page, which is also the first-launch welcome.
 
 use super::*;
-use gpui_kit::component::Sizable;
 use gpui_kit::component::checkbox::Checkbox;
+use gpui_kit::component::{Selectable, Sizable};
 
 /// A titled card holding one group of settings.
 fn section(title: impl Into<SharedString>, border: Hsla, panel: Hsla) -> Div {
@@ -65,20 +65,19 @@ impl Humon {
         }
 
         let chosen = self.settings.schema_sample();
-        let mut samples = div().flex().flex_wrap().gap_1();
-        for &size in crate::schema::SAMPLE_SIZES {
-            samples = samples.child(
+        let samples = crate::ui::segmented("sample-size")
+            .children(crate::schema::SAMPLE_SIZES.iter().map(|size| {
                 Button::new(SharedString::from(format!("sample-{size}")))
-                    .small()
-                    .label(crate::tab::status::thousands(size as u64))
-                    .when(size == chosen, |b| b.primary())
-                    .on_click(cx.listener(move |this, _, _, cx| {
-                        this.settings.schema_sample = Some(size);
-                        this.save_settings();
-                        cx.notify();
-                    })),
-            );
-        }
+                    .label(crate::tab::status::thousands(*size as u64))
+                    .selected(*size == chosen)
+            }))
+            .on_click(cx.listener(|this, clicked: &Vec<usize>, _, cx| {
+                if let Some(&ix) = clicked.first() {
+                    this.settings.schema_sample = Some(crate::schema::SAMPLE_SIZES[ix]);
+                    this.save_settings();
+                }
+                cx.notify();
+            }));
 
         let header = div()
             .flex()

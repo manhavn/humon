@@ -84,7 +84,7 @@ impl Humon {
                         div()
                             .w(px(240.))
                             .flex_none()
-                            .pl(px(row.depth as f32 * 16.))
+                            .pl(px(row.depth as f32 * ui::INDENT))
                             .truncate()
                             .text_color(key_color)
                             .child(row.name),

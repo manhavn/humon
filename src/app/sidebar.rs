@@ -144,21 +144,8 @@ impl Humon {
                 )
                 .child(
                     // Over the end of the row on hover, so it takes no room from the name.
-                    div()
-                        .absolute()
-                        .top_0()
-                        .bottom_0()
-                        .right_0()
-                        .pr(px(ui::INSET / 2.))
-                        .pl(px(ui::SPACE))
-                        .flex()
-                        .items_center()
-                        .gap_1()
-                        .bg(hover)
-                        .text_color(muted)
-                        .when(!confirm && !picking, |d| {
-                            d.invisible().group_hover(group.clone(), |s| s.visible())
-                        })
+                    ui::hover_actions(group.clone(), hover, muted)
+                        .when(confirm || picking, |d| d.visible())
                         .child(
                             icon_button(
                                 format!("color-{id}"),
@@ -296,20 +283,7 @@ impl Humon {
                         db: db.info.name.clone(),
                     },
                 );
-                let db_actions = div()
-                    .absolute()
-                    .top_0()
-                    .bottom_0()
-                    .right_0()
-                    .pr(px(ui::INSET / 2.))
-                    .pl(px(ui::SPACE))
-                    .flex()
-                    .items_center()
-                    .gap_1()
-                    .bg(hover)
-                    .text_color(muted)
-                    .invisible()
-                    .group_hover(db_group.clone(), |s| s.visible())
+                let db_actions = ui::hover_actions(db_group.clone(), hover, muted)
                     .child(icon_button(
                         format!("shelldb-{id}-{di}"),
                         ">_",
@@ -358,7 +332,7 @@ impl Humon {
                         .items_center()
                         .gap(px(6.))
                         .h(px(ui::ROW))
-                        .pl(px(ui::INSET + 16.))
+                        .pl(px(ui::INSET + ui::INDENT))
                         .pr(px(ui::INSET))
                         .cursor_pointer()
                         .hover(|s| s.bg(hover))
@@ -395,7 +369,7 @@ impl Humon {
                 if db.loading {
                     list = list.child(
                         div()
-                            .pl(px(ui::INSET + 32.))
+                            .pl(px(ui::INSET + 2. * ui::INDENT))
                             .h(px(ui::ROW))
                             .flex()
                             .items_center()
@@ -406,7 +380,7 @@ impl Humon {
                 } else if !searching && db.collections.as_ref().is_some_and(|c| c.is_empty()) {
                     list = list.child(
                         div()
-                            .pl(px(ui::INSET + 32.))
+                            .pl(px(ui::INSET + 2. * ui::INDENT))
                             .h(px(ui::ROW))
                             .flex()
                             .items_center()
@@ -450,20 +424,7 @@ impl Humon {
                             coll: coll.name.clone(),
                         },
                     );
-                    let coll_actions = div()
-                        .absolute()
-                        .top_0()
-                        .bottom_0()
-                        .right_0()
-                        .pr(px(ui::INSET / 2.))
-                        .pl(px(ui::SPACE))
-                        .flex()
-                        .items_center()
-                        .gap_1()
-                        .bg(hover)
-                        .text_color(muted)
-                        .invisible()
-                        .group_hover(coll_group.clone(), |s| s.visible())
+                    let coll_actions = ui::hover_actions(coll_group.clone(), hover, muted)
                         .child(icon_button(
                             format!("rename-{id}-{di}-{}", coll.name),
                             "✎",
@@ -500,7 +461,7 @@ impl Humon {
                             .items_center()
                             .gap(px(6.))
                             .h(px(ui::ROW))
-                            .pl(px(ui::INSET + 16. + 16.))
+                            .pl(px(ui::INSET + 2. * ui::INDENT))
                             .pr(px(ui::INSET))
                             .cursor_pointer()
                             .when(is_active, |d| d.bg(active_bg))

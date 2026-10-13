@@ -280,6 +280,13 @@ pub fn json_view_text(docs: &[Value]) -> String {
     to_shell(&Value::Array(docs.to_vec()), "")
 }
 
+/// How a saved collection tab looked: its query, page size and view.
+pub struct SavedView {
+    pub query: Query,
+    pub page_size: i64,
+    pub mode: String,
+}
+
 impl ViewMode {
     fn name(self) -> &'static str {
         match self {
@@ -301,16 +308,31 @@ impl ViewMode {
 }
 
 impl Tab {
+    /// What the query bar holds now, run or not.
+    pub fn typed_query(&self, cx: &App) -> Query {
+        Query {
+            filter: self.filter.read(cx).value().to_string(),
+            sort: self.sort.read(cx).value().to_string(),
+            projection: self.projection.read(cx).value().to_string(),
+        }
+    }
+
     /// What a later launch needs to open this tab again.
     pub fn saved(&self, cx: &App) -> crate::session::SavedTab {
+        let Query {
+            filter,
+            sort,
+            projection,
+        } = self.typed_query(cx);
         crate::session::SavedTab::Collection {
             conn_id: self.conn_id.clone(),
             db: self.target.db.clone(),
             coll: self.target.name.clone(),
             view: self.kind == CollKind::View,
-            filter: self.filter.read(cx).value().to_string(),
-            sort: self.sort.read(cx).value().to_string(),
-            projection: self.projection.read(cx).value().to_string(),
+            timeseries: self.kind == CollKind::Timeseries,
+            filter,
+            sort,
+            projection,
             page_size: self.page_size,
             mode: self.view.name().to_string(),
         }
@@ -419,37 +441,32 @@ impl Humon {
 
     /// Opens a tab saved by an earlier launch, with its query and view, and
     /// loads it without adding to the query history.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn open_saved_collection(
         &mut self,
-        client: mongodb::Client,
         conn_id: &str,
-        db: &str,
-        coll: &str,
-        view: bool,
-        query: Query,
-        page_size: i64,
-        mode: &str,
+        target: CollectionRef,
+        kind: CollKind,
+        saved: SavedView,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> usize {
-        let id = self.next_tab_id;
-        self.next_tab_id += 1;
-        let kind = if view { CollKind::View } else { CollKind::Collection };
-        let mut tab = Tab::new(id, conn_id, CollectionRef::new(client, db, coll), kind, window, cx);
-        tab.page_size = saved_page_size(page_size);
-        tab.view = ViewMode::from_name(mode);
-        let inputs = [
-            (tab.filter.clone(), query.filter.clone()),
-            (tab.sort.clone(), query.sort.clone()),
-            (tab.projection.clone(), query.projection.clone()),
-        ];
-        for (which, (input, text)) in inputs.into_iter().enumerate() {
-            tab.smart[which].reset(&text);
-            input.update(cx, |s, cx| s.set_value(text, window, cx));
+        let SavedView { query, page_size, mode } = saved;
+        let id = self.add_tab(conn_id, target, kind, window, cx, |tab| {
+            tab.page_size = saved_page_size(page_size);
+            tab.view = ViewMode::from_name(&mode);
+        });
+        if let Some(tab) = self.tab_mut(id) {
+            let inputs = [
+                (tab.filter.clone(), query.filter.clone()),
+                (tab.sort.clone(), query.sort.clone()),
+                (tab.projection.clone(), query.projection.clone()),
+            ];
+            for (which, (input, text)) in inputs.into_iter().enumerate() {
+                tab.smart[which].reset(&text);
+                input.update(cx, |s, cx| s.set_value(text, window, cx));
+            }
+            tab.applied = query;
         }
-        tab.applied = query;
-        self.tabs.push(tab);
         self.refresh(id, window, cx);
         self.load_schema(id, window, cx);
         id

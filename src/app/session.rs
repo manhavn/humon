@@ -84,6 +84,7 @@ impl Humon {
                     db,
                     coll,
                     view,
+                    timeseries,
                     filter,
                     sort,
                     projection,
@@ -91,24 +92,19 @@ impl Humon {
                     mode,
                     ..
                 } => {
+                    let kind = match (view, timeseries) {
+                        (true, _) => CollKind::View,
+                        (_, true) => CollKind::Timeseries,
+                        _ => CollKind::Collection,
+                    };
                     let query = Query {
                         filter,
                         sort,
                         projection,
                     };
-                    let id = self.open_saved_collection(
-                        client.clone(),
-                        conn_id,
-                        &db,
-                        &coll,
-                        view,
-                        query,
-                        page_size,
-                        &mode,
-                        window,
-                        cx,
-                    );
-                    Some(id)
+                    let target = CollectionRef::new(client.clone(), &db, &coll);
+                    let saved = crate::tab::SavedView { query, page_size, mode };
+                    Some(self.open_saved_collection(conn_id, target, kind, saved, window, cx))
                 }
                 SavedTab::Unknown => None,
                 SavedTab::Shell { db, code, .. } => {

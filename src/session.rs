@@ -18,6 +18,8 @@ pub enum SavedTab {
         #[serde(default)]
         view: bool,
         #[serde(default)]
+        timeseries: bool,
+        #[serde(default)]
         filter: String,
         #[serde(default)]
         sort: String,
@@ -152,6 +154,7 @@ mod tests {
             db: "shop".into(),
             coll: coll.into(),
             view: false,
+            timeseries: false,
             filter: "{ age: { $gt: 30 } }".into(),
             sort: String::new(),
             projection: String::new(),
