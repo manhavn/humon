@@ -98,6 +98,7 @@ impl ConsoleTab {
                         console.smart.on_change(&input, false, window, cx);
                         console.check(cx);
                     }
+                    this.session_dirty = true;
                 }
                 _ => {}
             },
@@ -548,6 +549,15 @@ impl Humon {
 }
 
 impl ConsoleTab {
+    /// What a later launch needs to open this shell again.
+    pub fn saved(&self, cx: &App) -> crate::session::SavedTab {
+        crate::session::SavedTab::Shell {
+            conn_id: self.conn_id.clone(),
+            db: self.db.clone(),
+            code: self.editor.read(cx).value().to_string(),
+        }
+    }
+
     /// Underlines problems in every MQL argument of the script, against the
     /// schemas completion has fetched (operators are checked without one).
     fn check(&self, cx: &mut Context<Humon>) {

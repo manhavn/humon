@@ -6,6 +6,15 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+- Open tabs come back on the next launch, with their queries, views and
+  shell scripts; their connections connect on their own
+- Schema view: the collection's fields, nested, with how often each
+  appears and its types
+- Indexes panel: list, create (with field completion) and drop indexes
+- Explain: whether a query used an index, how much it read and how long
+  it took
+- The query as driver code for Node.js, Python, Go, Java and Rust
+
 - Spanish, French, Chinese (Simplified), Hindi and Arabic. Arabic text
   shows, but the layout stays left to right
 

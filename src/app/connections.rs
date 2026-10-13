@@ -45,10 +45,11 @@ impl Humon {
             },
             window,
             cx,
-            move |this, res, _, _| {
+            move |this, res, window, cx| {
                 let Some(ix) = this.conn_ix(&id) else { return };
                 let conn = &mut this.conns[ix];
                 conn.connecting = false;
+                let connected = res.is_ok();
                 match res {
                     Ok((client, dbs)) => {
                         conn.client = Some(client);
@@ -64,6 +65,9 @@ impl Humon {
                             .collect();
                     }
                     Err(e) => conn.error = Some(e),
+                }
+                if connected {
+                    this.open_pending(&id, window, cx);
                 }
             },
         );

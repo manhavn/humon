@@ -14,6 +14,7 @@ mod mql;
 mod palette;
 mod query;
 mod schema;
+mod session;
 mod settings;
 mod shell;
 mod smart;

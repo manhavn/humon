@@ -23,6 +23,7 @@ use rust_i18n::t;
 mod connection_form;
 mod connections;
 mod quick_open;
+mod session;
 mod settings_view;
 mod sidebar;
 mod tabs_bar;
@@ -48,7 +49,7 @@ pub struct Humon {
     pub tabs: Vec<Tab>,
     pub consoles: Vec<ConsoleTab>,
     pub active_tab: Option<usize>,
-    next_tab_id: usize,
+    pub(crate) next_tab_id: usize,
     adding: bool,
     form_name: Entity<InputState>,
     form_uri: Entity<InputState>,
@@ -76,6 +77,15 @@ pub struct Humon {
     palette_input: Entity<InputState>,
     palette_selected: usize,
     focus: FocusHandle,
+    /// Tabs from the last launch whose connection isn't open yet, with
+    /// their place in the saved order.
+    pending: Vec<(usize, crate::session::SavedTab)>,
+    /// The saved order's active tab, made active again when it opens.
+    pending_active: Option<usize>,
+    /// The open tabs changed; the session file is rewritten on the next render.
+    pub(crate) session_dirty: bool,
+    /// session.json couldn't be read; it is kept as it is for the user to look at.
+    session_broken: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -209,6 +219,20 @@ impl Humon {
         // Passwords from before the Keychain move there now; failures are reported, never lost.
         let migrate_error = store.migrate_secrets().err();
         let load_error = load_error.or(history_error).or(migrate_error);
+        // The tabs of the last launch reopen as their connections come up. An
+        // unreadable session file is reported and left alone, never overwritten.
+        let (session, session_error) = match crate::session::Session::load_from(&crate::session::Session::default_path())
+        {
+            Ok(session) => (session, None),
+            Err(e) => (crate::session::Session::default(), Some(e)),
+        };
+        let session_broken = session_error.is_some();
+        let load_error = load_error.or(session_error);
+        let quit_sub = cx.on_app_quit(|this: &mut Self, cx| {
+            this.persist_session(cx);
+            async {}
+        });
+        cx.defer_in(window, |this, window, cx| this.restore_session(window, cx));
         let adding = saved.is_empty();
         let welcome = settings.is_first_launch(!saved.is_empty());
         Self {
@@ -248,7 +272,14 @@ impl Humon {
             palette_input,
             palette_selected: 0,
             focus,
-            _subscriptions: [search_sub, palette_sub].into_iter().chain(form_subs).collect(),
+            pending: session.tabs.into_iter().enumerate().collect(),
+            pending_active: session.active,
+            session_dirty: false,
+            session_broken,
+            _subscriptions: [search_sub, palette_sub, quit_sub]
+                .into_iter()
+                .chain(form_subs)
+                .collect(),
         }
     }
 
@@ -349,6 +380,7 @@ impl Humon {
         );
         self.tabs.push(tab);
         self.active_tab = Some(id);
+        self.session_dirty = true;
         self.run_query(id, window, cx);
         self.load_schema(id, window, cx);
     }
@@ -366,6 +398,7 @@ impl Humon {
     }
 
     pub fn close_tab(&mut self, id: usize) {
+        self.session_dirty = true;
         let ids = self.tab_ids();
         self.tabs.retain(|t| t.id != id);
         // Dropping a shell's engine handle stops and ends its thread.
@@ -394,6 +427,7 @@ impl Humon {
         let console = ConsoleTab::new(id, saved_id, client, db, sampling, window, cx);
         self.consoles.push(console);
         self.active_tab = Some(id);
+        self.session_dirty = true;
         self.close_settings();
         Some(id)
     }
@@ -413,6 +447,10 @@ impl Humon {
 
 impl Render for Humon {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.session_dirty {
+            self.session_dirty = false;
+            self.persist_session(cx);
+        }
         let theme = cx.theme();
         let (bg, fg, muted) = (theme.background, theme.foreground, theme.muted_foreground);
         let console = self

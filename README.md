@@ -68,7 +68,8 @@ Homebrew, `brew upgrade` installs it.
 - Connections → databases → collections, with a quick collection search
 - Quick open (⌘K): jump to any collection or a database's shell by typing,
   e.g. `users`, `shop.ord` or `>_ logs`
-- Tabs, including the same collection twice (⌘-click or middle-click)
+- Tabs, including the same collection twice (⌘-click or middle-click); open tabs,
+  their queries and shell scripts come back on the next launch
 
 **Query**
 - Filter, sort and project in mongo shell syntax:
@@ -82,6 +83,11 @@ Homebrew, `brew upgrade` installs it.
   documents that don't fit it, until none are left, so rare fields and types are
   found too and a warning can say a field exists nowhere (both in Settings)
 - Tree, table and JSON views; the JSON view can be selected, copied and searched
+- A Schema view: every field nested under its parent, how often it appears, its types
+- Explain: whether the query used an index or read the whole collection, and how many
+  documents and keys it read to return how many
+- Indexes: list them, create one (with field completion), drop one
+- The query as driver code for Node.js, Python, Go, Java or Rust
 - Query history and favorites for every collection
 - Status bar with the document count and how long the query took
 - Export to JSON or CSV, streamed to disk so big exports stay light
@@ -146,8 +152,8 @@ Homebrew, `brew upgrade` installs it.
 - Because humon isn't signed yet, macOS may ask to let it use the Keychain after an
   update; choose "Always Allow". The Keychain protects passwords at rest, not on a
   machine someone else already controls.
-- The same folder holds `history.json` (recent and favorite queries) and
-  `settings.json`.
+- The same folder holds `history.json` (recent and favorite queries), `settings.json`
+  and `session.json` (the open tabs, their queries and shell scripts).
 - To learn a collection's fields, humon reads a sample of it and, unless turned off,
   runs a few queries for documents that don't fit the sample. Those can't use an
   index, so each is limited to 5 seconds and all of them to 20. Both are in
@@ -214,14 +220,11 @@ missing something? [Open an issue](https://github.com/yldrmzffr/humon/issues).
 
 - [ ] Tab menu: duplicate, close others (and ⌘D)
 - [ ] More shortcuts: ⌘T, ⌘W, ⌘1–9, ⌘R
-- [ ] Remember open tabs and queries between launches
 - [ ] Read-only connections, so production can't be changed by accident
 - [ ] Aggregation pipeline editor with stage previews
-- [ ] Indexes: list, create, drop, and `explain`
 - [ ] Edit a single field without opening the whole document
 - [ ] Update or delete many documents by filter (with confirmation)
 - [ ] Import from JSON / CSV
-- [ ] Schema overview: fields, types, how often they appear (the data is already there)
 - [ ] SSH tunnel and TLS certificate options
 - [ ] Notarized macOS releases (no first-launch warning), then the main Homebrew repo
 - [ ] Linux and Windows builds
