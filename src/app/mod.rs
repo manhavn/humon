@@ -203,6 +203,7 @@ impl Humon {
             },
         );
         let settings = Settings::load_from(&Settings::default_path()).unwrap_or_default();
+        settings.apply();
         if settings.check_updates() {
             Self::check_for_update(cx);
         }
@@ -232,7 +233,9 @@ impl Humon {
         let load_error = load_error.or(session_error);
         // If the last launch closed while reopening tabs, one of them may be why:
         // start without them this time instead of failing the same way again.
-        let (session, skipped) = if crate::session::restore_crashed() {
+        let (session, skipped) = if !settings.restore_session() {
+            (crate::session::Session::default(), None)
+        } else if crate::session::restore_crashed() {
             (
                 crate::session::Session::default(),
                 Some(t!("app.session_skipped").to_string()),
@@ -332,6 +335,7 @@ impl Humon {
     }
 
     pub fn save_settings(&mut self) {
+        self.settings.apply();
         if let Err(e) = self.settings.save_to(&Settings::default_path()) {
             self.load_error = Some(e);
         }

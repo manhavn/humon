@@ -108,6 +108,9 @@ impl CompletionProvider for ShellCompleter {
         _: &mut Window,
         cx: &mut App,
     ) -> Task<anyhow::Result<CompletionResponse>> {
+        if !crate::settings::suggestions_on() {
+            return Task::ready(Ok(CompletionResponse::Array(vec![])));
+        }
         let spot = spot(&text.to_string(), offset);
         let fetch = match self.inner.lookup(&spot) {
             Ok(data) => return Task::ready(Ok(respond(text, offset, &spot, &data))),

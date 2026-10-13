@@ -141,6 +141,14 @@ settings.title: Réglages
 settings.language: Langue
 settings.contribute: Votre langue manque ? Copiez locales/en.yml vers locales/<code>.yml, traduisez-le et envoyez une pull request.
 settings.updates: Mises à jour
+settings.tabs: "Onglets"
+settings.restore: "Rouvrir mes onglets et leurs connexions au démarrage"
+settings.restore_hint: "Les onglets, leurs requêtes et scripts du shell sont gardés dans session.json, à côté de vos réglages."
+settings.scripts: "Garder les scripts du shell dans les onglets rouverts"
+settings.scripts_hint: "Désactivez-le si vos scripts contiennent des mots de passe : ils sont enregistrés en clair."
+settings.editor: "Éditeur"
+settings.suggestions: "Suggérer champs et opérateurs pendant la saisie"
+settings.warnings: "Souligner les problèmes pendant la saisie"
 settings.check_updates: Rechercher une nouvelle version sur GitHub au démarrage
 settings.schema: Suggestions de champs
 settings.schema_sample: Documents échantillonnés par collection pour apprendre ses champs

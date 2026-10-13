@@ -76,6 +76,17 @@ impl Session {
     pub fn save_to(&self, path: &Path) -> Result<(), String> {
         files::write_json(path, self)
     }
+
+    /// The same tabs with every shell emptied, for when scripts may hold
+    /// passwords and shouldn't be written down.
+    pub fn without_scripts(mut self) -> Session {
+        for tab in &mut self.tabs {
+            if let SavedTab::Shell { code, .. } = tab {
+                code.clear();
+            }
+        }
+        self
+    }
 }
 
 /// Marks the start of reopening tabs; removed once it has gone well.
@@ -251,5 +262,29 @@ mod tests {
         restore_started_in(&dir);
         assert!(restore_crashed_in(&dir), "closed while restoring");
         assert!(!restore_crashed_in(&dir), "skipped once, then back to normal");
+    }
+
+    #[test]
+    fn scripts_can_be_left_out() {
+        let session = Session {
+            tabs: vec![collection("a", "users"), shell("a")],
+            active: Some(1),
+        };
+        let kept = session.without_scripts();
+        assert_eq!(
+            kept.tabs[0],
+            collection("a", "users"),
+            "collection tabs keep their query"
+        );
+        assert_eq!(
+            kept.tabs[1],
+            SavedTab::Shell {
+                conn_id: "a".into(),
+                db: "shop".into(),
+                code: String::new()
+            },
+            "the shell tab stays, empty"
+        );
+        assert_eq!(kept.active, Some(1));
     }
 }

@@ -141,6 +141,14 @@ settings.title: Ajustes
 settings.language: Idioma
 settings.contribute: ¿Falta tu idioma? Copia locales/en.yml a locales/<code>.yml, tradúcelo y envía un pull request.
 settings.updates: Actualizaciones
+settings.tabs: "Pestañas"
+settings.restore: "Reabrir mis pestañas y sus conexiones al iniciar"
+settings.restore_hint: "Las pestañas, sus consultas y scripts del shell se guardan en session.json, junto a tus ajustes."
+settings.scripts: "Conservar los scripts del shell en las pestañas reabiertas"
+settings.scripts_hint: "Desactívalo si tus scripts contienen contraseñas: se guardan como texto plano."
+settings.editor: "Editor"
+settings.suggestions: "Sugerir campos y operadores mientras escribo"
+settings.warnings: "Subrayar problemas mientras escribo"
 settings.check_updates: Buscar una nueva versión en GitHub al iniciar
 settings.schema: Sugerencias de campos
 settings.schema_sample: Documentos muestreados por colección para conocer sus campos

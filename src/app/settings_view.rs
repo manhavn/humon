@@ -1,6 +1,7 @@
 //! The settings page, which is also the first-launch welcome.
 
 use super::*;
+use crate::settings::Settings;
 use gpui_kit::component::checkbox::Checkbox;
 use gpui_kit::component::{Selectable, Sizable};
 
@@ -140,6 +141,51 @@ impl Humon {
             )
             .child(hint(t!("settings.discover_hint"), muted));
 
+        let check = |id: &'static str, label: String, on: bool, set: fn(&mut Settings, bool)| {
+            Checkbox::new(id)
+                .label(label)
+                .checked(on)
+                .on_click(cx.listener(move |this, checked: &bool, _, cx| {
+                    set(&mut this.settings, *checked);
+                    this.save_settings();
+                    cx.notify();
+                }))
+        };
+        let tabs = section(t!("settings.tabs"), border, panel)
+            .child(check(
+                "restore-session",
+                t!("settings.restore").to_string(),
+                self.settings.restore_session(),
+                |s, on| {
+                    s.restore_session = Some(on);
+                    if !on {
+                        // Nothing is kept once this is off, not even the last session.
+                        let _ = std::fs::remove_file(crate::session::Session::default_path());
+                    }
+                },
+            ))
+            .child(hint(t!("settings.restore_hint"), muted))
+            .child(check(
+                "session-scripts",
+                t!("settings.scripts").to_string(),
+                self.settings.session_scripts(),
+                |s, on| s.session_scripts = Some(on),
+            ))
+            .child(hint(t!("settings.scripts_hint"), muted));
+        let editor = section(t!("settings.editor"), border, panel)
+            .child(check(
+                "suggestions",
+                t!("settings.suggestions").to_string(),
+                self.settings.suggestions(),
+                |s, on| s.suggestions = Some(on),
+            ))
+            .child(check(
+                "warnings",
+                t!("settings.warnings").to_string(),
+                self.settings.warnings(),
+                |s, on| s.warnings = Some(on),
+            ));
+
         let updates = section(t!("settings.updates"), border, panel).child(
             Checkbox::new("check-updates")
                 .label(t!("settings.check_updates").to_string())
@@ -210,6 +256,8 @@ impl Humon {
                         .child(header)
                         .when(self.welcome, |d| d.child(welcome))
                         .child(language)
+                        .child(tabs)
+                        .child(editor)
                         .child(suggestions)
                         .child(updates)
                         .child(thanks)

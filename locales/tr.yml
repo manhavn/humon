@@ -139,6 +139,14 @@ settings.title: Ayarlar
 settings.language: Dil
 settings.contribute: Dilin yok mu? locales/en.yml dosyasını locales/<kod>.yml olarak kopyala, çevir ve pull request gönder.
 settings.updates: Güncellemeler
+settings.tabs: "Sekmeler"
+settings.restore: "Açılışta sekmelerimi ve bağlantılarını geri aç"
+settings.restore_hint: "Sekmeler, sorguları ve shell betikleri ayarlarının yanındaki session.json dosyasında tutulur."
+settings.scripts: "Geri açılan sekmelerde shell betiklerini sakla"
+settings.scripts_hint: "Betiklerinde şifre varsa bunu kapat: betikler düz metin olarak kaydedilir."
+settings.editor: "Editör"
+settings.suggestions: "Yazarken alan ve operatör öner"
+settings.warnings: "Yazarken sorunların altını çiz"
 settings.check_updates: Açılışta GitHub'da yeni sürüm var mı bak
 settings.schema: Alan önerileri
 settings.schema_sample: Alanları öğrenmek için koleksiyon başına örneklenen belge sayısı

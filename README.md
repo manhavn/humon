@@ -144,7 +144,8 @@ installs it).
   update; choose "Always Allow". The Keychain protects passwords at rest, not on a
   machine someone else already controls.
 - The same folder holds `history.json` (recent and favorite queries), `settings.json`
-  and `session.json` (the open tabs, their queries and shell scripts).
+  and `session.json` (the open tabs, their queries and shell scripts). Turn off
+  reopening tabs, or only keeping scripts, in Settings.
 - To learn a collection's fields, humon reads a sample of it and, unless turned off,
   runs a few queries for documents that don't fit the sample. Those can't use an
   index, so each is limited to 5 seconds and all of them to 20. To spare a busy

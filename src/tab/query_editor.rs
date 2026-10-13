@@ -68,6 +68,9 @@ impl CompletionProvider for QueryCompleter {
         _: &mut Window,
         _: &mut App,
     ) -> Task<anyhow::Result<CompletionResponse>> {
+        if !crate::settings::suggestions_on() {
+            return Task::ready(Ok(CompletionResponse::Array(vec![])));
+        }
         let Some(schema) = self.schema.borrow().clone() else {
             return Task::ready(Ok(CompletionResponse::Array(vec![])));
         };

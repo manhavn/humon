@@ -25,6 +25,8 @@ All notable changes to humon. The format follows
 - If humon closes while reopening tabs, the next launch starts without them
   once, instead of failing the same way again
 - Explain reads sharded plans and names plans like `IDHACK` correctly
+- Settings to turn off reopening tabs (and their connections), keeping shell
+  scripts in saved tabs, suggestions while typing, and warnings while typing
 
 ## [0.1.6] - 2026-10-13
 

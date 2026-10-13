@@ -141,6 +141,14 @@ settings.title: الإعدادات
 settings.language: اللغة
 settings.contribute: لغتك غير موجودة؟ انسخ locales/en.yml إلى locales/<code>.yml، وترجمه وأرسل طلب سحب (pull request).
 settings.updates: التحديثات
+settings.tabs: "علامات التبويب"
+settings.restore: "إعادة فتح علامات التبويب واتصالاتها عند التشغيل"
+settings.restore_hint: "تُحفظ علامات التبويب واستعلاماتها ونصوص الطرفية في session.json بجانب إعداداتك."
+settings.scripts: "الاحتفاظ بنصوص الطرفية في علامات التبويب المعاد فتحها"
+settings.scripts_hint: "أوقف هذا إن كانت نصوصك تحتوي على كلمات مرور: تُحفظ النصوص كنص عادي."
+settings.editor: "المحرر"
+settings.suggestions: "اقتراح الحقول والمعاملات أثناء الكتابة"
+settings.warnings: "وضع خط تحت المشكلات أثناء الكتابة"
 settings.check_updates: التحقق من وجود إصدار جديد على GitHub عند التشغيل
 settings.schema: اقتراحات الحقول
 settings.schema_sample: عدد المستندات المأخوذة كعيّنة من كل مجموعة للتعرّف على حقولها

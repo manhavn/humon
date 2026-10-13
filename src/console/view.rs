@@ -562,7 +562,12 @@ impl ConsoleTab {
     fn check(&self, cx: &mut Context<Humon>) {
         let text = self.editor.read(cx).value().to_string();
         let mut problems = Vec::new();
-        for arg in arguments(&text) {
+        let args = if crate::settings::warnings_on() {
+            arguments(&text)
+        } else {
+            Vec::new()
+        };
+        for arg in args {
             let schema = self
                 .completer
                 .cached_schema(arg.db.as_deref(), &arg.coll)

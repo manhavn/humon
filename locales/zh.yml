@@ -141,6 +141,14 @@ settings.title: 设置
 settings.language: 语言
 settings.contribute: 没有你的语言？将 locales/en.yml 复制为 locales/<code>.yml，翻译后提交 pull request。
 settings.updates: 更新
+settings.tabs: "标签页"
+settings.restore: "启动时重新打开我的标签页及其连接"
+settings.restore_hint: "标签页、其查询和 shell 脚本保存在设置旁的 session.json 中。"
+settings.scripts: "在重新打开的标签页中保留 shell 脚本"
+settings.scripts_hint: "如果脚本中包含密码，请关闭此项：脚本以纯文本保存。"
+settings.editor: "编辑器"
+settings.suggestions: "输入时建议字段和操作符"
+settings.warnings: "输入时为问题加下划线"
 settings.check_updates: 启动时在 GitHub 上检查新版本
 settings.schema: 字段建议
 settings.schema_sample: 每个集合采样的文档数，用于了解其字段

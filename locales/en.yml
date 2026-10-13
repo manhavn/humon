@@ -141,6 +141,14 @@ settings.title: Settings
 settings.language: Language
 settings.contribute: Missing your language? Copy locales/en.yml to locales/<code>.yml, translate it and send a pull request.
 settings.updates: Updates
+settings.tabs: "Tabs"
+settings.restore: "Reopen my tabs and their connections on launch"
+settings.restore_hint: "Tabs, their queries and shell scripts are kept in session.json, next to your settings."
+settings.scripts: "Keep shell scripts in reopened tabs"
+settings.scripts_hint: "Turn this off if your scripts hold passwords: scripts are saved as plain text."
+settings.editor: "Editor"
+settings.suggestions: "Suggest fields and operators as I type"
+settings.warnings: "Underline problems as I type"
 settings.check_updates: Check GitHub for a new version on start
 settings.schema: Field suggestions
 settings.schema_sample: Documents sampled per collection to learn its fields

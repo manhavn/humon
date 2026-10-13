@@ -23,11 +23,17 @@ impl Humon {
     }
 
     pub(crate) fn persist_session(&self, cx: &App) {
-        if self.session_broken {
+        if self.session_broken || !self.settings.restore_session() {
             return;
         }
         // Losing the session only costs the tabs next time; nothing to report.
-        let _ = self.session(cx).save_to(&Session::default_path());
+        let session = self.session(cx);
+        let session = if self.settings.session_scripts() {
+            session
+        } else {
+            session.without_scripts()
+        };
+        let _ = session.save_to(&Session::default_path());
     }
 
     /// Connects every connection the saved tabs need.

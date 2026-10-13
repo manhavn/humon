@@ -1,10 +1,24 @@
 //! App settings (language, update checks, schema sample size), stored next to the saved connections.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
 
 use crate::files;
+
+static SUGGESTIONS: AtomicBool = AtomicBool::new(true);
+static WARNINGS: AtomicBool = AtomicBool::new(true);
+
+/// Whether to suggest while typing (see [`Settings::apply`]).
+pub fn suggestions_on() -> bool {
+    SUGGESTIONS.load(Ordering::Relaxed)
+}
+
+/// Whether to underline problems while typing (see [`Settings::apply`]).
+pub fn warnings_on() -> bool {
+    WARNINGS.load(Ordering::Relaxed)
+}
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct Settings {
@@ -20,6 +34,18 @@ pub struct Settings {
     /// Search the whole collection for fields the sample missed; None means yes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub discover_schema: Option<bool>,
+    /// Reopen the last launch's tabs (and connect what they need); None means yes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub restore_session: Option<bool>,
+    /// Keep shell scripts in the saved tabs; None means yes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_scripts: Option<bool>,
+    /// Suggest fields and operators while typing; None means yes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggestions: Option<bool>,
+    /// Underline problems while typing; None means yes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warnings: Option<bool>,
     /// The first-launch welcome (the settings page) has been shown and closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub welcomed: Option<bool>,
@@ -44,6 +70,29 @@ impl Settings {
             size: self.schema_sample(),
             discover: self.discover_schema(),
         }
+    }
+
+    pub fn restore_session(&self) -> bool {
+        self.restore_session.unwrap_or(true)
+    }
+
+    pub fn session_scripts(&self) -> bool {
+        self.session_scripts.unwrap_or(true)
+    }
+
+    pub fn suggestions(&self) -> bool {
+        self.suggestions.unwrap_or(true)
+    }
+
+    pub fn warnings(&self) -> bool {
+        self.warnings.unwrap_or(true)
+    }
+
+    /// Makes the editor settings take effect: completion and warnings read
+    /// them on every keystroke, from these flags rather than the file.
+    pub fn apply(&self) {
+        SUGGESTIONS.store(self.suggestions(), Ordering::Relaxed);
+        WARNINGS.store(self.warnings(), Ordering::Relaxed);
     }
 
     pub fn discover_schema(&self) -> bool {
@@ -181,6 +230,10 @@ mod tests {
             check_updates: Some(false),
             schema_sample: Some(500),
             discover_schema: Some(false),
+            restore_session: Some(false),
+            session_scripts: Some(false),
+            suggestions: Some(false),
+            warnings: Some(false),
             welcomed: Some(true),
         }
         .save_to(&path)
@@ -190,6 +243,7 @@ mod tests {
         assert!(!loaded.check_updates(), "every setting survives a save");
         assert_eq!(loaded.schema_sample(), 500);
         assert!(!loaded.is_first_launch(false));
+        assert!(!loaded.restore_session() && !loaded.session_scripts() && !loaded.suggestions() && !loaded.warnings());
         assert!(!loaded.discover_schema());
         std::fs::write(&path, "[").unwrap();
         assert!(Settings::load_from(&path).is_err());
@@ -348,5 +402,16 @@ mod tests {
         ] {
             assert_eq!(resolve(system, &available), code, "{system}");
         }
+    }
+
+    #[test]
+    fn experience_settings_are_on_unless_turned_off() {
+        let on = Settings::default();
+        assert!(on.restore_session() && on.session_scripts() && on.suggestions() && on.warnings());
+        let off: Settings = serde_json::from_str(
+            r#"{"restore_session": false, "session_scripts": false, "suggestions": false, "warnings": false}"#,
+        )
+        .unwrap();
+        assert!(!off.restore_session() && !off.session_scripts() && !off.suggestions() && !off.warnings());
     }
 }

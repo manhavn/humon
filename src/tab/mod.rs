@@ -380,7 +380,11 @@ impl Humon {
         let mode = [Mode::Filter, Mode::Sort, Mode::Project][which];
         let schema = tab.schema.borrow().clone().unwrap_or_default();
         let text = input.read(cx).value().to_string();
-        let problems = check(&text, mode, &schema);
+        let problems = if crate::settings::warnings_on() {
+            check(&text, mode, &schema)
+        } else {
+            Vec::new()
+        };
         input.update(cx, |s, cx| show_problems(s, problems, cx));
     }
 
