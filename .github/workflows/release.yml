@@ -56,4 +56,26 @@ jobs:
             dist/*.zip
             dist/SHA256SUMS.txt
 
+      # Points the cask in yldrmzffr/homebrew-tap at this release. Needs a
+      # HOMEBREW_TAP_TOKEN secret allowed to push to that repo; without it the
+      # step does nothing.
+      - name: Update the Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::notice::HOMEBREW_TAP_TOKEN is not set; the Homebrew tap was not updated"
+            exit 0
+          fi
+          sha=$(shasum -a 256 "dist/humon-$VERSION-macos-universal.zip" | cut -d' ' -f1)
+          git clone "https://x-access-token:$TAP_TOKEN@github.com/yldrmzffr/homebrew-tap.git" tap
+          mkdir -p tap/Casks
+          ./scripts/homebrew-cask.sh "$VERSION" "$sha" > tap/Casks/humon.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/humon.rb
+          git diff --cached --quiet || git commit -m "humon $VERSION"
+          git push
+
   # Linux and Windows jobs go here when those builds are ready.

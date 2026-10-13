@@ -37,8 +37,15 @@ It is built to be fast and light:
 
 ## Install
 
-Download the latest `.dmg` from [Releases](https://github.com/yldrmzffr/humon/releases/latest),
-open it and drag humon into Applications. It runs on Apple Silicon and Intel Macs
+With [Homebrew](https://brew.sh):
+
+```sh
+brew install --cask yldrmzffr/tap/humon
+```
+
+`brew upgrade` keeps it up to date. Or download the latest `.dmg` from
+[Releases](https://github.com/yldrmzffr/humon/releases/latest), open it and drag humon
+into Applications. It runs on Apple Silicon and Intel Macs
 (macOS 12 or newer).
 
 The app is not notarized by Apple yet, so the first launch is blocked with a warning.

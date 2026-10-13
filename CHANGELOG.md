@@ -6,6 +6,9 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+- Install with Homebrew: `brew install --cask yldrmzffr/tap/humon` (#2); each
+  release updates the cask
+
 - Passwords are stored in the macOS Keychain instead of `secrets.json` (#1).
   Existing passwords move there on start; the file is deleted once all have
   moved, and any that can't move stay usable and are retried next time
