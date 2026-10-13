@@ -544,6 +544,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn connection_strings_may_ask_for_compression() {
+        // Atlas puts `compressors=` in the URIs it hands out (issue #4).
+        let opts = ClientOptions::parse("mongodb://localhost/?compressors=zstd,zlib,snappy")
+            .await
+            .unwrap();
+        assert_eq!(opts.compressors.map(|c| c.len()), Some(3));
+    }
+
+    #[tokio::test]
+    #[ignore = "needs a live MongoDB"]
+    async fn live_compressed_connection() {
+        let uri = std::env::var("HUMON_TEST_URI").expect("HUMON_TEST_URI");
+        let sep = if uri.contains('?') { '&' } else { '?' };
+        for compressor in ["zlib", "zstd", "snappy"] {
+            let c = open(format!("{uri}{sep}compressors={compressor}")).await.unwrap();
+            assert!(!databases(c).await.unwrap().is_empty(), "{compressor}");
+        }
+    }
+
+    #[tokio::test]
     #[ignore = "needs a live MongoDB"]
     async fn live_browse() {
         let c = client().await;

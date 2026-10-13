@@ -6,6 +6,12 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-13
+
+- Connection strings with `compressors=` (as Atlas hands out) connect
+  instead of failing with "compressors is an invalid option"; zlib, zstd
+  and snappy are supported (#4)
+
 - Schema discovery (#3): after sampling, humon asks the server for
   documents that don't fit what it has seen, until none are left, so rare
   fields and types are found too. Warnings then say a field exists nowhere
