@@ -6,6 +6,8 @@ All notable changes to humon. The format follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-13
+
 - Completion in the shell: collections after `db.`, collection and cursor
   methods, and the collection's fields and every operator inside `find`,
   `aggregate`, `updateOne` and other calls
