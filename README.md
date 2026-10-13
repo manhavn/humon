@@ -249,6 +249,10 @@ missing something? [Open an issue](https://github.com/yldrmzffr/humon/issues).
 | `src/history.rs`, `src/settings.rs`, `src/files.rs` | Query history, settings, and the JSON files behind them |
 | `scripts/` | Release, app bundle and Homebrew cask scripts, the MQL table generator, test data |
 
+## Thanks
+
+- [Jérôme Tamarelle (@GromNaN)](https://github.com/GromNaN)
+
 ## License
 
 [MIT](LICENSE). The operator definitions in `src/mql/spec.rs` are generated from
