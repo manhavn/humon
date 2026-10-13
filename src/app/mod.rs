@@ -84,6 +84,8 @@ pub struct Humon {
     pending_active: Option<usize>,
     /// The open tabs changed; the session file is rewritten on the next render.
     pub(crate) session_dirty: bool,
+    /// Decoded once; drawn in the sidebar's header.
+    pub(crate) logo: std::sync::Arc<gpui_kit::Image>,
     /// session.json couldn't be read; it is kept as it is for the user to look at.
     session_broken: bool,
     _subscriptions: Vec<Subscription>,
@@ -275,6 +277,10 @@ impl Humon {
             pending: session.tabs.into_iter().enumerate().collect(),
             pending_active: session.active,
             session_dirty: false,
+            logo: std::sync::Arc::new(gpui_kit::Image::from_bytes(
+                gpui_kit::ImageFormat::Png,
+                include_bytes!("../../assets/logo-64.png").to_vec(),
+            )),
             session_broken,
             _subscriptions: [search_sub, palette_sub, quit_sub]
                 .into_iter()

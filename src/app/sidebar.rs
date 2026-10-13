@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::ui;
-use gpui_kit::component::Sizable;
+use gpui_kit::component::button::{Button, ButtonVariants};
+use gpui_kit::component::{Selectable, Sizable};
 
 impl Humon {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -26,52 +27,47 @@ impl Humon {
             .flex()
             .flex_col()
             .overflow_y_scroll()
+            // The app's name, then what the list is: like a Mac app's sidebar.
             .child(
                 div()
                     .flex()
+                    .flex_none()
                     .items_center()
-                    .justify_between()
+                    .gap(px(ui::SPACE))
                     .h(px(ui::BAR))
                     .px(px(ui::INSET))
-                    .text_size(px(ui::SMALL))
-                    .text_color(muted)
-                    .font_weight(FontWeight::SEMIBOLD)
-                    .child(t!("sidebar.connections").to_string())
+                    .child(img(self.logo.clone()).size(px(20.)).flex_none())
                     .child(
                         div()
-                            .flex()
-                            .gap_1()
-                            .child(
-                                div()
-                                    .id("settings")
-                                    .px_2()
-                                    .rounded_sm()
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(hover))
-                                    .child("⚙")
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        if this.show_settings {
-                                            this.close_settings();
-                                        } else {
-                                            this.show_settings = true;
-                                        }
-                                        cx.notify();
-                                    })),
-                            )
-                            .child(
-                                div()
-                                    .id("add-conn")
-                                    .px_2()
-                                    .rounded_sm()
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(hover))
-                                    .child("+")
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.adding = !this.adding;
-                                        cx.notify();
-                                    })),
-                            ),
+                            .flex_1()
+                            .text_size(px(15.))
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .child("humon"),
+                    )
+                    .child(
+                        Button::new("add-conn")
+                            .small()
+                            .ghost()
+                            .label("+")
+                            .tooltip(t!("sidebar.new_connection"))
+                            .selected(self.adding)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.adding = !this.adding;
+                                cx.notify();
+                            })),
                     ),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_none()
+                    .items_center()
+                    .h(px(ui::ROW))
+                    .px(px(ui::INSET))
+                    .text_size(px(11.))
+                    .text_color(muted)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(t!("sidebar.connections").to_uppercase()),
             )
             .when(self.adding, |d| d.child(self.render_form(cx)))
             .when(!self.conns.is_empty(), |d| {
@@ -564,11 +560,12 @@ impl Humon {
             .flex_none()
             .items_center()
             .justify_between()
-            .px_3()
-            .py_1()
+            .gap(px(ui::SPACE))
+            .h(px(ui::BAR))
+            .px(px(ui::INSET))
             .border_t_1()
             .border_color(border)
-            .text_xs()
+            .text_size(px(ui::SMALL))
             .text_color(muted)
             .child(
                 div()
@@ -580,6 +577,7 @@ impl Humon {
                     .child(format!("humon {}", crate::version::VERSION))
                     .on_click(|_, _, cx| cx.open_url(crate::version::REPO_URL)),
             )
+            .child(div().flex_1())
             .when_some(self.update.clone(), |d, release| {
                 d.child(
                     div()
@@ -593,6 +591,22 @@ impl Humon {
                         .on_click(move |_, _, cx| cx.open_url(&release.url)),
                 )
             })
+            .child(
+                Button::new("settings")
+                    .small()
+                    .ghost()
+                    .label("⚙")
+                    .tooltip(t!("settings.title"))
+                    .selected(self.show_settings)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        if this.show_settings {
+                            this.close_settings();
+                        } else {
+                            this.show_settings = true;
+                        }
+                        cx.notify();
+                    })),
+            )
     }
 }
 
