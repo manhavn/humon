@@ -7,10 +7,23 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-/// `~/Library/Application Support/dev.muzaffer.humon`.
+/// `~/Library/Application Support/dev.muzaffer.humon` on macOS,
+/// `~/.config/humon` on Linux.
 pub fn config_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_default();
-    PathBuf::from(home).join("Library/Application Support/dev.muzaffer.humon")
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var("HOME").unwrap_or_default();
+        PathBuf::from(home).join("Library/Application Support/dev.muzaffer.humon")
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+            PathBuf::from(xdg).join("humon")
+        } else {
+            let home = std::env::var("HOME").unwrap_or_default();
+            PathBuf::from(home).join(".config/humon")
+        }
+    }
 }
 
 /// Reads JSON; a missing file is the default value, a corrupt one an error.
@@ -99,7 +112,14 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn config_dir_is_under_application_support() {
         assert!(config_dir().ends_with("Library/Application Support/dev.muzaffer.humon"));
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn config_dir_is_under_config() {
+        assert!(config_dir().ends_with(".config/humon") || config_dir().ends_with("humon"));
     }
 }

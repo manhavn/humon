@@ -22,27 +22,33 @@ pub trait Secrets {
     fn delete(&self, id: &str) -> Result<(), String>;
 }
 
+#[cfg(target_os = "macos")]
 /// The macOS Keychain: one generic password per connection, under `service`.
 pub struct Keychain {
     service: &'static str,
 }
 
+#[cfg(target_os = "macos")]
 pub const KEYCHAIN_SERVICE: &str = "dev.muzaffer.humon";
 
+#[cfg(target_os = "macos")]
 impl Keychain {
     pub fn new(service: &'static str) -> Self {
         Self { service }
     }
 }
 
+#[cfg(target_os = "macos")]
 /// `errSecItemNotFound`
 const NOT_FOUND: i32 = -25300;
 
+#[cfg(target_os = "macos")]
 fn keychain_error(e: security_framework::base::Error) -> String {
     let detail = e.message().unwrap_or_else(|| format!("OSStatus {}", e.code()));
     t!("errors.keychain", error = detail).into()
 }
 
+#[cfg(target_os = "macos")]
 impl Secrets for Keychain {
     fn get(&self, id: &str) -> Result<Option<String>, String> {
         match security_framework::passwords::get_generic_password(self.service, id) {
@@ -64,6 +70,41 @@ impl Secrets for Keychain {
             Err(e) if e.code() != NOT_FOUND => Err(keychain_error(e)),
             _ => Ok(()),
         }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+/// File-backed secrets stored securely with 0600 permissions.
+pub struct FileSecrets {
+    path: PathBuf,
+}
+
+#[cfg(not(target_os = "macos"))]
+impl FileSecrets {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+impl Secrets for FileSecrets {
+    fn get(&self, id: &str) -> Result<Option<String>, String> {
+        let map: HashMap<String, String> = files::read_json(&self.path)?;
+        Ok(map.get(id).cloned())
+    }
+
+    fn set(&self, id: &str, password: &str) -> Result<(), String> {
+        let mut map: HashMap<String, String> = files::read_json(&self.path)?;
+        map.insert(id.to_string(), password.to_string());
+        files::write_json(&self.path, &map)
+    }
+
+    fn delete(&self, id: &str) -> Result<(), String> {
+        let mut map: HashMap<String, String> = files::read_json(&self.path)?;
+        if map.remove(id).is_some() {
+            files::write_json(&self.path, &map)?;
+        }
+        Ok(())
     }
 }
 
@@ -90,7 +131,11 @@ pub struct Store {
 
 impl Default for Store {
     fn default() -> Self {
-        Self::new(files::config_dir(), Box::new(Keychain::new(KEYCHAIN_SERVICE)))
+        #[cfg(target_os = "macos")]
+        let secrets: Box<dyn Secrets> = Box::new(Keychain::new(KEYCHAIN_SERVICE));
+        #[cfg(not(target_os = "macos"))]
+        let secrets: Box<dyn Secrets> = Box::new(FileSecrets::new(files::config_dir().join("credentials.json")));
+        Self::new(files::config_dir(), secrets)
     }
 }
 
@@ -490,6 +535,7 @@ mod tests {
     /// whose runners may have no unlocked keychain.
     #[test]
     #[ignore = "uses the real macOS Keychain"]
+    #[cfg(target_os = "macos")]
     fn keychain_round_trip() {
         let keychain = Keychain::new("dev.muzaffer.humon.test");
         let id = format!("test-{}", std::process::id());
@@ -501,5 +547,21 @@ mod tests {
         keychain.delete(&id).unwrap();
         assert_eq!(keychain.get(&id).unwrap(), None);
         keychain.delete(&id).unwrap();
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn file_secrets_round_trip() {
+        let dir = test_dir("store-file-secrets");
+        let secrets = FileSecrets::new(dir.join("credentials.json"));
+        let id = "test-conn-1";
+        assert_eq!(secrets.get(id).unwrap(), None);
+        secrets.set(id, "p@ss:wörd").unwrap();
+        assert_eq!(secrets.get(id).unwrap().as_deref(), Some("p@ss:wörd"));
+        secrets.set(id, "changed").unwrap();
+        assert_eq!(secrets.get(id).unwrap().as_deref(), Some("changed"));
+        secrets.delete(id).unwrap();
+        assert_eq!(secrets.get(id).unwrap(), None);
+        secrets.delete(id).unwrap();
     }
 }
